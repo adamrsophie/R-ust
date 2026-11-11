@@ -59,7 +59,7 @@ cargo run -q -p r_ust_cli -- example.R
 
 **Syntax and evaluation**
 
-- Numeric, logical, character, and `NULL` literals
+- Double, integer (`1L`), logical, character, and `NULL` literals
 - Assignment with `<-`, `=`, `->`, `<<-`, and `->>`, including replacement through `[`, `[[`, `$`, and `names<-`
 - Control flow: `if`/`else`, `for`, `while`, `repeat`, `break`, `next`, and `return()`
 - Closures with lazily evaluated arguments and defaults, `missing()`, `...` forwarding, and exact named and positional argument matching
@@ -90,7 +90,7 @@ cargo run -q -p r_ust_cli -- example.R
 
 R-ust does not yet provide an interactive console, reference semantics for environments, general replacement functions, full attribute support (including row names and arrays), formulas, S3 and S4 dispatch, namespaces and package loading, condition handling, connections, graphics, serialization, or the base and recommended packages.
 
-Output formatting differs from R in places: numbers print with up to 12 significant digits instead of R's default of 7, names are not yet shown when printing named vectors, and character vectors are not column aligned.
+Output formatting differs from R in places: numbers generally use 12 decimal places with trailing zeros trimmed, while tiny values use 12 significant digits. R defaults to 7 significant digits. Names are not yet shown when printing named vectors, and character vectors are not column aligned.
 
 Several Rmath families use different algorithms from R, and their agreement with R has not yet been validated across the full parameter range:
 

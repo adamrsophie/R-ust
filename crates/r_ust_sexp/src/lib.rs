@@ -2,6 +2,13 @@
 
 pub const R_VERSION: &str = "4.6.0";
 
+// R's arithmetic.c identifies NA by the low payload word, even after NaN quieting.
+pub const NA_REAL: f64 = f64::from_bits(0x7ff0_0000_0000_07a2);
+
+pub fn is_na_real(value: f64) -> bool {
+    value.is_nan() && value.to_bits() as u32 == 1954
+}
+
 pub type R_xlen_t = isize;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -363,7 +370,18 @@ impl Sexp {
 
 #[cfg(test)]
 mod tests {
-    use super::SexpType;
+    use super::{is_na_real, SexpType, NA_REAL};
+
+    #[test]
+    fn missing_double_payload_matches_r() {
+        assert!(NA_REAL.is_nan());
+        assert!(is_na_real(NA_REAL));
+        assert!(is_na_real(-NA_REAL));
+        assert!(is_na_real(NA_REAL + 1.0));
+        assert!(!is_na_real(f64::NAN));
+        assert!(!is_na_real(1954.0));
+        assert!(!is_na_real(f64::INFINITY));
+    }
 
     #[test]
     fn sexptype_values_match_r_4_6_0() {

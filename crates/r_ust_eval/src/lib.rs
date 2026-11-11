@@ -3,7 +3,9 @@ use std::fmt;
 
 use r_ust_gc::{Gc, GcConfig};
 use r_ust_parse::Parser;
-use r_ust_sexp::{BinaryOp, CallArgument, FunctionParameter, ListElement, Sexp, UnaryOp};
+use r_ust_sexp::{
+    is_na_real, BinaryOp, CallArgument, FunctionParameter, ListElement, Sexp, UnaryOp, NA_REAL,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum EvalError {
@@ -1793,20 +1795,44 @@ fn dispatch_call(name: &str, args: &[EvaluatedArgument]) -> Result<Sexp, EvalErr
         }
         "sum" => {
             let values = flatten_numeric_data_args(args)?;
-            Ok(Sexp::Real(vec![values.iter().sum()]))
+            let value = preserve_na(values.iter().fold(0.0, |sum, value| sum + value), &values);
+            let integer = data_args(args, &["na.rm"])
+                .iter()
+                .all(|arg| integer_arithmetic_operand(&arg.value))
+                && (is_na_real(value) || real_to_integer(value).is_some());
+            Ok(numeric_result(vec![value], integer))
         }
         "prod" => {
             let values = flatten_numeric_data_args(args)?;
-            Ok(Sexp::Real(vec![values.iter().product()]))
+            Ok(Sexp::Real(vec![preserve_na(
+                values.iter().product(),
+                &values,
+            )]))
         }
         "mean" => {
             let values = flatten_numeric_data_args(args)?;
             if values.is_empty() {
                 Ok(Sexp::Real(vec![f64::NAN]))
             } else {
-                Ok(Sexp::Real(vec![
-                    values.iter().sum::<f64>() / values.len() as f64,
-                ]))
+                let n = values.len() as f64;
+                // R's real_mean keeps the first NaN payload during accumulation.
+                let add = |sum: f64, value: f64| if sum.is_nan() { sum } else { sum + value };
+                let mut mean = values.iter().copied().fold(0.0, add);
+                let finite_sum = mean.is_finite();
+                mean = if finite_sum {
+                    mean / n
+                } else {
+                    values.iter().map(|value| value / n).fold(0.0, add)
+                };
+                if mean.is_finite() {
+                    let correction = if finite_sum {
+                        values.iter().map(|value| value - mean).fold(0.0, add) / n
+                    } else {
+                        values.iter().map(|value| (value - mean) / n).fold(0.0, add)
+                    };
+                    mean += correction;
+                }
+                Ok(Sexp::Real(vec![mean]))
             }
         }
         "median" => call_median(args),
@@ -2572,25 +2598,36 @@ fn dispatch_call(name: &str, args: &[EvaluatedArgument]) -> Result<Sexp, EvalErr
 
 fn eval_binary(op: BinaryOp, left: &Sexp, right: &Sexp) -> Result<Sexp, EvalError> {
     match op {
-        BinaryOp::Add => map2(&numeric_values(left)?, &numeric_values(right)?, |a, b| {
-            a + b
-        })
-        .map(Sexp::Real),
-        BinaryOp::Subtract => map2(&numeric_values(left)?, &numeric_values(right)?, |a, b| {
-            a - b
-        })
-        .map(Sexp::Real),
-        BinaryOp::Multiply => map2(&numeric_values(left)?, &numeric_values(right)?, |a, b| {
-            a * b
-        })
-        .map(Sexp::Real),
+        BinaryOp::Add | BinaryOp::Subtract | BinaryOp::Multiply => {
+            let values = map2(
+                &numeric_values(left)?,
+                &numeric_values(right)?,
+                |a, b| match op {
+                    BinaryOp::Add => a + b,
+                    BinaryOp::Subtract => a - b,
+                    BinaryOp::Multiply => a * b,
+                    _ => unreachable!(),
+                },
+            )?;
+            if integer_arithmetic_operand(left) && integer_arithmetic_operand(right) {
+                // shortcut: overflow produces NA silently until condition warnings exist.
+                Ok(Sexp::Integer(
+                    values.into_iter().map(real_to_integer).collect(),
+                ))
+            } else {
+                Ok(Sexp::Real(values))
+            }
+        }
         BinaryOp::Divide => map2(&numeric_values(left)?, &numeric_values(right)?, |a, b| {
             a / b
         })
         .map(Sexp::Real),
-        BinaryOp::Power => {
-            map2(&numeric_values(left)?, &numeric_values(right)?, f64::powf).map(Sexp::Real)
-        }
+        BinaryOp::Power => map2(
+            &numeric_values(left)?,
+            &numeric_values(right)?,
+            r_ust_nmath::R_pow,
+        )
+        .map(Sexp::Real),
         BinaryOp::Sequence => eval_sequence(left, right),
         BinaryOp::And => map2_logic(&logical_values(left)?, &logical_values(right)?, logical_and)
             .map(Sexp::Logical),
@@ -2609,7 +2646,39 @@ fn eval_binary(op: BinaryOp, left: &Sexp, right: &Sexp) -> Result<Sexp, EvalErro
     }
 }
 
+fn integer_arithmetic_operand(value: &Sexp) -> bool {
+    match value {
+        Sexp::Nil | Sexp::Logical(_) | Sexp::Integer(_) => true,
+        Sexp::Matrix { data, .. } => integer_arithmetic_operand(data),
+        _ => false,
+    }
+}
+
 fn eval_unary(op: UnaryOp, value: &Sexp) -> Result<Sexp, EvalError> {
+    if matches!(op, UnaryOp::Plus | UnaryOp::Minus) {
+        let integers = match value {
+            Sexp::Nil => {
+                return Err(EvalError::Type(
+                    "invalid argument to unary operator".to_string(),
+                ))
+            }
+            Sexp::Logical(values) => {
+                Some(values.iter().map(|value| value.map(i32::from)).collect())
+            }
+            Sexp::Integer(values) => Some(values.clone()),
+            _ => None,
+        };
+        if let Some(values) = integers {
+            return Ok(Sexp::Integer(if op == UnaryOp::Minus {
+                values
+                    .into_iter()
+                    .map(|value| value.and_then(i32::checked_neg))
+                    .collect()
+            } else {
+                values
+            }));
+        }
+    }
     match op {
         UnaryOp::Plus => Ok(Sexp::Real(numeric_values(value)?)),
         UnaryOp::Minus => Ok(Sexp::Real(
@@ -2628,8 +2697,17 @@ fn eval_unary(op: UnaryOp, value: &Sexp) -> Result<Sexp, EvalError> {
 }
 
 fn compare_values(op: BinaryOp, left: &Sexp, right: &Sexp) -> Result<Sexp, EvalError> {
-    if let (Ok(left), Ok(right)) = (string_values(left), string_values(right)) {
+    if is_character_value(left)
+        || is_character_value(right)
+        || matches!(left, Sexp::Factor { .. })
+        || matches!(right, Sexp::Factor { .. })
+    {
+        let left = string_values(left)?;
+        let right = string_values(right)?;
         return map2_opt(&left, &right, |a, b| {
+            let (Some(a), Some(b)) = (a, b) else {
+                return None;
+            };
             Some(match op {
                 BinaryOp::Equal => a == b,
                 BinaryOp::NotEqual => a != b,
@@ -2665,24 +2743,38 @@ fn compare_values(op: BinaryOp, left: &Sexp, right: &Sexp) -> Result<Sexp, EvalE
 fn eval_sequence(left: &Sexp, right: &Sexp) -> Result<Sexp, EvalError> {
     let from = numeric_scalar(left, "left side of :")?;
     let to = numeric_scalar(right, "right side of :")?;
+    colon_sequence(from, to)
+}
+
+fn colon_sequence(from: f64, to: f64) -> Result<Sexp, EvalError> {
     if !from.is_finite() || !to.is_finite() {
         return Err(EvalError::Domain(": endpoints must be finite".to_string()));
     }
-    let step = if from <= to { 1.0 } else { -1.0 };
-    let mut values = Vec::new();
-    let mut current = from;
-    if step > 0.0 {
-        while current <= to {
-            values.push(current);
-            current += step;
-        }
-    } else {
-        while current >= to {
-            values.push(current);
-            current += step;
-        }
+    let length = ((to - from).abs() + 1.0 + f32::EPSILON as f64).trunc();
+    if length > (1u64 << 52) as f64 {
+        return Err(EvalError::Domain(
+            "result would be too long a vector".to_string(),
+        ));
     }
-    Ok(Sexp::Real(values))
+    let length = length as usize;
+    let step = if from <= to { 1.0 } else { -1.0 };
+    let end = from + step * (length - 1) as f64;
+    // shortcut: sequences are materialized until the object model supports ALTREP.
+    if real_to_integer(from).is_some() && from.fract() == 0.0 && real_to_integer(end).is_some() {
+        let mut values = Vec::new();
+        values
+            .try_reserve_exact(length)
+            .map_err(|_| EvalError::Domain("cannot allocate sequence".to_string()))?;
+        values.extend((0..length).map(|index| Some((from + step * index as f64) as i32)));
+        Ok(Sexp::Integer(values))
+    } else {
+        let mut values = Vec::new();
+        values
+            .try_reserve_exact(length)
+            .map_err(|_| EvalError::Domain("cannot allocate sequence".to_string()))?;
+        values.extend((0..length).map(|index| from + step * index as f64));
+        Ok(Sexp::Real(values))
+    }
 }
 
 fn eval_scalar_logical(op: BinaryOp, left: &Sexp, right: &Sexp) -> Result<Option<bool>, EvalError> {
@@ -3122,43 +3214,57 @@ fn subset_positions(len: usize, index: &Sexp) -> Result<Vec<Option<usize>>, Eval
         Sexp::String(_) => Err(EvalError::Type(
             "character subsetting is only implemented for lists".to_string(),
         )),
-        _ => Ok(numeric_subset_positions(len, &numeric_index_values(index)?)),
+        _ => numeric_subset_positions(len, &numeric_index_values(index)?),
     }
 }
 
-fn numeric_index_values(index: &Sexp) -> Result<Vec<isize>, EvalError> {
+fn numeric_index_values(index: &Sexp) -> Result<Vec<Option<isize>>, EvalError> {
     Ok(numeric_values(index)?
         .into_iter()
-        .filter(|value| !value.is_nan() && value.is_finite())
-        .map(|value| value.trunc() as isize)
+        .map(|value| value.is_finite().then_some(value.trunc() as isize))
         .collect())
 }
 
-fn numeric_subset_positions(len: usize, indices: &[isize]) -> Vec<Option<usize>> {
-    if indices.iter().any(|index| *index < 0) {
+fn numeric_subset_positions(
+    len: usize,
+    indices: &[Option<isize>],
+) -> Result<Vec<Option<usize>>, EvalError> {
+    if indices
+        .iter()
+        .any(|index| index.is_some_and(|index| index < 0))
+    {
+        if indices
+            .iter()
+            .any(|index| index.is_none_or(|index| index > 0))
+        {
+            return Err(EvalError::Domain(
+                "only 0's may be mixed with negative subscripts".to_string(),
+            ));
+        }
         let excluded = indices
             .iter()
+            .flatten()
             .filter(|index| **index < 0)
             .map(|index| index.unsigned_abs())
             .collect::<std::collections::BTreeSet<_>>();
-        return (1..=len)
+        return Ok((1..=len)
             .filter(|position| !excluded.contains(position))
             .map(|position| Some(position - 1))
-            .collect();
+            .collect());
     }
 
-    indices
+    Ok(indices
         .iter()
-        .filter(|index| **index != 0)
+        .filter(|index| **index != Some(0))
         .map(|index| {
-            let position = *index as usize;
+            let position = (*index)? as usize;
             if position == 0 || position > len {
                 None
             } else {
                 Some(position - 1)
             }
         })
-        .collect()
+        .collect())
 }
 
 fn logical_subset_positions(len: usize, indices: &[Option<bool>]) -> Vec<Option<usize>> {
@@ -3196,7 +3302,7 @@ fn subset_real(values: &[f64], positions: &[Option<usize>]) -> Vec<f64> {
         .map(|position| {
             position
                 .and_then(|position| values.get(position).copied())
-                .unwrap_or(f64::NAN)
+                .unwrap_or(NA_REAL)
         })
         .collect()
 }
@@ -3240,6 +3346,24 @@ fn subassign_value(
         return Ok(value.clone());
     }
 
+    if matches!(value, Sexp::Logical(_) | Sexp::Integer(_) | Sexp::Real(_))
+        && is_character_value(replacement)
+    {
+        let mut out = string_values(value)?;
+        assign_optional_values(&mut out, &positions, &string_values(replacement)?)?;
+        return Ok(Sexp::String(out));
+    }
+    if matches!(value, Sexp::Logical(_) | Sexp::Integer(_)) && is_double_value(replacement) {
+        let mut out = numeric_values(value)?;
+        assign_real_values(&mut out, &positions, &numeric_values(replacement)?)?;
+        return Ok(Sexp::Real(out));
+    }
+    if matches!(value, Sexp::Logical(_)) && typeof_value(replacement) == "integer" {
+        let mut out = coerce_integer_values(value)?;
+        assign_optional_values(&mut out, &positions, &coerce_integer_values(replacement)?)?;
+        return Ok(Sexp::Integer(out));
+    }
+
     match value {
         Sexp::Nil => subassign_nil(&positions, replacement),
         Sexp::Logical(values) => {
@@ -3250,16 +3374,7 @@ fn subassign_value(
         }
         Sexp::Integer(values) => {
             let mut out = values.clone();
-            let replacement = numeric_values(replacement)?
-                .into_iter()
-                .map(|value| {
-                    if value.is_nan() {
-                        None
-                    } else {
-                        Some(value.trunc() as i32)
-                    }
-                })
-                .collect::<Vec<_>>();
+            let replacement = coerce_integer_values(replacement)?;
             assign_optional_values(&mut out, &positions, &replacement)?;
             Ok(Sexp::Integer(out))
         }
@@ -3625,7 +3740,7 @@ fn assign_real_values(
     }
     for (index, position) in positions.iter().copied().enumerate() {
         if position >= out.len() {
-            out.resize(position + 1, f64::NAN);
+            out.resize(position + 1, NA_REAL);
         }
         out[position] = replacement[index % replacement.len()];
     }
@@ -3837,7 +3952,7 @@ fn names_assign_value(value: &Sexp, replacement: &Sexp) -> Result<Sexp, EvalErro
 }
 
 fn call_c(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
-    if args.is_empty() {
+    if args.iter().all(|arg| matches!(arg.value, Sexp::Nil)) {
         return Ok(Sexp::Nil);
     }
     if args.iter().any(|arg| matches!(arg.value, Sexp::List(_))) {
@@ -3867,18 +3982,23 @@ fn call_c(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
     {
         return concatenate_factors(args);
     }
-    if args.iter().any(|arg| matches!(arg.value, Sexp::String(_))) {
+    if args.iter().any(|arg| is_character_value(&arg.value)) {
         let mut out = Vec::new();
         for arg in args {
             out.extend(string_values(&arg.value)?);
         }
         return Ok(Sexp::String(out));
     }
-    if args
-        .iter()
-        .any(|arg| matches!(arg.value, Sexp::Real(_) | Sexp::Integer(_)))
-    {
+    if args.iter().any(|arg| is_double_value(&arg.value)) {
         return Ok(Sexp::Real(flatten_numeric_args(args)?));
+    }
+    if args.iter().any(|arg| typeof_value(&arg.value) == "integer") {
+        return Ok(Sexp::Integer(
+            flatten_numeric_args(args)?
+                .into_iter()
+                .map(real_to_integer)
+                .collect(),
+        ));
     }
     let mut out = Vec::new();
     for arg in args {
@@ -4388,43 +4508,7 @@ fn flatten_unlist_values(
 }
 
 fn unlisted_values(values: Vec<Sexp>) -> Result<Sexp, EvalError> {
-    if values.is_empty() {
-        return Ok(Sexp::Nil);
-    }
-    if values
-        .iter()
-        .any(|value| matches!(value, Sexp::Factor { .. }))
-        && values
-            .iter()
-            .all(|value| matches!(value, Sexp::Factor { .. }))
-    {
-        return concatenate_factor_values(&values);
-    }
-    if values.iter().any(|value| matches!(value, Sexp::String(_))) {
-        let mut out = Vec::new();
-        for value in &values {
-            out.extend(string_values(value)?);
-        }
-        return Ok(Sexp::String(out));
-    }
-    if values
-        .iter()
-        .any(|value| matches!(value, Sexp::Real(_) | Sexp::Integer(_)))
-    {
-        let mut out = Vec::new();
-        for value in &values {
-            out.extend(numeric_values(value)?);
-        }
-        return Ok(Sexp::Real(out));
-    }
-    if values.iter().all(|value| matches!(value, Sexp::Logical(_))) {
-        let mut out = Vec::new();
-        for value in &values {
-            out.extend(logical_values(value)?);
-        }
-        return Ok(Sexp::Logical(out));
-    }
-    Ok(Sexp::Vector(values))
+    scalar_elements_to_vector(&values)
 }
 
 fn call_paste(args: &[EvaluatedArgument], default_sep: &str) -> Result<Sexp, EvalError> {
@@ -6006,7 +6090,7 @@ fn factor_strings(codes: &[Option<usize>], levels: &[String]) -> Vec<Option<Stri
 fn factor_numbers(codes: &[Option<usize>]) -> Vec<f64> {
     codes
         .iter()
-        .map(|code| code.map_or(f64::NAN, |code| code as f64))
+        .map(|code| code.map_or(NA_REAL, |code| code as f64))
         .collect()
 }
 
@@ -6423,15 +6507,19 @@ fn scalar_elements_to_vector(values: &[Sexp]) -> Result<Sexp, EvalError> {
         }
         return Ok(Sexp::String(out));
     }
-    if values
-        .iter()
-        .any(|value| matches!(value, Sexp::Real(_) | Sexp::Integer(_)))
-    {
+    if values.iter().any(|value| is_double_value(value)) {
         let mut out = Vec::new();
         for value in values {
             out.extend(numeric_values(value)?);
         }
         return Ok(Sexp::Real(out));
+    }
+    if values.iter().any(|value| typeof_value(value) == "integer") {
+        let mut out = Vec::new();
+        for value in values {
+            out.extend(coerce_integer_values(value)?);
+        }
+        return Ok(Sexp::Integer(out));
     }
     if values.iter().all(|value| matches!(value, Sexp::Logical(_))) {
         let mut out = Vec::new();
@@ -6534,15 +6622,15 @@ fn matrix_margin(
     for outer_index in 0..outer {
         let mut sum = 0.0;
         let mut count = 0usize;
-        let mut saw_missing = false;
+        let mut missing = None;
         for inner_index in 0..inner {
             let position = match margin {
                 MatrixMargin::Rows => outer_index + inner_index * *nrow,
                 MatrixMargin::Cols => inner_index + outer_index * *nrow,
             };
-            let value = values.get(position).copied().unwrap_or(f64::NAN);
+            let value = values.get(position).copied().unwrap_or(NA_REAL);
             if value.is_nan() {
-                saw_missing = true;
+                missing = Some(value);
                 if !na_rm {
                     break;
                 }
@@ -6551,8 +6639,8 @@ fn matrix_margin(
                 count += 1;
             }
         }
-        let value = if saw_missing && !na_rm {
-            f64::NAN
+        let value = if let Some(missing) = missing.filter(|_| !na_rm) {
+            missing
         } else if matches!(summary, MatrixSummary::Mean) {
             if count == 0 {
                 f64::NAN
@@ -6598,23 +6686,41 @@ fn call_seq(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
     };
 
     let default_by = if from <= to { 1.0 } else { -1.0 };
+    if by_named.is_none() && by_positional.is_none() {
+        return colon_sequence(from, to);
+    }
     let by = by_named.or(by_positional).unwrap_or(default_by);
-
-    make_sequence(from, to, by).map(Sexp::Real)
+    if from.is_finite() && from == to && by.is_finite() {
+        return Ok(named_arg(args, &["from"])
+            .or_else(|| positional_args.first().copied())
+            .cloned()
+            .unwrap_or(Sexp::Real(vec![from])));
+    }
+    let integer = args.iter().all(|arg| matches!(arg.value, Sexp::Integer(_)));
+    Ok(numeric_result(make_sequence(from, to, by)?, integer))
 }
 
 fn call_seq_len(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
-    let len = numeric_arg_scalar(args, 0, &["length.out"], None)?
-        .trunc()
-        .max(0.0) as usize;
-    Ok(Sexp::Real((1..=len).map(|value| value as f64).collect()))
+    let len = numeric_arg_scalar(args, 0, &["length.out"], None)?;
+    if !len.is_finite() || len < 0.0 || len > (1u64 << 52) as f64 {
+        return Err(EvalError::Domain(
+            "argument must be coercible to non-negative integer".to_string(),
+        ));
+    }
+    if len.trunc() == 0.0 {
+        Ok(Sexp::Integer(Vec::new()))
+    } else {
+        colon_sequence(1.0, len.trunc())
+    }
 }
 
 fn call_seq_along(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
     let value = positional(args, 0, "along.with")?;
-    Ok(Sexp::Real(
-        (1..=value_len(value)).map(|value| value as f64).collect(),
-    ))
+    if value_len(value) == 0 {
+        Ok(Sexp::Integer(Vec::new()))
+    } else {
+        colon_sequence(1.0, value_len(value) as f64)
+    }
 }
 
 fn call_rep(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
@@ -6802,26 +6908,38 @@ fn lengths_values(value: &Sexp) -> Vec<usize> {
 }
 
 fn make_sequence(from: f64, to: f64, by: f64) -> Result<Vec<f64>, EvalError> {
-    if !from.is_finite() || !to.is_finite() || !by.is_finite() {
+    if !from.is_finite() || !to.is_finite() || !by.is_finite() || by == 0.0 {
         return Err(EvalError::Domain(
-            "seq() endpoints and step must be finite".to_string(),
+            "seq() endpoints and step must be finite, with a non-zero step".to_string(),
         ));
     }
-    if by == 0.0 {
-        return Err(EvalError::Domain("seq() step must be non-zero".to_string()));
-    }
-
-    let mut values = Vec::new();
-    let mut current = from;
-    if by > 0.0 {
-        while current <= to {
-            values.push(current);
-            current += by;
-        }
+    let delta = to - from;
+    let n = if delta.is_finite() {
+        delta / by
     } else {
-        while current >= to {
-            values.push(current);
-            current += by;
+        to / by - from / by
+    };
+    if !n.is_finite() || n > 100.0 * i32::MAX as f64 {
+        return Err(EvalError::Domain("seq() step is too small".to_string()));
+    }
+    if n < -1e-10 {
+        return Err(EvalError::Domain("wrong sign in 'by' argument".to_string()));
+    }
+    let length = (n + 1e-10).trunc().max(0.0) as usize + 1;
+    let mut values = Vec::new();
+    values
+        .try_reserve_exact(length)
+        .map_err(|_| EvalError::Domain("cannot allocate sequence".to_string()))?;
+    values.extend((0..length).map(|index| {
+        if delta.is_finite() {
+            from + index as f64 * by
+        } else {
+            (from / 4.0 + index as f64 * (by / 4.0)) * 4.0
+        }
+    }));
+    if let Some(last) = values.last_mut() {
+        if (by > 0.0 && *last > to) || (by < 0.0 && *last < to) {
+            *last = to;
         }
     }
     Ok(values)
@@ -6871,11 +6989,7 @@ fn collect_numeric_data_args(
     let mut values = Vec::new();
     for arg in data_args(args, &["na.rm"]) {
         for value in numeric_values(&arg.value)? {
-            if value.is_nan() {
-                if !na_rm {
-                    return Ok(vec![f64::NAN]);
-                }
-            } else {
+            if !(na_rm && value.is_nan()) {
                 values.push(value);
             }
         }
@@ -6889,11 +7003,14 @@ fn call_median(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
     let mut values = numeric_values(x)?;
     if na_rm {
         values.retain(|value| !value.is_nan());
-    } else if values.iter().any(|value| value.is_nan()) {
-        return Ok(Sexp::Real(vec![f64::NAN]));
     }
-    if values.is_empty() {
-        return Ok(Sexp::Real(vec![f64::NAN]));
+    if values.is_empty() || (!na_rm && values.iter().any(|value| value.is_nan())) {
+        return Ok(match typeof_value(x) {
+            "integer" => Sexp::Integer(vec![None]),
+            "logical" => Sexp::Logical(vec![None]),
+            "NULL" => Sexp::Nil,
+            _ => Sexp::Real(vec![NA_REAL]),
+        });
     }
     values.sort_by(|a, b| a.total_cmp(b));
     let mid = values.len() / 2;
@@ -6902,7 +7019,14 @@ fn call_median(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
     } else {
         values[mid]
     };
-    Ok(Sexp::Real(vec![median]))
+    Ok(if values.len() % 2 != 0 && typeof_value(x) == "logical" {
+        Sexp::Logical(vec![Some(median != 0.0)])
+    } else {
+        numeric_result(
+            vec![median],
+            values.len() % 2 != 0 && typeof_value(x) == "integer",
+        )
+    })
 }
 
 fn call_var_sd(args: &[EvaluatedArgument], mode: VarianceMode) -> Result<Sexp, EvalError> {
@@ -6912,10 +7036,10 @@ fn call_var_sd(args: &[EvaluatedArgument], mode: VarianceMode) -> Result<Sexp, E
     if na_rm {
         values.retain(|value| !value.is_nan());
     } else if values.iter().any(|value| value.is_nan()) {
-        return Ok(Sexp::Real(vec![f64::NAN]));
+        return Ok(Sexp::Real(vec![NA_REAL]));
     }
     if values.len() < 2 {
-        return Ok(Sexp::Real(vec![f64::NAN]));
+        return Ok(Sexp::Real(vec![NA_REAL]));
     }
     let mean = values.iter().sum::<f64>() / values.len() as f64;
     let variance = values
@@ -6931,25 +7055,18 @@ fn call_var_sd(args: &[EvaluatedArgument], mode: VarianceMode) -> Result<Sexp, E
 
 fn call_min_max(args: &[EvaluatedArgument], mode: MinMax) -> Result<Sexp, EvalError> {
     let na_rm = named_bool_arg(args, &["na.rm"], false)?;
-    let mut saw_missing = false;
-    let mut values = Vec::new();
-    for arg in data_args(args, &["na.rm"]) {
-        for value in numeric_values(&arg.value)? {
-            if value.is_nan() {
-                saw_missing = true;
-                if !na_rm {
-                    return Ok(Sexp::Real(vec![f64::NAN]));
-                }
-            } else {
-                values.push(value);
-            }
-        }
+    let integer = data_args(args, &["na.rm"])
+        .iter()
+        .all(|arg| integer_arithmetic_operand(&arg.value));
+    let values = collect_numeric_data_args(args, na_rm)?;
+    if values.iter().any(|value| value.is_nan()) {
+        return Ok(numeric_result(
+            vec![preserve_na(f64::NAN, &values)],
+            integer,
+        ));
     }
 
     if values.is_empty() {
-        if saw_missing && !na_rm {
-            return Ok(Sexp::Real(vec![f64::NAN]));
-        }
         return Ok(Sexp::Real(vec![match mode {
             MinMax::Min => f64::INFINITY,
             MinMax::Max => f64::NEG_INFINITY,
@@ -6960,25 +7077,34 @@ fn call_min_max(args: &[EvaluatedArgument], mode: MinMax) -> Result<Sexp, EvalEr
         MinMax::Min => values.into_iter().fold(f64::INFINITY, f64::min),
         MinMax::Max => values.into_iter().fold(f64::NEG_INFINITY, f64::max),
     };
-    Ok(Sexp::Real(vec![value]))
+    Ok(numeric_result(vec![value], integer))
 }
 
 fn call_range(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
     let na_rm = named_bool_arg(args, &["na.rm"], false)?;
+    let integer = data_args(args, &["na.rm"])
+        .iter()
+        .all(|arg| integer_arithmetic_operand(&arg.value));
     let values = collect_numeric_data_args(args, na_rm)?;
     if values.iter().any(|value| value.is_nan()) {
-        return Ok(Sexp::Real(vec![f64::NAN, f64::NAN]));
+        return Ok(numeric_result(
+            vec![preserve_na(f64::NAN, &values); 2],
+            integer,
+        ));
     }
     if values.is_empty() {
         return Ok(Sexp::Real(vec![f64::INFINITY, f64::NEG_INFINITY]));
     }
     let min = values.iter().copied().fold(f64::INFINITY, f64::min);
     let max = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-    Ok(Sexp::Real(vec![min, max]))
+    Ok(numeric_result(vec![min, max], integer))
 }
 
 fn call_pmin_pmax(args: &[EvaluatedArgument], mode: MinMax) -> Result<Sexp, EvalError> {
     let na_rm = named_bool_arg(args, &["na.rm"], false)?;
+    let integer = data_args(args, &["na.rm"])
+        .iter()
+        .all(|arg| integer_arithmetic_operand(&arg.value));
     let values = data_args(args, &["na.rm"])
         .into_iter()
         .map(|arg| numeric_values(&arg.value))
@@ -6991,31 +7117,30 @@ fn call_pmin_pmax(args: &[EvaluatedArgument], mode: MinMax) -> Result<Sexp, Eval
     let len = recycled_len(&values.iter().map(Vec::len).collect::<Vec<_>>());
     let mut out = Vec::with_capacity(len);
     for index in 0..len {
-        let mut result: Option<f64> = None;
-        let mut saw_missing = false;
-        for value in &values {
+        let mut result = values[0][index % values[0].len()];
+        for value in &values[1..] {
             let candidate = value[index % value.len()];
-            if candidate.is_nan() {
-                saw_missing = true;
-                continue;
+            if (na_rm && result.is_nan())
+                || (!na_rm && candidate.is_nan())
+                || (!result.is_nan()
+                    && !candidate.is_nan()
+                    && match mode {
+                        MinMax::Min => candidate < result,
+                        MinMax::Max => candidate > result,
+                    })
+            {
+                result = candidate;
             }
-            result = Some(match (mode, result) {
-                (_, None) => candidate,
-                (MinMax::Min, Some(current)) => current.min(candidate),
-                (MinMax::Max, Some(current)) => current.max(candidate),
-            });
         }
-        out.push(if saw_missing && !na_rm {
-            f64::NAN
-        } else {
-            result.unwrap_or(f64::NAN)
-        });
+        out.push(result);
     }
-    Ok(Sexp::Real(out))
+    Ok(numeric_result(out, integer))
 }
 
 fn call_cumulative(args: &[EvaluatedArgument], mode: CumulativeMode) -> Result<Sexp, EvalError> {
-    let values = numeric_values(positional(args, 0, "x")?)?;
+    let x = positional(args, 0, "x")?;
+    let integer = integer_arithmetic_operand(x) && !matches!(mode, CumulativeMode::Product);
+    let values = numeric_values(x)?;
     let mut out = Vec::with_capacity(values.len());
     let mut current = match mode {
         CumulativeMode::Sum => 0.0,
@@ -7023,11 +7148,10 @@ fn call_cumulative(args: &[EvaluatedArgument], mode: CumulativeMode) -> Result<S
         CumulativeMode::Min => f64::INFINITY,
         CumulativeMode::Max => f64::NEG_INFINITY,
     };
-    let mut missing = false;
     for value in values {
-        if missing || value.is_nan() {
-            missing = true;
-            out.push(f64::NAN);
+        if current.is_nan() || value.is_nan() {
+            current = preserve_na(f64::NAN, &[current, value]);
+            out.push(current);
             continue;
         }
         current = match mode {
@@ -7036,13 +7160,18 @@ fn call_cumulative(args: &[EvaluatedArgument], mode: CumulativeMode) -> Result<S
             CumulativeMode::Min => current.min(value),
             CumulativeMode::Max => current.max(value),
         };
+        if integer && real_to_integer(current).is_none() {
+            current = NA_REAL;
+        }
         out.push(current);
     }
-    Ok(Sexp::Real(out))
+    Ok(numeric_result(out, integer))
 }
 
 fn call_diff(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
-    let mut values = numeric_values(positional(args, 0, "x")?)?;
+    let x = positional(args, 0, "x")?;
+    let integer = integer_arithmetic_operand(x);
+    let mut values = numeric_values(x)?;
     let lag = positive_integer_arg(args, 1, &["lag"], 1)?;
     let differences = positive_integer_arg(args, 2, &["differences"], 1)?;
     for _ in 0..differences {
@@ -7051,10 +7180,20 @@ fn call_diff(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
             break;
         }
         values = (lag..values.len())
-            .map(|index| values[index] - values[index - lag])
+            .map(|index| {
+                let difference = preserve_na(
+                    values[index] - values[index - lag],
+                    &[values[index], values[index - lag]],
+                );
+                if integer && real_to_integer(difference).is_none() {
+                    NA_REAL
+                } else {
+                    difference
+                }
+            })
             .collect();
     }
-    Ok(Sexp::Real(values))
+    Ok(numeric_result(values, integer))
 }
 
 fn positive_integer_arg(
@@ -7399,10 +7538,10 @@ fn sexp_identical(left: &Sexp, right: &Sexp) -> bool {
 
 fn real_values_identical(left: &[f64], right: &[f64]) -> bool {
     left.len() == right.len()
-        && left
-            .iter()
-            .zip(right)
-            .all(|(left, right)| left == right || (left.is_nan() && right.is_nan()))
+        && left.iter().zip(right).all(|(left, right)| {
+            left == right
+                || (left.is_nan() && right.is_nan() && is_na_real(*left) == is_na_real(*right))
+        })
 }
 
 fn list_elements_identical(left: &[ListElement], right: &[ListElement]) -> bool {
@@ -7630,6 +7769,7 @@ fn eval_in(left: &Sexp, right: &Sexp) -> Result<Sexp, EvalError> {
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 enum MatchKey {
     Missing,
+    Nan,
     Logical(bool),
     Number(u64),
     String(String),
@@ -7674,8 +7814,10 @@ fn match_keys(value: &Sexp) -> Result<Vec<MatchKey>, EvalError> {
         Sexp::Real(values) => Ok(values
             .iter()
             .map(|value| {
-                if value.is_nan() {
+                if is_na_real(*value) {
                     MatchKey::Missing
+                } else if value.is_nan() {
+                    MatchKey::Nan
                 } else {
                     MatchKey::Number(value.to_bits())
                 }
@@ -7782,7 +7924,7 @@ fn numeric_predicate_values(value: &Sexp, predicate: NumericPredicate) -> Vec<Op
             .iter()
             .map(|value| {
                 Some(match predicate {
-                    NumericPredicate::Nan => value.is_nan(),
+                    NumericPredicate::Nan => value.is_nan() && !is_na_real(*value),
                     NumericPredicate::Finite => value.is_finite(),
                     NumericPredicate::Infinite => value.is_infinite(),
                 })
@@ -7804,7 +7946,12 @@ fn map_one_arg(
     f: impl Fn(f64) -> f64,
 ) -> Result<Sexp, EvalError> {
     let values = numeric_arg_vec(args, 0, &[name], None)?;
-    Ok(Sexp::Real(values.into_iter().map(f).collect()))
+    Ok(Sexp::Real(
+        values
+            .into_iter()
+            .map(|value| preserve_na(f(value), &[value]))
+            .collect(),
+    ))
 }
 
 fn call_round(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
@@ -8323,14 +8470,14 @@ fn numeric_values(value: &Sexp) -> Result<Vec<f64>, EvalError> {
         Sexp::Real(values) => Ok(values.clone()),
         Sexp::Integer(values) => Ok(values
             .iter()
-            .map(|value| value.map_or(f64::NAN, f64::from))
+            .map(|value| value.map_or(NA_REAL, f64::from))
             .collect()),
         Sexp::Logical(values) => Ok(values
             .iter()
             .map(|value| match value {
                 Some(true) => 1.0,
                 Some(false) => 0.0,
-                None => f64::NAN,
+                None => NA_REAL,
             })
             .collect()),
         Sexp::Factor { codes, .. } => Ok(factor_numbers(codes)),
@@ -8374,7 +8521,13 @@ fn string_values(value: &Sexp) -> Result<Vec<Option<String>>, EvalError> {
         Sexp::String(values) => Ok(values.clone()),
         Sexp::Real(values) => Ok(values
             .iter()
-            .map(|value| Some(format_number(*value)))
+            .map(|value| {
+                if is_na_real(*value) {
+                    None
+                } else {
+                    Some(format_number(*value))
+                }
+            })
             .collect()),
         Sexp::Integer(values) => Ok(values
             .iter()
@@ -8420,7 +8573,7 @@ fn coerce_numeric_values(value: &Sexp) -> Result<Vec<f64>, EvalError> {
                 value
                     .as_deref()
                     .and_then(|value| value.trim().parse::<f64>().ok())
-                    .unwrap_or(f64::NAN)
+                    .unwrap_or(NA_REAL)
             })
             .collect()),
         other => numeric_values(other),
@@ -8430,14 +8583,21 @@ fn coerce_numeric_values(value: &Sexp) -> Result<Vec<f64>, EvalError> {
 fn coerce_integer_values(value: &Sexp) -> Result<Vec<Option<i32>>, EvalError> {
     Ok(coerce_numeric_values(value)?
         .into_iter()
-        .map(|value| {
-            if value.is_finite() && value >= i32::MIN as f64 && value <= i32::MAX as f64 {
-                Some(value.trunc() as i32)
-            } else {
-                None
-            }
-        })
+        .map(real_to_integer)
         .collect())
+}
+
+fn numeric_result(values: Vec<f64>, integer: bool) -> Sexp {
+    if integer {
+        Sexp::Integer(values.into_iter().map(real_to_integer).collect())
+    } else {
+        Sexp::Real(values)
+    }
+}
+
+fn real_to_integer(value: f64) -> Option<i32> {
+    let value = value.trunc();
+    (value > i32::MIN as f64 && value <= i32::MAX as f64).then_some(value as i32)
 }
 
 fn coerce_logical_values(value: &Sexp) -> Result<Vec<Option<bool>>, EvalError> {
@@ -8496,10 +8656,21 @@ fn value_len(value: &Sexp) -> usize {
     }
 }
 
+fn preserve_na(result: f64, inputs: &[f64]) -> f64 {
+    if result.is_nan() && inputs.iter().any(|value| is_na_real(*value)) {
+        NA_REAL
+    } else {
+        result
+    }
+}
+
 fn map2(a: &[f64], b: &[f64], f: impl Fn(f64, f64) -> f64) -> Result<Vec<f64>, EvalError> {
     let len = recycled_len(&[a.len(), b.len()]);
     Ok((0..len)
-        .map(|index| f(a[index % a.len()], b[index % b.len()]))
+        .map(|index| {
+            let (a, b) = (a[index % a.len()], b[index % b.len()]);
+            preserve_na(f(a, b), &[a, b])
+        })
         .collect())
 }
 
@@ -8511,7 +8682,10 @@ fn map3(
 ) -> Result<Vec<f64>, EvalError> {
     let len = recycled_len(&[a.len(), b.len(), c.len()]);
     Ok((0..len)
-        .map(|index| f(a[index % a.len()], b[index % b.len()], c[index % c.len()]))
+        .map(|index| {
+            let (a, b, c) = (a[index % a.len()], b[index % b.len()], c[index % c.len()]);
+            preserve_na(f(a, b, c), &[a, b, c])
+        })
         .collect())
 }
 
@@ -8525,12 +8699,13 @@ fn map4(
     let len = recycled_len(&[a.len(), b.len(), c.len(), d.len()]);
     Ok((0..len)
         .map(|index| {
-            f(
+            let inputs = [
                 a[index % a.len()],
                 b[index % b.len()],
                 c[index % c.len()],
                 d[index % d.len()],
-            )
+            ];
+            preserve_na(f(inputs[0], inputs[1], inputs[2], inputs[3]), &inputs)
         })
         .collect())
 }
@@ -8834,12 +9009,24 @@ fn format_line(values: Vec<String>) -> String {
 }
 
 fn format_number(value: f64) -> String {
-    if value.is_nan() {
+    if is_na_real(value) {
+        "NA".to_string()
+    } else if value.is_nan() {
         "NaN".to_string()
     } else if value == f64::INFINITY {
         "Inf".to_string()
     } else if value == f64::NEG_INFINITY {
         "-Inf".to_string()
+    } else if value == 0.0 {
+        "0".to_string()
+    } else if value.abs() < 1e-3 {
+        let formatted = format!("{value:.11e}");
+        let (mantissa, exponent) = formatted.split_once('e').expect("scientific format");
+        let exponent: i32 = exponent.parse().expect("scientific exponent");
+        format!(
+            "{}e{exponent:+03}",
+            mantissa.trim_end_matches('0').trim_end_matches('.')
+        )
     } else {
         let formatted = format!("{value:.12}");
         formatted
@@ -8853,6 +9040,14 @@ fn format_number(value: f64) -> String {
 mod tests {
     use super::{format_sexp, EvalError, Frontend};
     use r_ust_sexp::Sexp;
+
+    #[test]
+    fn prints_small_doubles_without_losing_precision() {
+        assert_eq!(
+            format_sexp(&Sexp::Real(vec![1e-13, 1.0 / i32::MAX as f64])),
+            "[1] 1e-13 4.65661287525e-10"
+        );
+    }
 
     #[test]
     fn evaluates_assignment_arithmetic_and_reuse() {
@@ -8890,6 +9085,265 @@ mod tests {
         assert_eq!(values[0], Sexp::Real(vec![2.0, 4.0, 6.0]));
         assert_eq!(values[1], Sexp::Real(vec![6.0]));
         assert_eq!(values[2], Sexp::Real(vec![3.0]));
+    }
+
+    #[test]
+    fn compares_numeric_values_without_formatting() {
+        let mut frontend = Frontend::default();
+        for (source, expected) in [
+            (
+                "c(10 < 2, 9 < 10, 100 > 20, 2.5 < 10)",
+                vec![Some(false), Some(true), Some(true), Some(true)],
+            ),
+            (
+                "c(TRUE == 1, FALSE == 0, TRUE < 2, FALSE != 0)",
+                vec![Some(true), Some(true), Some(true), Some(false)],
+            ),
+            (
+                "c(0.1 + 0.2 == 0.3, 0 == ceiling(-0.25), 1e-13 == 0)",
+                vec![Some(false), Some(true), Some(false)],
+            ),
+            (
+                "c(NA == 1, NaN == NaN, NA < 1, 1 >= NaN, NA != NA)",
+                vec![None; 5],
+            ),
+            (
+                "c(Inf == Inf, -Inf < 0, Inf > 1, Inf != Inf)",
+                vec![Some(true), Some(true), Some(true), Some(false)],
+            ),
+            (
+                "c(1, 20, 3, 40) < c(2, 10)",
+                vec![Some(true), Some(false), Some(false), Some(false)],
+            ),
+            (
+                "c(\"2\" < 10, \"TRUE\" == TRUE, \"a\" < \"b\")",
+                vec![Some(false), Some(true), Some(true)],
+            ),
+            ("c(NA, \"x\") == \"x\"", vec![None, Some(true)]),
+            ("as.double(NULL) == 1", vec![]),
+            ("NULL < 1", vec![]),
+            ("as.integer(c(10, 2)) < 3", vec![Some(false), Some(true)]),
+            (
+                "c(10 == 2, 10 != 2, 10 < 2, 10 <= 2, 10 > 2, 10 >= 2)",
+                vec![
+                    Some(false),
+                    Some(true),
+                    Some(false),
+                    Some(false),
+                    Some(true),
+                    Some(true),
+                ],
+            ),
+            ("c(NA <= 1, NaN > 1)", vec![None; 2]),
+            ("NaN == \"NaN\"", vec![Some(true)]),
+        ] {
+            let values = frontend.eval_source(source).unwrap();
+            assert_eq!(values.last(), Some(&Sexp::Logical(expected)), "{source}");
+        }
+    }
+
+    #[test]
+    fn follows_r_operator_precedence() {
+        let mut frontend = Frontend::default();
+        for (source, expected) in [
+            ("-2^2", -4.0),
+            ("(-2)^2", 4.0),
+            ("2^-2", 0.25),
+            ("2^3^2", 512.0),
+            ("-2^-2", -0.25),
+            ("2 ** 3", 8.0),
+            ("-2**2 + 3 * 2 - 1 / 2", 1.5),
+            ("2 * 3 %in% 6", 0.0),
+            ("1^NaN", 1.0),
+            ("NaN^0", 1.0),
+            ("2 / -!3", f64::INFINITY),
+            ("mean(c(1e308, 1e308))", 1e308),
+        ] {
+            assert_eq!(
+                frontend.eval_source(source).unwrap(),
+                vec![Sexp::Real(vec![expected])],
+                "{source}"
+            );
+        }
+        for (source, expected) in [
+            ("!2 == 1", vec![Some(true)]),
+            ("!1:3 %in% 2:3", vec![Some(true), Some(false), Some(false)]),
+            ("TRUE || FALSE | NA", vec![Some(true)]),
+            ("FALSE && TRUE & NA", vec![Some(false)]),
+            (
+                "TRUE || FALSE | c(FALSE, FALSE)",
+                vec![Some(true), Some(true)],
+            ),
+            (
+                "FALSE && TRUE & c(TRUE, TRUE)",
+                vec![Some(false), Some(false)],
+            ),
+            (
+                "is.nan(c((-1)^Inf, (-Inf)^0.5, (-1)^0.5))",
+                vec![Some(true); 3],
+            ),
+        ] {
+            let values = frontend.eval_source(source).unwrap();
+            assert_eq!(values.last(), Some(&Sexp::Logical(expected)), "{source}");
+        }
+        assert_eq!(
+            frontend.eval_source("1:-2^2").unwrap(),
+            vec![Sexp::Integer(vec![
+                Some(1),
+                Some(0),
+                Some(-1),
+                Some(-2),
+                Some(-3),
+                Some(-4)
+            ])]
+        );
+    }
+
+    #[test]
+    fn unary_signs_preserve_integer_and_logical_storage() {
+        let mut frontend = Frontend::default();
+        for (source, expected) in [
+            ("+TRUE", vec![Some(1)]),
+            ("-c(TRUE, FALSE, NA)", vec![Some(-1), Some(0), None]),
+            ("+as.integer(c(2, NA))", vec![Some(2), None]),
+            ("-as.integer(c(2, NA))", vec![Some(-2), None]),
+        ] {
+            assert_eq!(
+                frontend.eval_source(source).unwrap(),
+                vec![Sexp::Integer(expected)],
+                "{source}"
+            );
+        }
+        for source in ["+NULL", "-NULL"] {
+            assert!(
+                matches!(frontend.eval_source(source), Err(EvalError::Type(_))),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn distinguishes_missing_doubles_from_nan() {
+        let mut frontend = Frontend::default();
+        for (source, expected) in [
+            ("is.nan(c(NA, NaN))", "[1] FALSE TRUE"),
+            ("c(typeof(NA_integer_), typeof(NA_real_), typeof(NA_character_))", "[1] \"integer\" \"double\" \"character\""),
+            ("c(NA_real_, NaN)", "[1] NA NaN"),
+            ("is.na(c(NA_real_, NaN, Inf, 0))", "[1] TRUE TRUE FALSE FALSE"),
+            ("is.nan(as.double(c(NA_integer_, 1)))", "[1] FALSE FALSE"),
+            ("as.character(c(NA_real_, NaN))", "[1] NA \"NaN\""),
+            ("as.double(c(NA_character_, \"NaN\", \"bad\"))", "[1] NA NaN NA"),
+            ("as.double(NA) == \"NaN\"", "[1] NA"),
+            ("x <- c(1, NaN); x[c(2, 3, NA)]", "[1] NaN NA NA"),
+            ("x <- c(1, NaN); x[4] <- 9; x", "[1] 1 NaN NA 9"),
+            ("c(NA_real_ + 1, 1 + NA_real_, NaN + NA_real_, NA_real_ + NaN)", "[1] NA NA NA NA"),
+            ("c(1^NA_real_, NA_real_^0, NA_real_^2, 2^NA_real_)", "[1] 1 1 NA NA"),
+            ("c(is.nan(sqrt(NA_real_)), is.nan(log(NA_real_)), is.nan(gamma(NA_real_)), is.nan(dnorm(NA_real_)))", "[1] FALSE FALSE FALSE FALSE"),
+            ("c(identical(NA_real_, NaN), identical(NA_real_, NA_real_), identical(NaN, 0/0))", "[1] FALSE TRUE TRUE"),
+            ("match(c(NA_real_, NaN), c(NaN, NA_real_))", "[1] 2 1"),
+            ("duplicated(c(NA_real_, NaN, NA_real_, NaN))", "[1] FALSE FALSE TRUE TRUE"),
+            ("unique(c(NA_real_, NaN, NA_real_, NaN))", "[1] NA NaN"),
+            ("c(NA_real_ %in% NaN, NaN %in% NA_real_)", "[1] FALSE FALSE"),
+            ("c(sum(NaN, NA_real_), sum(NA_real_, NaN), prod(NaN, NA_real_))", "[1] NA NA NA"),
+            ("c(min(NaN, NA_real_), max(NA_real_, NaN))", "[1] NA NA"),
+            ("range(c(NA_real_, NaN))", "[1] NA NA"),
+            ("c(median(NaN), median(as.double(NULL)), var(1), sd(NaN))", "[1] NA NA NA NA"),
+            ("cumsum(c(NaN, 1, NA_real_, 2))", "[1] NaN NaN NA NA"),
+            ("cummin(c(NaN, 1, NA_real_, 2))", "[1] NaN NaN NA NA"),
+            ("pmin(c(NaN, NA_real_), c(NA_real_, NaN))", "[1] NA NaN"),
+            ("pmin(c(NA_real_, NaN), c(NaN, NA_real_), na.rm=TRUE)", "[1] NaN NA"),
+            ("c(mean(c(NaN, NA_real_)), mean(c(NA_real_, NaN)))", "[1] NaN NA"),
+            ("(1:3)[c(1, NA_real_, Inf, -Inf)]", "[1] 1 NA NA NA"),
+            ("c(sum(c(NA_real_, NaN), na.rm=TRUE), prod(c(NA_real_, NaN), na.rm=TRUE))", "[1] 0 1"),
+        ] {
+            let values = frontend.eval_source(source).unwrap_or_else(|error| panic!("{source}: {error}"));
+            assert_eq!(format_sexp(values.last().unwrap()), expected, "{source}");
+        }
+        for source in ["(1:3)[c(-1, NA)]", "(1:3)[c(-1, 2)]"] {
+            assert!(
+                matches!(frontend.eval_source(source), Err(EvalError::Domain(_))),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn preserves_integer_storage_and_overflow() {
+        let mut frontend = Frontend::default();
+        for (source, expected) in [
+            ("1L", vec![Some(1)]),
+            ("1e2L", vec![Some(100)]),
+            ("1.0L", vec![Some(1)]),
+            ("c(1L, TRUE, NA_integer_)", vec![Some(1), Some(1), None]),
+            ("1L + 2L", vec![Some(3)]),
+            ("TRUE + FALSE", vec![Some(1)]),
+            ("2L * c(1L, 2L, NA_integer_)", vec![Some(2), Some(4), None]),
+            ("2147483647L + 1L", vec![None]),
+            ("-2147483647L - 1L", vec![None]),
+            ("50000L * 50000L", vec![None]),
+            (
+                "as.integer(c(-2147483648, 2147483647.9))",
+                vec![None, Some(2147483647)],
+            ),
+            ("NULL + TRUE", vec![]),
+            ("sum(1:3)", vec![Some(6)]),
+            ("sum(NULL)", vec![Some(0)]),
+            ("sum(NA_integer_)", vec![None]),
+            ("range(1:3)", vec![Some(1), Some(3)]),
+            (
+                "cumsum(c(2147483647L, 1L, -1L))",
+                vec![Some(2147483647), None, None],
+            ),
+            ("cummin(3:1)", vec![Some(3), Some(2), Some(1)]),
+            ("median(1:3)", vec![Some(2)]),
+            ("diff(1:3)", vec![Some(1), Some(1)]),
+            ("unlist(list(1L, 2L))", vec![Some(1), Some(2)]),
+            ("seq(1L, 3L, by=1L)", vec![Some(1), Some(2), Some(3)]),
+            ("1:3", vec![Some(1), Some(2), Some(3)]),
+            ("3:1", vec![Some(3), Some(2), Some(1)]),
+            ("1:3.5", vec![Some(1), Some(2), Some(3)]),
+            ("1:2.99999999", vec![Some(1), Some(2), Some(3)]),
+            (
+                "2147483646:2147483647.5",
+                vec![Some(2147483646), Some(2147483647)],
+            ),
+            ("seq_len(3.9)", vec![Some(1), Some(2), Some(3)]),
+            ("seq_len(0)", vec![]),
+            ("seq_along(c(\"a\", \"b\"))", vec![Some(1), Some(2)]),
+            ("seq(3)", vec![Some(1), Some(2), Some(3)]),
+            (
+                "sapply(1:3, function(x) x)",
+                vec![Some(1), Some(2), Some(3)],
+            ),
+        ] {
+            assert_eq!(
+                frontend.eval_source(source).unwrap().last(),
+                Some(&Sexp::Integer(expected)),
+                "{source}"
+            );
+        }
+        for (source, expected) in [
+            ("1L + 2", vec![3.0]),
+            ("1L / 2L", vec![0.5]),
+            ("2L ^ 3L", vec![8.0]),
+            ("1.5L", vec![1.5]),
+            ("2147483648L", vec![2147483648.0]),
+            ("1.5:3", vec![1.5, 2.5]),
+            ("1e20:1e20", vec![1e20]),
+            ("sum(c(2147483647L, 1L))", vec![2147483648.0]),
+            ("median(1:4)", vec![2.5]),
+            ("cumprod(1:3)", vec![1.0, 2.0, 6.0]),
+            ("seq(-1e308, 1e308, by=1e308)", vec![-1e308, 0.0, 1e308]),
+        ] {
+            assert_eq!(
+                frontend.eval_source(source).unwrap().last(),
+                Some(&Sexp::Real(expected)),
+                "{source}"
+            );
+        }
+        for source in ["seq_len(-1)", "seq_len(NA)", "seq_len(Inf)"] {
+            assert!(frontend.eval_source(source).is_err(), "{source}");
+        }
     }
 
     #[test]
@@ -9335,8 +9789,8 @@ mod tests {
             ))
             .unwrap();
         assert_eq!(values[0], Sexp::Real(vec![2.0, 4.0, 6.0]));
-        assert_eq!(values[1], Sexp::Real(vec![1.0, 2.0, 3.0]));
-        assert_eq!(values[2], Sexp::Real(vec![1.0, 2.0, 3.0]));
+        assert_eq!(values[1], Sexp::Integer(vec![Some(1), Some(2), Some(3)]));
+        assert_eq!(values[2], Sexp::Integer(vec![Some(1), Some(2), Some(3)]));
         assert_eq!(values[3], Sexp::Real(vec![1.0, 2.0, 1.0, 2.0]));
         assert_eq!(values[4], Sexp::Real(vec![1.0, 0.0]));
         let Sexp::Real(as_double) = &values[5] else {
@@ -9487,7 +9941,7 @@ mod tests {
         assert_eq!(values[19], Sexp::Real(vec![3.0]));
         assert_eq!(values[20], Sexp::Real(vec![5.0]));
         assert_eq!(values[21], Sexp::Real(vec![6.0]));
-        assert_eq!(values[22], Sexp::Real(vec![1.0, 2.0]));
+        assert_eq!(values[22], Sexp::Integer(vec![Some(1), Some(2)]));
     }
 
     #[test]
@@ -9851,7 +10305,7 @@ mod tests {
         assert_eq!(values[5], Sexp::Integer(vec![Some(3)]));
         assert_eq!(values[6], Sexp::Integer(vec![Some(3)]));
         assert_eq!(values[7], Sexp::Integer(vec![Some(3)]));
-        assert_eq!(values[8], Sexp::Real(vec![1.0, 2.0, 3.0]));
+        assert_eq!(values[8], Sexp::Integer(vec![Some(1), Some(2), Some(3)]));
         assert_eq!(
             values[9],
             Sexp::String(vec![
@@ -9860,7 +10314,7 @@ mod tests {
                 Some("c".to_string())
             ])
         );
-        assert_eq!(values[10], Sexp::Real(vec![2.0]));
+        assert_eq!(values[10], Sexp::Integer(vec![Some(2)]));
         assert_eq!(
             values[11],
             Sexp::String(vec![
@@ -9877,7 +10331,7 @@ mod tests {
                 Some("z".to_string())
             ])
         );
-        assert_eq!(values[14], Sexp::Real(vec![2.0]));
+        assert_eq!(values[14], Sexp::Integer(vec![Some(2)]));
         assert_eq!(
             values[16],
             Sexp::String(vec![
@@ -10018,7 +10472,7 @@ mod tests {
         assert_eq!(values[1], Sexp::Real(vec![2.0, 3.0, 4.0]));
         assert_eq!(values[2], Sexp::Real(vec![6.0]));
         assert_eq!(values[4], Sexp::Integer(vec![Some(2), Some(3)]));
-        assert_eq!(values[5], Sexp::Real(vec![2.0, 3.0]));
+        assert_eq!(values[5], Sexp::Integer(vec![Some(2), Some(3)]));
         assert_eq!(
             values[6],
             Sexp::String(vec![Some("b".to_string()), Some("c".to_string())])
@@ -10036,7 +10490,7 @@ mod tests {
         );
         assert_eq!(values[14], Sexp::Logical(vec![Some(true)]));
         assert_eq!(values[16], Sexp::Integer(vec![Some(2), Some(3)]));
-        assert_eq!(values[17], Sexp::Real(vec![1.0, 3.0]));
+        assert_eq!(values[17], Sexp::Integer(vec![Some(1), Some(3)]));
         assert_eq!(
             values[19],
             Sexp::String(vec![
@@ -10073,12 +10527,7 @@ mod tests {
                 "clean_m <- na.omit(m); dim(clean_m); clean_m[1, 2]"
             ))
             .unwrap();
-        let Sexp::Real(ifelse_values) = &values[0] else {
-            panic!("expected numeric ifelse result");
-        };
-        assert_eq!(ifelse_values[0], 1.0);
-        assert_eq!(ifelse_values[1], 11.0);
-        assert!(ifelse_values[2].is_nan());
+        assert_eq!(values[0], Sexp::Integer(vec![Some(1), Some(11), None]));
         assert_eq!(
             values[1],
             Sexp::String(vec![Some("yes".to_string()), Some("no".to_string())])
@@ -10131,15 +10580,15 @@ mod tests {
             values[2],
             Sexp::String(vec![Some("a".to_string()), Some("b".to_string())])
         );
-        assert_eq!(values[3], Sexp::Real(vec![1.0, 3.0]));
-        assert_eq!(values[4], Sexp::Real(vec![2.0, 4.0]));
+        assert_eq!(values[3], Sexp::Integer(vec![Some(1), Some(3)]));
+        assert_eq!(values[4], Sexp::Integer(vec![Some(2), Some(4)]));
         assert_eq!(
             values[6],
             Sexp::String(vec![Some("a".to_string()), Some("b".to_string())])
         );
-        assert_eq!(values[7], Sexp::Real(Vec::new()));
+        assert_eq!(values[7], Sexp::Integer(Vec::new()));
         assert_eq!(values[9], Sexp::Integer(vec![Some(2), Some(2)]));
-        assert_eq!(values[10], Sexp::Real(vec![1.0, 3.0]));
+        assert_eq!(values[10], Sexp::Integer(vec![Some(1), Some(3)]));
         assert_eq!(values[11], Sexp::Logical(vec![Some(true)]));
         assert_eq!(values[13], Sexp::Integer(vec![Some(2)]));
         assert_eq!(values[14], Sexp::Integer(vec![Some(2)]));
@@ -10180,7 +10629,7 @@ mod tests {
             values[9],
             Sexp::String(vec![Some("matrix".to_string()), Some("array".to_string())])
         );
-        assert_eq!(values[10], Sexp::String(vec![Some("double".to_string())]));
+        assert_eq!(values[10], Sexp::String(vec![Some("integer".to_string())]));
         assert_eq!(values[12], Sexp::String(vec![Some("function".to_string())]));
         assert_eq!(values[13], Sexp::String(vec![Some("closure".to_string())]));
     }
@@ -10229,15 +10678,18 @@ mod tests {
                 "apply(m, 2, function(x, inc) mean(x) + inc, inc = 10)"
             ))
             .unwrap();
-        assert_eq!(values[1], Sexp::Real(vec![9.0, 12.0]));
+        assert_eq!(values[1], Sexp::Integer(vec![Some(9), Some(12)]));
         assert_eq!(values[2], Sexp::Real(vec![1.5, 3.5, 5.5]));
         let Sexp::Matrix { data, nrow, ncol } = &values[3] else {
             panic!("expected apply matrix");
         };
         assert_eq!((*nrow, *ncol), (2, 2));
-        assert_eq!(data.as_ref(), &Sexp::Real(vec![1.0, 9.0, 2.0, 12.0]));
+        assert_eq!(
+            data.as_ref(),
+            &Sexp::Integer(vec![Some(1), Some(9), Some(2), Some(12)])
+        );
         assert_eq!(values[4], Sexp::Integer(vec![Some(2), Some(2)]));
-        assert_eq!(values[5], Sexp::Real(vec![12.0]));
+        assert_eq!(values[5], Sexp::Integer(vec![Some(12)]));
         assert_eq!(values[6], Sexp::Real(vec![11.5, 13.5, 15.5]));
     }
 
@@ -10260,26 +10712,32 @@ mod tests {
             panic!("expected cbind matrix");
         };
         assert_eq!((*nrow, *ncol), (2, 2));
-        assert_eq!(data.as_ref(), &Sexp::Real(vec![1.0, 2.0, 3.0, 4.0]));
+        assert_eq!(
+            data.as_ref(),
+            &Sexp::Integer(vec![Some(1), Some(2), Some(3), Some(4)])
+        );
         assert_eq!(values[1], Sexp::Integer(vec![Some(2), Some(2)]));
-        assert_eq!(values[2], Sexp::Real(vec![4.0]));
+        assert_eq!(values[2], Sexp::Integer(vec![Some(4)]));
         let Sexp::Matrix { data, nrow, ncol } = &values[3] else {
             panic!("expected rbind matrix");
         };
         assert_eq!((*nrow, *ncol), (2, 2));
-        assert_eq!(data.as_ref(), &Sexp::Real(vec![1.0, 3.0, 2.0, 4.0]));
+        assert_eq!(
+            data.as_ref(),
+            &Sexp::Integer(vec![Some(1), Some(3), Some(2), Some(4)])
+        );
         assert_eq!(values[4], Sexp::Integer(vec![Some(2), Some(2)]));
-        assert_eq!(values[5], Sexp::Real(vec![3.0]));
+        assert_eq!(values[5], Sexp::Integer(vec![Some(3)]));
         let Sexp::Matrix { data, nrow, ncol } = &values[6] else {
             panic!("expected cbind matrix extension");
         };
         assert_eq!((*nrow, *ncol), (2, 3));
         assert_eq!(
             data.as_ref(),
-            &Sexp::Real(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+            &Sexp::Integer(vec![Some(1), Some(2), Some(3), Some(4), Some(5), Some(6)])
         );
         assert_eq!(values[7], Sexp::Integer(vec![Some(2), Some(3)]));
-        assert_eq!(values[8], Sexp::Real(vec![6.0]));
+        assert_eq!(values[8], Sexp::Integer(vec![Some(6)]));
         let Sexp::Matrix { data, nrow, ncol } = &values[9] else {
             panic!("expected rbind matrix extension");
         };
@@ -10295,9 +10753,9 @@ mod tests {
             values[14],
             Sexp::String(vec![Some("x".to_string()), Some("y".to_string())])
         );
-        assert_eq!(values[15], Sexp::Real(vec![4.0]));
+        assert_eq!(values[15], Sexp::Integer(vec![Some(4)]));
         assert_eq!(values[17], Sexp::Integer(vec![Some(4), Some(2)]));
-        assert_eq!(values[18], Sexp::Real(vec![8.0]));
+        assert_eq!(values[18], Sexp::Integer(vec![Some(8)]));
     }
 
     #[test]
@@ -10472,11 +10930,17 @@ mod tests {
                 "sorted[order(sorted$x), \"y\"]"
             ))
             .unwrap();
-        assert_eq!(values[0], Sexp::Real(vec![1.0, 2.0]));
-        assert_eq!(values[1], Sexp::Real(vec![4.0, 5.0]));
-        assert_eq!(values[2], Sexp::Real(vec![1.0, 2.0, 3.0, 4.0]));
-        assert_eq!(values[3], Sexp::Real(vec![2.0, 3.0, 4.0, 5.0]));
-        assert_eq!(values[4], Sexp::Real(vec![3.0, 2.0, 1.0]));
+        assert_eq!(values[0], Sexp::Integer(vec![Some(1), Some(2)]));
+        assert_eq!(values[1], Sexp::Integer(vec![Some(4), Some(5)]));
+        assert_eq!(
+            values[2],
+            Sexp::Integer(vec![Some(1), Some(2), Some(3), Some(4)])
+        );
+        assert_eq!(
+            values[3],
+            Sexp::Integer(vec![Some(2), Some(3), Some(4), Some(5)])
+        );
+        assert_eq!(values[4], Sexp::Integer(vec![Some(3), Some(2), Some(1)]));
         assert_eq!(values[5], Sexp::Real(vec![1.0, 2.0, 3.0]));
         assert_eq!(values[6], Sexp::Real(vec![3.0, 2.0, 1.0]));
         let Sexp::Real(unique_values) = &values[7] else {
@@ -10633,7 +11097,7 @@ mod tests {
                 "ut <- upper.tri(matrix(1:9, nrow = 3), diag = TRUE); ut[1, 1]; ut[3, 1]"
             ))
             .unwrap();
-        assert_eq!(values[1], Sexp::Real(vec![1.0, 4.0]));
+        assert_eq!(values[1], Sexp::Integer(vec![Some(1), Some(4)]));
         assert_eq!(values[3], Sexp::Integer(vec![Some(2), Some(2)]));
         assert_eq!(values[4], Sexp::Real(vec![5.0]));
         assert_eq!(values[5], Sexp::Real(vec![6.0]));
@@ -10737,18 +11201,21 @@ mod tests {
             panic!("expected matrix");
         };
         assert_eq!((*nrow, *ncol), (2, 2));
-        assert_eq!(data.as_ref(), &Sexp::Real(vec![1.0, 2.0, 3.0, 4.0]));
+        assert_eq!(
+            data.as_ref(),
+            &Sexp::Integer(vec![Some(1), Some(2), Some(3), Some(4)])
+        );
         assert_eq!(values[1], Sexp::Integer(vec![Some(2), Some(2)]));
         assert_eq!(values[2], Sexp::Integer(vec![Some(2)]));
         assert_eq!(values[3], Sexp::Integer(vec![Some(2)]));
         assert_eq!(values[4], Sexp::Integer(vec![Some(4)]));
         assert_eq!(values[5], Sexp::Logical(vec![Some(true)]));
-        assert_eq!(values[6], Sexp::Real(vec![3.0]));
-        assert_eq!(values[7], Sexp::Real(vec![3.0, 4.0]));
-        assert_eq!(values[8], Sexp::Real(vec![1.0, 3.0]));
+        assert_eq!(values[6], Sexp::Integer(vec![Some(3)]));
+        assert_eq!(values[7], Sexp::Integer(vec![Some(3), Some(4)]));
+        assert_eq!(values[8], Sexp::Integer(vec![Some(1), Some(3)]));
         assert_eq!(values[10], Sexp::Integer(vec![Some(2), Some(2)]));
         assert_eq!(values[12], Sexp::Real(vec![99.0]));
-        assert_eq!(values[14], Sexp::Real(vec![3.0]));
+        assert_eq!(values[14], Sexp::Integer(vec![Some(3)]));
     }
 
     #[test]
@@ -10767,9 +11234,12 @@ mod tests {
             panic!("expected transposed matrix");
         };
         assert_eq!((*nrow, *ncol), (2, 2));
-        assert_eq!(data.as_ref(), &Sexp::Real(vec![1.0, 3.0, 2.0, 4.0]));
+        assert_eq!(
+            data.as_ref(),
+            &Sexp::Integer(vec![Some(1), Some(3), Some(2), Some(4)])
+        );
         assert_eq!(values[2], Sexp::Integer(vec![Some(2), Some(2)]));
-        assert_eq!(values[3], Sexp::Real(vec![2.0]));
+        assert_eq!(values[3], Sexp::Integer(vec![Some(2)]));
         assert_eq!(values[4], Sexp::Real(vec![4.0, 6.0]));
         assert_eq!(values[5], Sexp::Real(vec![3.0, 7.0]));
         assert_eq!(values[6], Sexp::Real(vec![2.0, 3.0]));

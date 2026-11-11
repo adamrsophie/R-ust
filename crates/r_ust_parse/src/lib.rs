@@ -1,4 +1,4 @@
-use r_ust_sexp::{BinaryOp, CallArgument, FunctionParameter, Sexp, UnaryOp};
+use r_ust_sexp::{BinaryOp, CallArgument, FunctionParameter, Sexp, UnaryOp, NA_REAL};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(i32)]
@@ -70,6 +70,7 @@ impl Parser {
 #[derive(Clone, Debug, PartialEq)]
 enum Token {
     Number(f64),
+    Integer(i32),
     String(String),
     Ident(String),
     Plus,
@@ -137,7 +138,7 @@ impl<'a> Lexer<'a> {
                     self.skip_comment();
                 }
                 '0'..='9' | '.' if self.starts_number() => {
-                    tokens.push(Token::Number(self.lex_number()?));
+                    tokens.push(self.lex_number()?);
                 }
                 '"' | '\'' => {
                     tokens.push(Token::String(self.lex_string()?));
@@ -163,7 +164,11 @@ impl<'a> Lexer<'a> {
                 }
                 '*' => {
                     self.advance();
-                    tokens.push(Token::Star);
+                    tokens.push(if self.consume('*') {
+                        Token::Caret
+                    } else {
+                        Token::Star
+                    });
                 }
                 '/' => {
                     self.advance();
@@ -324,7 +329,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn lex_number(&mut self) -> Result<f64, ParseError> {
+    fn lex_number(&mut self) -> Result<Token, ParseError> {
         let start = self.position;
         while matches!(self.peek(), Some('0'..='9')) {
             self.advance();
@@ -349,8 +354,16 @@ impl<'a> Lexer<'a> {
             }
         }
         let text: String = self.chars[start..self.position].iter().collect();
-        text.parse::<f64>()
-            .map_err(|_| ParseError::new(format!("invalid numeric literal {text:?}")))
+        let value = text
+            .parse::<f64>()
+            .map_err(|_| ParseError::new(format!("invalid numeric literal {text:?}")))?;
+        if self.consume('L') {
+            if value.fract() == 0.0 && value <= i32::MAX as f64 {
+                return Ok(Token::Integer(value as i32));
+            }
+            // shortcut: invalid L qualifiers use double silently until parser warnings exist.
+        }
+        Ok(Token::Number(value))
     }
 
     fn lex_string(&mut self) -> Result<String, ParseError> {
@@ -441,7 +454,7 @@ impl SyntaxParser {
     }
 
     fn parse_assignment(&mut self) -> Result<Sexp, ParseError> {
-        let left = self.parse_or()?;
+        let left = self.parse_binary(0)?;
         match self.peek() {
             Token::AssignLeft | Token::AssignEqual | Token::AssignLeftSuper => {
                 let is_super = matches!(self.peek(), Token::AssignLeftSuper);
@@ -568,181 +581,67 @@ impl SyntaxParser {
         }
     }
 
-    fn parse_or(&mut self) -> Result<Sexp, ParseError> {
-        let mut expr = self.parse_and()?;
-        loop {
-            let op = match self.peek() {
-                Token::Pipe => BinaryOp::Or,
-                Token::OrOr => BinaryOp::OrScalar,
-                _ => break,
-            };
+    fn parse_binary(&mut self, min_precedence: u8) -> Result<Sexp, ParseError> {
+        let mut expr = self.parse_unary()?;
+        while let Some((op, precedence)) = self.binary_operator()? {
+            if precedence < min_precedence {
+                break;
+            }
             self.advance();
-            let right = self.parse_and()?;
+            let right = self.parse_binary(precedence + u8::from(op != BinaryOp::Power))?;
             expr = Sexp::Binary {
                 op,
                 left: Box::new(expr),
                 right: Box::new(right),
             };
+            if precedence == 7 && matches!(self.binary_operator()?, Some((_, 7))) {
+                return Err(ParseError::new("comparison operators are not associative"));
+            }
         }
         Ok(expr)
     }
 
-    fn parse_and(&mut self) -> Result<Sexp, ParseError> {
-        let mut expr = self.parse_comparison()?;
-        loop {
-            let op = match self.peek() {
-                Token::Ampersand => BinaryOp::And,
-                Token::AndAnd => BinaryOp::AndScalar,
-                _ => break,
-            };
-            self.advance();
-            let right = self.parse_comparison()?;
-            expr = Sexp::Binary {
-                op,
-                left: Box::new(expr),
-                right: Box::new(right),
-            };
-        }
-        Ok(expr)
-    }
-
-    fn parse_comparison(&mut self) -> Result<Sexp, ParseError> {
-        let mut expr = self.parse_additive()?;
-        loop {
-            let op = match self.peek() {
-                Token::Less => BinaryOp::Less,
-                Token::LessEqual => BinaryOp::LessEqual,
-                Token::Greater => BinaryOp::Greater,
-                Token::GreaterEqual => BinaryOp::GreaterEqual,
-                Token::EqualEqual => BinaryOp::Equal,
-                Token::NotEqual => BinaryOp::NotEqual,
-                _ => break,
-            };
-            self.advance();
-            let right = self.parse_additive()?;
-            expr = Sexp::Binary {
-                op,
-                left: Box::new(expr),
-                right: Box::new(right),
-            };
-        }
-        Ok(expr)
-    }
-
-    fn parse_additive(&mut self) -> Result<Sexp, ParseError> {
-        let mut expr = self.parse_multiplicative()?;
-        loop {
-            let op = match self.peek() {
-                Token::Plus => BinaryOp::Add,
-                Token::Minus => BinaryOp::Subtract,
-                _ => break,
-            };
-            self.advance();
-            let right = self.parse_multiplicative()?;
-            expr = Sexp::Binary {
-                op,
-                left: Box::new(expr),
-                right: Box::new(right),
-            };
-        }
-        Ok(expr)
-    }
-
-    fn parse_multiplicative(&mut self) -> Result<Sexp, ParseError> {
-        let mut expr = self.parse_special()?;
-        loop {
-            let op = match self.peek() {
-                Token::Star => BinaryOp::Multiply,
-                Token::Slash => BinaryOp::Divide,
-                _ => break,
-            };
-            self.advance();
-            let right = self.parse_sequence()?;
-            expr = Sexp::Binary {
-                op,
-                left: Box::new(expr),
-                right: Box::new(right),
-            };
-        }
-        Ok(expr)
-    }
-
-    fn parse_special(&mut self) -> Result<Sexp, ParseError> {
-        let mut expr = self.parse_sequence()?;
-        loop {
-            let op = match self.peek() {
-                Token::Special(name) if name == "in" => BinaryOp::In,
-                Token::Special(name) => {
-                    return Err(ParseError::new(format!(
-                        "special operator %{name}% is not implemented"
-                    )))
-                }
-                _ => break,
-            };
-            self.advance();
-            let right = self.parse_sequence()?;
-            expr = Sexp::Binary {
-                op,
-                left: Box::new(expr),
-                right: Box::new(right),
-            };
-        }
-        Ok(expr)
-    }
-
-    fn parse_sequence(&mut self) -> Result<Sexp, ParseError> {
-        let mut expr = self.parse_power()?;
-        while matches!(self.peek(), Token::Colon) {
-            self.advance();
-            let right = self.parse_power()?;
-            expr = Sexp::Binary {
-                op: BinaryOp::Sequence,
-                left: Box::new(expr),
-                right: Box::new(right),
-            };
-        }
-        Ok(expr)
-    }
-
-    fn parse_power(&mut self) -> Result<Sexp, ParseError> {
-        let left = self.parse_unary()?;
-        if matches!(self.peek(), Token::Caret) {
-            self.advance();
-            let right = self.parse_power()?;
-            return Ok(Sexp::Binary {
-                op: BinaryOp::Power,
-                left: Box::new(left),
-                right: Box::new(right),
-            });
-        }
-        Ok(left)
+    fn binary_operator(&self) -> Result<Option<(BinaryOp, u8)>, ParseError> {
+        // R's gram.y: powers bind above signs; comparisons bind above !.
+        Ok(Some(match self.peek() {
+            Token::OrOr => (BinaryOp::OrScalar, 2),
+            Token::Pipe => (BinaryOp::Or, 2),
+            Token::AndAnd => (BinaryOp::AndScalar, 4),
+            Token::Ampersand => (BinaryOp::And, 4),
+            Token::Less => (BinaryOp::Less, 7),
+            Token::LessEqual => (BinaryOp::LessEqual, 7),
+            Token::Greater => (BinaryOp::Greater, 7),
+            Token::GreaterEqual => (BinaryOp::GreaterEqual, 7),
+            Token::EqualEqual => (BinaryOp::Equal, 7),
+            Token::NotEqual => (BinaryOp::NotEqual, 7),
+            Token::Plus => (BinaryOp::Add, 8),
+            Token::Minus => (BinaryOp::Subtract, 8),
+            Token::Star => (BinaryOp::Multiply, 9),
+            Token::Slash => (BinaryOp::Divide, 9),
+            Token::Special(name) if name == "in" => (BinaryOp::In, 10),
+            Token::Special(name) => {
+                return Err(ParseError::new(format!(
+                    "special operator %{name}% is not implemented"
+                )))
+            }
+            Token::Colon => (BinaryOp::Sequence, 11),
+            Token::Caret => (BinaryOp::Power, 13),
+            _ => return Ok(None),
+        }))
     }
 
     fn parse_unary(&mut self) -> Result<Sexp, ParseError> {
-        match self.peek() {
-            Token::Plus => {
-                self.advance();
-                Ok(Sexp::Unary {
-                    op: UnaryOp::Plus,
-                    value: Box::new(self.parse_unary()?),
-                })
-            }
-            Token::Minus => {
-                self.advance();
-                Ok(Sexp::Unary {
-                    op: UnaryOp::Minus,
-                    value: Box::new(self.parse_unary()?),
-                })
-            }
-            Token::Bang => {
-                self.advance();
-                Ok(Sexp::Unary {
-                    op: UnaryOp::Not,
-                    value: Box::new(self.parse_unary()?),
-                })
-            }
-            _ => self.parse_call(),
-        }
+        let (op, precedence) = match self.peek() {
+            Token::Plus => (UnaryOp::Plus, 12),
+            Token::Minus => (UnaryOp::Minus, 12),
+            Token::Bang => (UnaryOp::Not, 6),
+            _ => return self.parse_call(),
+        };
+        self.advance();
+        Ok(Sexp::Unary {
+            op,
+            value: Box::new(self.parse_binary(precedence)?),
+        })
     }
 
     fn parse_call(&mut self) -> Result<Sexp, ParseError> {
@@ -850,6 +749,7 @@ impl SyntaxParser {
     fn parse_primary(&mut self) -> Result<Sexp, ParseError> {
         match self.advance().clone() {
             Token::Number(value) => Ok(Sexp::Real(vec![value])),
+            Token::Integer(value) => Ok(Sexp::Integer(vec![Some(value)])),
             Token::String(value) => Ok(Sexp::String(vec![Some(value)])),
             Token::Ident(name) => Ok(match name.as_str() {
                 "function" => self.parse_function_definition()?,
@@ -863,6 +763,9 @@ impl SyntaxParser {
                 "TRUE" | "T" => Sexp::Logical(vec![Some(true)]),
                 "FALSE" | "F" => Sexp::Logical(vec![Some(false)]),
                 "NA" => Sexp::Logical(vec![None]),
+                "NA_integer_" => Sexp::Integer(vec![None]),
+                "NA_real_" => Sexp::Real(vec![NA_REAL]),
+                "NA_character_" => Sexp::String(vec![None]),
                 "NaN" => Sexp::Real(vec![f64::NAN]),
                 "Inf" => Sexp::Real(vec![f64::INFINITY]),
                 _ => Sexp::Symbol(name),
@@ -1058,6 +961,16 @@ mod tests {
         assert_eq!(arguments.len(), 3);
         assert_eq!(arguments[1].name.as_deref(), Some("mean"));
         assert_eq!(arguments[2].name.as_deref(), Some("sd"));
+    }
+
+    #[test]
+    fn rejects_unparenthesized_comparison_chains() {
+        for source in ["1 < 2 < 3", "1 == 1 != 2", "1 <= 2 > 0"] {
+            assert!(Parser.parse_all(source).is_err(), "{source}");
+        }
+        for source in ["(1 < 2) < 3", "1 == (1 != 2)"] {
+            assert!(Parser.parse_all(source).is_ok(), "{source}");
+        }
     }
 
     #[test]
