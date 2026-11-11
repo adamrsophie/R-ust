@@ -1,0 +1,13 @@
+[package]
+name = "r_ust_ffi"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+crate-type = ["rlib", "staticlib", "cdylib"]
+
+[dependencies]
+r_ust_nmath = { path = "../r_ust_nmath" }
+

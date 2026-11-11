@@ -1,0 +1,15 @@
+[package]
+name = "r_ust_runtime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+r_ust_eval = { path = "../r_ust_eval" }
+r_ust_ffi = { path = "../r_ust_ffi" }
+r_ust_gc = { path = "../r_ust_gc" }
+r_ust_nmath = { path = "../r_ust_nmath" }
+r_ust_parse = { path = "../r_ust_parse" }
+r_ust_sexp = { path = "../r_ust_sexp" }
+

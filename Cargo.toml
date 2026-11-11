@@ -1,0 +1,18 @@
+[workspace]
+members = [
+    "crates/r_ust_cli",
+    "crates/r_ust_eval",
+    "crates/r_ust_ffi",
+    "crates/r_ust_gc",
+    "crates/r_ust_nmath",
+    "crates/r_ust_parse",
+    "crates/r_ust_runtime",
+    "crates/r_ust_sexp",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/adamrsophie/R-ust"
