@@ -92,12 +92,12 @@ R-ust does not yet provide an interactive console, reference semantics for envir
 
 Output formatting differs from R in places: numbers print with up to 12 significant digits instead of R's default of 7, names are not yet shown when printing named vectors, and character vectors are not column aligned.
 
-Several Rmath families use accurate approximations that do not yet reproduce R's results to the last bit:
+Several Rmath families use different algorithms from R, and their agreement with R has not yet been validated across the full parameter range:
 
 - Bessel functions use series, reflection, and asymptotic approximations in place of R's Cody and Amos style routines.
 - Noncentral beta, F, t, and chi-square distributions use mixture, integration, and bisection methods.
 - The Tukey studentized range distribution and quantile use a monotone approximation in place of R's quadrature algorithm.
-- Random number generators for the gamma, beta, F, t, binomial, Poisson, hypergeometric, rank, and multinomial families produce valid draws but not R's exact random streams.
+- Random number generators for the gamma, beta, F, t, binomial, Poisson, hypergeometric, rank, and multinomial families do not reproduce R's random streams.
 - Wilcoxon and signed rank distributions use exact dynamic programming tables; the exported `*_free` functions are no-ops.
 
 ## Testing
