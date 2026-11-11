@@ -1,3 +1,7 @@
 .DS_Store
 /target/
-/documentation/
+/documentation/*
+!/documentation/PORTING.md
+!/documentation/porting-data/
+/documentation/porting-data/__pycache__/
+/documentation/porting-data/*.pyc

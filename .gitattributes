@@ -1,0 +1,3 @@
+# Preserve empty TSV fields and the exact whitespace printed by reference R.
+documentation/porting-data/*.tsv -text whitespace=-blank-at-eol
+documentation/porting-data/*_r_out.txt -text whitespace=-blank-at-eol

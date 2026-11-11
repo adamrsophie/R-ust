@@ -1,0 +1,593 @@
+code	class	r_out	rust_out
+NA_real_ + NA_real_	match	[1] NA	[1] NA
+NA_real_ + NaN	match	[1] NA	[1] NA
+NA_real_ + 0	match	[1] NA	[1] NA
+NA_real_ + 1	match	[1] NA	[1] NA
+NA_real_ + Inf	match	[1] NA	[1] NA
+NaN + NA_real_	match	[1] NA	[1] NA
+NaN + NaN	match	[1] NaN	[1] NaN
+NaN + 0	match	[1] NaN	[1] NaN
+NaN + 1	match	[1] NaN	[1] NaN
+NaN + Inf	match	[1] NaN	[1] NaN
+0 + NA_real_	match	[1] NA	[1] NA
+0 + NaN	match	[1] NaN	[1] NaN
+0 + 0	match	[1] 0	[1] 0
+0 + 1	match	[1] 1	[1] 1
+0 + Inf	match	[1] Inf	[1] Inf
+1 + NA_real_	match	[1] NA	[1] NA
+1 + NaN	match	[1] NaN	[1] NaN
+1 + 0	match	[1] 1	[1] 1
+1 + 1	match	[1] 2	[1] 2
+1 + Inf	match	[1] Inf	[1] Inf
+Inf + NA_real_	match	[1] NA	[1] NA
+Inf + NaN	match	[1] NaN	[1] NaN
+Inf + 0	match	[1] Inf	[1] Inf
+Inf + 1	match	[1] Inf	[1] Inf
+Inf + Inf	match	[1] Inf	[1] Inf
+NA_real_ - NA_real_	match	[1] NA	[1] NA
+NA_real_ - NaN	match	[1] NA	[1] NA
+NA_real_ - 0	match	[1] NA	[1] NA
+NA_real_ - 1	match	[1] NA	[1] NA
+NA_real_ - Inf	match	[1] NA	[1] NA
+NaN - NA_real_	match	[1] NA	[1] NA
+NaN - NaN	match	[1] NaN	[1] NaN
+NaN - 0	match	[1] NaN	[1] NaN
+NaN - 1	match	[1] NaN	[1] NaN
+NaN - Inf	match	[1] NaN	[1] NaN
+0 - NA_real_	match	[1] NA	[1] NA
+0 - NaN	match	[1] NaN	[1] NaN
+0 - 0	match	[1] 0	[1] 0
+0 - 1	match	[1] -1	[1] -1
+0 - Inf	match	[1] -Inf	[1] -Inf
+1 - NA_real_	match	[1] NA	[1] NA
+1 - NaN	match	[1] NaN	[1] NaN
+1 - 0	match	[1] 1	[1] 1
+1 - 1	match	[1] 0	[1] 0
+1 - Inf	match	[1] -Inf	[1] -Inf
+Inf - NA_real_	match	[1] NA	[1] NA
+Inf - NaN	match	[1] NaN	[1] NaN
+Inf - 0	match	[1] Inf	[1] Inf
+Inf - 1	match	[1] Inf	[1] Inf
+Inf - Inf	match	[1] NaN	[1] NaN
+NA_real_ * NA_real_	match	[1] NA	[1] NA
+NA_real_ * NaN	match	[1] NA	[1] NA
+NA_real_ * 0	match	[1] NA	[1] NA
+NA_real_ * 1	match	[1] NA	[1] NA
+NA_real_ * Inf	match	[1] NA	[1] NA
+NaN * NA_real_	match	[1] NA	[1] NA
+NaN * NaN	match	[1] NaN	[1] NaN
+NaN * 0	match	[1] NaN	[1] NaN
+NaN * 1	match	[1] NaN	[1] NaN
+NaN * Inf	match	[1] NaN	[1] NaN
+0 * NA_real_	match	[1] NA	[1] NA
+0 * NaN	match	[1] NaN	[1] NaN
+0 * 0	match	[1] 0	[1] 0
+0 * 1	match	[1] 0	[1] 0
+0 * Inf	match	[1] NaN	[1] NaN
+1 * NA_real_	match	[1] NA	[1] NA
+1 * NaN	match	[1] NaN	[1] NaN
+1 * 0	match	[1] 0	[1] 0
+1 * 1	match	[1] 1	[1] 1
+1 * Inf	match	[1] Inf	[1] Inf
+Inf * NA_real_	match	[1] NA	[1] NA
+Inf * NaN	match	[1] NaN	[1] NaN
+Inf * 0	match	[1] NaN	[1] NaN
+Inf * 1	match	[1] Inf	[1] Inf
+Inf * Inf	match	[1] Inf	[1] Inf
+NA_real_ / NA_real_	match	[1] NA	[1] NA
+NA_real_ / NaN	match	[1] NA	[1] NA
+NA_real_ / 0	match	[1] NA	[1] NA
+NA_real_ / 1	match	[1] NA	[1] NA
+NA_real_ / Inf	match	[1] NA	[1] NA
+NaN / NA_real_	match	[1] NA	[1] NA
+NaN / NaN	match	[1] NaN	[1] NaN
+NaN / 0	match	[1] NaN	[1] NaN
+NaN / 1	match	[1] NaN	[1] NaN
+NaN / Inf	match	[1] NaN	[1] NaN
+0 / NA_real_	match	[1] NA	[1] NA
+0 / NaN	match	[1] NaN	[1] NaN
+0 / 0	match	[1] NaN	[1] NaN
+0 / 1	match	[1] 0	[1] 0
+0 / Inf	match	[1] 0	[1] 0
+1 / NA_real_	match	[1] NA	[1] NA
+1 / NaN	match	[1] NaN	[1] NaN
+1 / 0	match	[1] Inf	[1] Inf
+1 / 1	match	[1] 1	[1] 1
+1 / Inf	match	[1] 0	[1] 0
+Inf / NA_real_	match	[1] NA	[1] NA
+Inf / NaN	match	[1] NaN	[1] NaN
+Inf / 0	match	[1] Inf	[1] Inf
+Inf / 1	match	[1] Inf	[1] Inf
+Inf / Inf	match	[1] NaN	[1] NaN
+NA_real_ ^ NA_real_	match	[1] NA	[1] NA
+NA_real_ ^ NaN	match	[1] NA	[1] NA
+NA_real_ ^ 0	match	[1] 1	[1] 1
+NA_real_ ^ 1	match	[1] NA	[1] NA
+NA_real_ ^ Inf	match	[1] NA	[1] NA
+NaN ^ NA_real_	match	[1] NA	[1] NA
+NaN ^ NaN	match	[1] NaN	[1] NaN
+NaN ^ 0	match	[1] 1	[1] 1
+NaN ^ 1	match	[1] NaN	[1] NaN
+NaN ^ Inf	match	[1] NaN	[1] NaN
+0 ^ NA_real_	match	[1] NA	[1] NA
+0 ^ NaN	match	[1] NaN	[1] NaN
+0 ^ 0	match	[1] 1	[1] 1
+0 ^ 1	match	[1] 0	[1] 0
+0 ^ Inf	match	[1] 0	[1] 0
+1 ^ NA_real_	match	[1] 1	[1] 1
+1 ^ NaN	match	[1] 1	[1] 1
+1 ^ 0	match	[1] 1	[1] 1
+1 ^ 1	match	[1] 1	[1] 1
+1 ^ Inf	match	[1] 1	[1] 1
+Inf ^ NA_real_	match	[1] NA	[1] NA
+Inf ^ NaN	match	[1] NaN	[1] NaN
+Inf ^ 0	match	[1] 1	[1] 1
+Inf ^ 1	match	[1] Inf	[1] Inf
+Inf ^ Inf	match	[1] Inf	[1] Inf
+sum(c(NA_real_, NA_real_))	match	[1] NA	[1] NA
+sum(c(NA_real_, NaN))	match	[1] NA	[1] NA
+sum(c(NA_real_, 0))	match	[1] NA	[1] NA
+sum(c(NA_real_, 1))	match	[1] NA	[1] NA
+sum(c(NA_real_, Inf))	match	[1] NA	[1] NA
+sum(c(NaN, NA_real_))	match	[1] NA	[1] NA
+sum(c(NaN, NaN))	match	[1] NaN	[1] NaN
+sum(c(NaN, 0))	match	[1] NaN	[1] NaN
+sum(c(NaN, 1))	match	[1] NaN	[1] NaN
+sum(c(NaN, Inf))	match	[1] NaN	[1] NaN
+sum(c(0, NA_real_))	match	[1] NA	[1] NA
+sum(c(0, NaN))	match	[1] NaN	[1] NaN
+sum(c(0, 0))	match	[1] 0	[1] 0
+sum(c(0, 1))	match	[1] 1	[1] 1
+sum(c(0, Inf))	match	[1] Inf	[1] Inf
+sum(c(1, NA_real_))	match	[1] NA	[1] NA
+sum(c(1, NaN))	match	[1] NaN	[1] NaN
+sum(c(1, 0))	match	[1] 1	[1] 1
+sum(c(1, 1))	match	[1] 2	[1] 2
+sum(c(1, Inf))	match	[1] Inf	[1] Inf
+sum(c(Inf, NA_real_))	match	[1] NA	[1] NA
+sum(c(Inf, NaN))	match	[1] NaN	[1] NaN
+sum(c(Inf, 0))	match	[1] Inf	[1] Inf
+sum(c(Inf, 1))	match	[1] Inf	[1] Inf
+sum(c(Inf, Inf))	match	[1] Inf	[1] Inf
+prod(c(NA_real_, NA_real_))	match	[1] NA	[1] NA
+prod(c(NA_real_, NaN))	match	[1] NA	[1] NA
+prod(c(NA_real_, 0))	match	[1] NA	[1] NA
+prod(c(NA_real_, 1))	match	[1] NA	[1] NA
+prod(c(NA_real_, Inf))	match	[1] NA	[1] NA
+prod(c(NaN, NA_real_))	match	[1] NA	[1] NA
+prod(c(NaN, NaN))	match	[1] NaN	[1] NaN
+prod(c(NaN, 0))	match	[1] NaN	[1] NaN
+prod(c(NaN, 1))	match	[1] NaN	[1] NaN
+prod(c(NaN, Inf))	match	[1] NaN	[1] NaN
+prod(c(0, NA_real_))	match	[1] NA	[1] NA
+prod(c(0, NaN))	match	[1] NaN	[1] NaN
+prod(c(0, 0))	match	[1] 0	[1] 0
+prod(c(0, 1))	match	[1] 0	[1] 0
+prod(c(0, Inf))	match	[1] NaN	[1] NaN
+prod(c(1, NA_real_))	match	[1] NA	[1] NA
+prod(c(1, NaN))	match	[1] NaN	[1] NaN
+prod(c(1, 0))	match	[1] 0	[1] 0
+prod(c(1, 1))	match	[1] 1	[1] 1
+prod(c(1, Inf))	match	[1] Inf	[1] Inf
+prod(c(Inf, NA_real_))	match	[1] NA	[1] NA
+prod(c(Inf, NaN))	match	[1] NaN	[1] NaN
+prod(c(Inf, 0))	match	[1] NaN	[1] NaN
+prod(c(Inf, 1))	match	[1] Inf	[1] Inf
+prod(c(Inf, Inf))	match	[1] Inf	[1] Inf
+mean(c(NA_real_, NA_real_))	match	[1] NA	[1] NA
+mean(c(NA_real_, NaN))	match	[1] NA	[1] NA
+mean(c(NA_real_, 0))	match	[1] NA	[1] NA
+mean(c(NA_real_, 1))	match	[1] NA	[1] NA
+mean(c(NA_real_, Inf))	match	[1] NA	[1] NA
+mean(c(NaN, NA_real_))	match	[1] NaN	[1] NaN
+mean(c(NaN, NaN))	match	[1] NaN	[1] NaN
+mean(c(NaN, 0))	match	[1] NaN	[1] NaN
+mean(c(NaN, 1))	match	[1] NaN	[1] NaN
+mean(c(NaN, Inf))	match	[1] NaN	[1] NaN
+mean(c(0, NA_real_))	match	[1] NA	[1] NA
+mean(c(0, NaN))	match	[1] NaN	[1] NaN
+mean(c(0, 0))	match	[1] 0	[1] 0
+mean(c(0, 1))	match	[1] 0.5	[1] 0.5
+mean(c(0, Inf))	match	[1] Inf	[1] Inf
+mean(c(1, NA_real_))	match	[1] NA	[1] NA
+mean(c(1, NaN))	match	[1] NaN	[1] NaN
+mean(c(1, 0))	match	[1] 0.5	[1] 0.5
+mean(c(1, 1))	match	[1] 1	[1] 1
+mean(c(1, Inf))	match	[1] Inf	[1] Inf
+mean(c(Inf, NA_real_))	match	[1] NA	[1] NA
+mean(c(Inf, NaN))	match	[1] NaN	[1] NaN
+mean(c(Inf, 0))	match	[1] Inf	[1] Inf
+mean(c(Inf, 1))	match	[1] Inf	[1] Inf
+mean(c(Inf, Inf))	match	[1] Inf	[1] Inf
+min(c(NA_real_, NA_real_))	match	[1] NA	[1] NA
+min(c(NA_real_, NaN))	match	[1] NA	[1] NA
+min(c(NA_real_, 0))	match	[1] NA	[1] NA
+min(c(NA_real_, 1))	match	[1] NA	[1] NA
+min(c(NA_real_, Inf))	match	[1] NA	[1] NA
+min(c(NaN, NA_real_))	match	[1] NA	[1] NA
+min(c(NaN, NaN))	match	[1] NaN	[1] NaN
+min(c(NaN, 0))	match	[1] NaN	[1] NaN
+min(c(NaN, 1))	match	[1] NaN	[1] NaN
+min(c(NaN, Inf))	match	[1] NaN	[1] NaN
+min(c(0, NA_real_))	match	[1] NA	[1] NA
+min(c(0, NaN))	match	[1] NaN	[1] NaN
+min(c(0, 0))	match	[1] 0	[1] 0
+min(c(0, 1))	match	[1] 0	[1] 0
+min(c(0, Inf))	match	[1] 0	[1] 0
+min(c(1, NA_real_))	match	[1] NA	[1] NA
+min(c(1, NaN))	match	[1] NaN	[1] NaN
+min(c(1, 0))	match	[1] 0	[1] 0
+min(c(1, 1))	match	[1] 1	[1] 1
+min(c(1, Inf))	match	[1] 1	[1] 1
+min(c(Inf, NA_real_))	match	[1] NA	[1] NA
+min(c(Inf, NaN))	match	[1] NaN	[1] NaN
+min(c(Inf, 0))	match	[1] 0	[1] 0
+min(c(Inf, 1))	match	[1] 1	[1] 1
+min(c(Inf, Inf))	match	[1] Inf	[1] Inf
+max(c(NA_real_, NA_real_))	match	[1] NA	[1] NA
+max(c(NA_real_, NaN))	match	[1] NA	[1] NA
+max(c(NA_real_, 0))	match	[1] NA	[1] NA
+max(c(NA_real_, 1))	match	[1] NA	[1] NA
+max(c(NA_real_, Inf))	match	[1] NA	[1] NA
+max(c(NaN, NA_real_))	match	[1] NA	[1] NA
+max(c(NaN, NaN))	match	[1] NaN	[1] NaN
+max(c(NaN, 0))	match	[1] NaN	[1] NaN
+max(c(NaN, 1))	match	[1] NaN	[1] NaN
+max(c(NaN, Inf))	match	[1] NaN	[1] NaN
+max(c(0, NA_real_))	match	[1] NA	[1] NA
+max(c(0, NaN))	match	[1] NaN	[1] NaN
+max(c(0, 0))	match	[1] 0	[1] 0
+max(c(0, 1))	match	[1] 1	[1] 1
+max(c(0, Inf))	match	[1] Inf	[1] Inf
+max(c(1, NA_real_))	match	[1] NA	[1] NA
+max(c(1, NaN))	match	[1] NaN	[1] NaN
+max(c(1, 0))	match	[1] 1	[1] 1
+max(c(1, 1))	match	[1] 1	[1] 1
+max(c(1, Inf))	match	[1] Inf	[1] Inf
+max(c(Inf, NA_real_))	match	[1] NA	[1] NA
+max(c(Inf, NaN))	match	[1] NaN	[1] NaN
+max(c(Inf, 0))	match	[1] Inf	[1] Inf
+max(c(Inf, 1))	match	[1] Inf	[1] Inf
+max(c(Inf, Inf))	match	[1] Inf	[1] Inf
+range(c(NA_real_, NA_real_))	match	[1] NA NA	[1] NA NA
+range(c(NA_real_, NaN))	match	[1] NA NA	[1] NA NA
+range(c(NA_real_, 0))	match	[1] NA NA	[1] NA NA
+range(c(NA_real_, 1))	match	[1] NA NA	[1] NA NA
+range(c(NA_real_, Inf))	match	[1] NA NA	[1] NA NA
+range(c(NaN, NA_real_))	match	[1] NA NA	[1] NA NA
+range(c(NaN, NaN))	match	[1] NaN NaN	[1] NaN NaN
+range(c(NaN, 0))	match	[1] NaN NaN	[1] NaN NaN
+range(c(NaN, 1))	match	[1] NaN NaN	[1] NaN NaN
+range(c(NaN, Inf))	match	[1] NaN NaN	[1] NaN NaN
+range(c(0, NA_real_))	match	[1] NA NA	[1] NA NA
+range(c(0, NaN))	match	[1] NaN NaN	[1] NaN NaN
+range(c(0, 0))	match	[1] 0 0	[1] 0 0
+range(c(0, 1))	match	[1] 0 1	[1] 0 1
+range(c(0, Inf))	format	[1]   0 Inf	[1] 0 Inf
+range(c(1, NA_real_))	match	[1] NA NA	[1] NA NA
+range(c(1, NaN))	match	[1] NaN NaN	[1] NaN NaN
+range(c(1, 0))	match	[1] 0 1	[1] 0 1
+range(c(1, 1))	match	[1] 1 1	[1] 1 1
+range(c(1, Inf))	format	[1]   1 Inf	[1] 1 Inf
+range(c(Inf, NA_real_))	match	[1] NA NA	[1] NA NA
+range(c(Inf, NaN))	match	[1] NaN NaN	[1] NaN NaN
+range(c(Inf, 0))	format	[1]   0 Inf	[1] 0 Inf
+range(c(Inf, 1))	format	[1]   1 Inf	[1] 1 Inf
+range(c(Inf, Inf))	match	[1] Inf Inf	[1] Inf Inf
+median(c(NA_real_, NA_real_))	match	[1] NA	[1] NA
+median(c(NA_real_, NaN))	match	[1] NA	[1] NA
+median(c(NA_real_, 0))	match	[1] NA	[1] NA
+median(c(NA_real_, 1))	match	[1] NA	[1] NA
+median(c(NA_real_, Inf))	match	[1] NA	[1] NA
+median(c(NaN, NA_real_))	match	[1] NA	[1] NA
+median(c(NaN, NaN))	match	[1] NA	[1] NA
+median(c(NaN, 0))	match	[1] NA	[1] NA
+median(c(NaN, 1))	match	[1] NA	[1] NA
+median(c(NaN, Inf))	match	[1] NA	[1] NA
+median(c(0, NA_real_))	match	[1] NA	[1] NA
+median(c(0, NaN))	match	[1] NA	[1] NA
+median(c(0, 0))	match	[1] 0	[1] 0
+median(c(0, 1))	match	[1] 0.5	[1] 0.5
+median(c(0, Inf))	match	[1] Inf	[1] Inf
+median(c(1, NA_real_))	match	[1] NA	[1] NA
+median(c(1, NaN))	match	[1] NA	[1] NA
+median(c(1, 0))	match	[1] 0.5	[1] 0.5
+median(c(1, 1))	match	[1] 1	[1] 1
+median(c(1, Inf))	match	[1] Inf	[1] Inf
+median(c(Inf, NA_real_))	match	[1] NA	[1] NA
+median(c(Inf, NaN))	match	[1] NA	[1] NA
+median(c(Inf, 0))	match	[1] Inf	[1] Inf
+median(c(Inf, 1))	match	[1] Inf	[1] Inf
+median(c(Inf, Inf))	match	[1] Inf	[1] Inf
+var(c(NA_real_, NA_real_))	match	[1] NA	[1] NA
+var(c(NA_real_, NaN))	match	[1] NA	[1] NA
+var(c(NA_real_, 0))	match	[1] NA	[1] NA
+var(c(NA_real_, 1))	match	[1] NA	[1] NA
+var(c(NA_real_, Inf))	match	[1] NA	[1] NA
+var(c(NaN, NA_real_))	match	[1] NA	[1] NA
+var(c(NaN, NaN))	match	[1] NA	[1] NA
+var(c(NaN, 0))	match	[1] NA	[1] NA
+var(c(NaN, 1))	match	[1] NA	[1] NA
+var(c(NaN, Inf))	match	[1] NA	[1] NA
+var(c(0, NA_real_))	match	[1] NA	[1] NA
+var(c(0, NaN))	match	[1] NA	[1] NA
+var(c(0, 0))	match	[1] 0	[1] 0
+var(c(0, 1))	match	[1] 0.5	[1] 0.5
+var(c(0, Inf))	match	[1] NaN	[1] NaN
+var(c(1, NA_real_))	match	[1] NA	[1] NA
+var(c(1, NaN))	match	[1] NA	[1] NA
+var(c(1, 0))	match	[1] 0.5	[1] 0.5
+var(c(1, 1))	match	[1] 0	[1] 0
+var(c(1, Inf))	match	[1] NaN	[1] NaN
+var(c(Inf, NA_real_))	match	[1] NA	[1] NA
+var(c(Inf, NaN))	match	[1] NA	[1] NA
+var(c(Inf, 0))	match	[1] NaN	[1] NaN
+var(c(Inf, 1))	match	[1] NaN	[1] NaN
+var(c(Inf, Inf))	match	[1] NaN	[1] NaN
+sd(c(NA_real_, NA_real_))	match	[1] NA	[1] NA
+sd(c(NA_real_, NaN))	match	[1] NA	[1] NA
+sd(c(NA_real_, 0))	match	[1] NA	[1] NA
+sd(c(NA_real_, 1))	match	[1] NA	[1] NA
+sd(c(NA_real_, Inf))	match	[1] NA	[1] NA
+sd(c(NaN, NA_real_))	match	[1] NA	[1] NA
+sd(c(NaN, NaN))	match	[1] NA	[1] NA
+sd(c(NaN, 0))	match	[1] NA	[1] NA
+sd(c(NaN, 1))	match	[1] NA	[1] NA
+sd(c(NaN, Inf))	match	[1] NA	[1] NA
+sd(c(0, NA_real_))	match	[1] NA	[1] NA
+sd(c(0, NaN))	match	[1] NA	[1] NA
+sd(c(0, 0))	match	[1] 0	[1] 0
+sd(c(0, 1))	match	[1] 0.707106781187	[1] 0.707106781187
+sd(c(0, Inf))	match	[1] NaN	[1] NaN
+sd(c(1, NA_real_))	match	[1] NA	[1] NA
+sd(c(1, NaN))	match	[1] NA	[1] NA
+sd(c(1, 0))	match	[1] 0.707106781187	[1] 0.707106781187
+sd(c(1, 1))	match	[1] 0	[1] 0
+sd(c(1, Inf))	match	[1] NaN	[1] NaN
+sd(c(Inf, NA_real_))	match	[1] NA	[1] NA
+sd(c(Inf, NaN))	match	[1] NA	[1] NA
+sd(c(Inf, 0))	match	[1] NaN	[1] NaN
+sd(c(Inf, 1))	match	[1] NaN	[1] NaN
+sd(c(Inf, Inf))	match	[1] NaN	[1] NaN
+cumsum(c(NA_real_, NA_real_))	match	[1] NA NA	[1] NA NA
+cumsum(c(NA_real_, NaN))	match	[1] NA NA	[1] NA NA
+cumsum(c(NA_real_, 0))	match	[1] NA NA	[1] NA NA
+cumsum(c(NA_real_, 1))	match	[1] NA NA	[1] NA NA
+cumsum(c(NA_real_, Inf))	match	[1] NA NA	[1] NA NA
+cumsum(c(NaN, NA_real_))	format	[1] NaN  NA	[1] NaN NA
+cumsum(c(NaN, NaN))	match	[1] NaN NaN	[1] NaN NaN
+cumsum(c(NaN, 0))	match	[1] NaN NaN	[1] NaN NaN
+cumsum(c(NaN, 1))	match	[1] NaN NaN	[1] NaN NaN
+cumsum(c(NaN, Inf))	match	[1] NaN NaN	[1] NaN NaN
+cumsum(c(0, NA_real_))	format	[1]  0 NA	[1] 0 NA
+cumsum(c(0, NaN))	format	[1]   0 NaN	[1] 0 NaN
+cumsum(c(0, 0))	match	[1] 0 0	[1] 0 0
+cumsum(c(0, 1))	match	[1] 0 1	[1] 0 1
+cumsum(c(0, Inf))	format	[1]   0 Inf	[1] 0 Inf
+cumsum(c(1, NA_real_))	format	[1]  1 NA	[1] 1 NA
+cumsum(c(1, NaN))	format	[1]   1 NaN	[1] 1 NaN
+cumsum(c(1, 0))	match	[1] 1 1	[1] 1 1
+cumsum(c(1, 1))	match	[1] 1 2	[1] 1 2
+cumsum(c(1, Inf))	format	[1]   1 Inf	[1] 1 Inf
+cumsum(c(Inf, NA_real_))	format	[1] Inf  NA	[1] Inf NA
+cumsum(c(Inf, NaN))	match	[1] Inf NaN	[1] Inf NaN
+cumsum(c(Inf, 0))	match	[1] Inf Inf	[1] Inf Inf
+cumsum(c(Inf, 1))	match	[1] Inf Inf	[1] Inf Inf
+cumsum(c(Inf, Inf))	match	[1] Inf Inf	[1] Inf Inf
+cumprod(c(NA_real_, NA_real_))	match	[1] NA NA	[1] NA NA
+cumprod(c(NA_real_, NaN))	match	[1] NA NA	[1] NA NA
+cumprod(c(NA_real_, 0))	match	[1] NA NA	[1] NA NA
+cumprod(c(NA_real_, 1))	match	[1] NA NA	[1] NA NA
+cumprod(c(NA_real_, Inf))	match	[1] NA NA	[1] NA NA
+cumprod(c(NaN, NA_real_))	format	[1] NaN  NA	[1] NaN NA
+cumprod(c(NaN, NaN))	match	[1] NaN NaN	[1] NaN NaN
+cumprod(c(NaN, 0))	match	[1] NaN NaN	[1] NaN NaN
+cumprod(c(NaN, 1))	match	[1] NaN NaN	[1] NaN NaN
+cumprod(c(NaN, Inf))	match	[1] NaN NaN	[1] NaN NaN
+cumprod(c(0, NA_real_))	format	[1]  0 NA	[1] 0 NA
+cumprod(c(0, NaN))	format	[1]   0 NaN	[1] 0 NaN
+cumprod(c(0, 0))	match	[1] 0 0	[1] 0 0
+cumprod(c(0, 1))	match	[1] 0 0	[1] 0 0
+cumprod(c(0, Inf))	format	[1]   0 NaN	[1] 0 NaN
+cumprod(c(1, NA_real_))	format	[1]  1 NA	[1] 1 NA
+cumprod(c(1, NaN))	format	[1]   1 NaN	[1] 1 NaN
+cumprod(c(1, 0))	match	[1] 1 0	[1] 1 0
+cumprod(c(1, 1))	match	[1] 1 1	[1] 1 1
+cumprod(c(1, Inf))	format	[1]   1 Inf	[1] 1 Inf
+cumprod(c(Inf, NA_real_))	format	[1] Inf  NA	[1] Inf NA
+cumprod(c(Inf, NaN))	match	[1] Inf NaN	[1] Inf NaN
+cumprod(c(Inf, 0))	match	[1] Inf NaN	[1] Inf NaN
+cumprod(c(Inf, 1))	match	[1] Inf Inf	[1] Inf Inf
+cumprod(c(Inf, Inf))	match	[1] Inf Inf	[1] Inf Inf
+cummin(c(NA_real_, NA_real_))	match	[1] NA NA	[1] NA NA
+cummin(c(NA_real_, NaN))	match	[1] NA NA	[1] NA NA
+cummin(c(NA_real_, 0))	match	[1] NA NA	[1] NA NA
+cummin(c(NA_real_, 1))	match	[1] NA NA	[1] NA NA
+cummin(c(NA_real_, Inf))	match	[1] NA NA	[1] NA NA
+cummin(c(NaN, NA_real_))	format	[1] NaN  NA	[1] NaN NA
+cummin(c(NaN, NaN))	match	[1] NaN NaN	[1] NaN NaN
+cummin(c(NaN, 0))	match	[1] NaN NaN	[1] NaN NaN
+cummin(c(NaN, 1))	match	[1] NaN NaN	[1] NaN NaN
+cummin(c(NaN, Inf))	match	[1] NaN NaN	[1] NaN NaN
+cummin(c(0, NA_real_))	format	[1]  0 NA	[1] 0 NA
+cummin(c(0, NaN))	format	[1]   0 NaN	[1] 0 NaN
+cummin(c(0, 0))	match	[1] 0 0	[1] 0 0
+cummin(c(0, 1))	match	[1] 0 0	[1] 0 0
+cummin(c(0, Inf))	match	[1] 0 0	[1] 0 0
+cummin(c(1, NA_real_))	format	[1]  1 NA	[1] 1 NA
+cummin(c(1, NaN))	format	[1]   1 NaN	[1] 1 NaN
+cummin(c(1, 0))	match	[1] 1 0	[1] 1 0
+cummin(c(1, 1))	match	[1] 1 1	[1] 1 1
+cummin(c(1, Inf))	match	[1] 1 1	[1] 1 1
+cummin(c(Inf, NA_real_))	format	[1] Inf  NA	[1] Inf NA
+cummin(c(Inf, NaN))	match	[1] Inf NaN	[1] Inf NaN
+cummin(c(Inf, 0))	format	[1] Inf   0	[1] Inf 0
+cummin(c(Inf, 1))	format	[1] Inf   1	[1] Inf 1
+cummin(c(Inf, Inf))	match	[1] Inf Inf	[1] Inf Inf
+cummax(c(NA_real_, NA_real_))	match	[1] NA NA	[1] NA NA
+cummax(c(NA_real_, NaN))	match	[1] NA NA	[1] NA NA
+cummax(c(NA_real_, 0))	match	[1] NA NA	[1] NA NA
+cummax(c(NA_real_, 1))	match	[1] NA NA	[1] NA NA
+cummax(c(NA_real_, Inf))	match	[1] NA NA	[1] NA NA
+cummax(c(NaN, NA_real_))	format	[1] NaN  NA	[1] NaN NA
+cummax(c(NaN, NaN))	match	[1] NaN NaN	[1] NaN NaN
+cummax(c(NaN, 0))	match	[1] NaN NaN	[1] NaN NaN
+cummax(c(NaN, 1))	match	[1] NaN NaN	[1] NaN NaN
+cummax(c(NaN, Inf))	match	[1] NaN NaN	[1] NaN NaN
+cummax(c(0, NA_real_))	format	[1]  0 NA	[1] 0 NA
+cummax(c(0, NaN))	format	[1]   0 NaN	[1] 0 NaN
+cummax(c(0, 0))	match	[1] 0 0	[1] 0 0
+cummax(c(0, 1))	match	[1] 0 1	[1] 0 1
+cummax(c(0, Inf))	format	[1]   0 Inf	[1] 0 Inf
+cummax(c(1, NA_real_))	format	[1]  1 NA	[1] 1 NA
+cummax(c(1, NaN))	format	[1]   1 NaN	[1] 1 NaN
+cummax(c(1, 0))	match	[1] 1 1	[1] 1 1
+cummax(c(1, 1))	match	[1] 1 1	[1] 1 1
+cummax(c(1, Inf))	format	[1]   1 Inf	[1] 1 Inf
+cummax(c(Inf, NA_real_))	format	[1] Inf  NA	[1] Inf NA
+cummax(c(Inf, NaN))	match	[1] Inf NaN	[1] Inf NaN
+cummax(c(Inf, 0))	match	[1] Inf Inf	[1] Inf Inf
+cummax(c(Inf, 1))	match	[1] Inf Inf	[1] Inf Inf
+cummax(c(Inf, Inf))	match	[1] Inf Inf	[1] Inf Inf
+pmin(NA_real_, NA_real_, na.rm=TRUE)	match	[1] NA	[1] NA
+pmin(NA_real_, NA_real_, na.rm=FALSE)	match	[1] NA	[1] NA
+pmin(NA_real_, NaN, na.rm=TRUE)	match	[1] NaN	[1] NaN
+pmin(NA_real_, NaN, na.rm=FALSE)	match	[1] NaN	[1] NaN
+pmin(NA_real_, 0, na.rm=TRUE)	match	[1] 0	[1] 0
+pmin(NA_real_, 0, na.rm=FALSE)	match	[1] NA	[1] NA
+pmin(NA_real_, 1, na.rm=TRUE)	match	[1] 1	[1] 1
+pmin(NA_real_, 1, na.rm=FALSE)	match	[1] NA	[1] NA
+pmin(NA_real_, Inf, na.rm=TRUE)	match	[1] Inf	[1] Inf
+pmin(NA_real_, Inf, na.rm=FALSE)	match	[1] NA	[1] NA
+pmin(NaN, NA_real_, na.rm=TRUE)	match	[1] NA	[1] NA
+pmin(NaN, NA_real_, na.rm=FALSE)	match	[1] NA	[1] NA
+pmin(NaN, NaN, na.rm=TRUE)	match	[1] NaN	[1] NaN
+pmin(NaN, NaN, na.rm=FALSE)	match	[1] NaN	[1] NaN
+pmin(NaN, 0, na.rm=TRUE)	match	[1] 0	[1] 0
+pmin(NaN, 0, na.rm=FALSE)	match	[1] NaN	[1] NaN
+pmin(NaN, 1, na.rm=TRUE)	match	[1] 1	[1] 1
+pmin(NaN, 1, na.rm=FALSE)	match	[1] NaN	[1] NaN
+pmin(NaN, Inf, na.rm=TRUE)	match	[1] Inf	[1] Inf
+pmin(NaN, Inf, na.rm=FALSE)	match	[1] NaN	[1] NaN
+pmin(0, NA_real_, na.rm=TRUE)	match	[1] 0	[1] 0
+pmin(0, NA_real_, na.rm=FALSE)	match	[1] NA	[1] NA
+pmin(0, NaN, na.rm=TRUE)	match	[1] 0	[1] 0
+pmin(0, NaN, na.rm=FALSE)	match	[1] NaN	[1] NaN
+pmin(0, 0, na.rm=TRUE)	match	[1] 0	[1] 0
+pmin(0, 0, na.rm=FALSE)	match	[1] 0	[1] 0
+pmin(0, 1, na.rm=TRUE)	match	[1] 0	[1] 0
+pmin(0, 1, na.rm=FALSE)	match	[1] 0	[1] 0
+pmin(0, Inf, na.rm=TRUE)	match	[1] 0	[1] 0
+pmin(0, Inf, na.rm=FALSE)	match	[1] 0	[1] 0
+pmin(1, NA_real_, na.rm=TRUE)	match	[1] 1	[1] 1
+pmin(1, NA_real_, na.rm=FALSE)	match	[1] NA	[1] NA
+pmin(1, NaN, na.rm=TRUE)	match	[1] 1	[1] 1
+pmin(1, NaN, na.rm=FALSE)	match	[1] NaN	[1] NaN
+pmin(1, 0, na.rm=TRUE)	match	[1] 0	[1] 0
+pmin(1, 0, na.rm=FALSE)	match	[1] 0	[1] 0
+pmin(1, 1, na.rm=TRUE)	match	[1] 1	[1] 1
+pmin(1, 1, na.rm=FALSE)	match	[1] 1	[1] 1
+pmin(1, Inf, na.rm=TRUE)	match	[1] 1	[1] 1
+pmin(1, Inf, na.rm=FALSE)	match	[1] 1	[1] 1
+pmin(Inf, NA_real_, na.rm=TRUE)	match	[1] Inf	[1] Inf
+pmin(Inf, NA_real_, na.rm=FALSE)	match	[1] NA	[1] NA
+pmin(Inf, NaN, na.rm=TRUE)	match	[1] Inf	[1] Inf
+pmin(Inf, NaN, na.rm=FALSE)	match	[1] NaN	[1] NaN
+pmin(Inf, 0, na.rm=TRUE)	match	[1] 0	[1] 0
+pmin(Inf, 0, na.rm=FALSE)	match	[1] 0	[1] 0
+pmin(Inf, 1, na.rm=TRUE)	match	[1] 1	[1] 1
+pmin(Inf, 1, na.rm=FALSE)	match	[1] 1	[1] 1
+pmin(Inf, Inf, na.rm=TRUE)	match	[1] Inf	[1] Inf
+pmin(Inf, Inf, na.rm=FALSE)	match	[1] Inf	[1] Inf
+pmax(NA_real_, NA_real_, na.rm=TRUE)	match	[1] NA	[1] NA
+pmax(NA_real_, NA_real_, na.rm=FALSE)	match	[1] NA	[1] NA
+pmax(NA_real_, NaN, na.rm=TRUE)	match	[1] NaN	[1] NaN
+pmax(NA_real_, NaN, na.rm=FALSE)	match	[1] NaN	[1] NaN
+pmax(NA_real_, 0, na.rm=TRUE)	match	[1] 0	[1] 0
+pmax(NA_real_, 0, na.rm=FALSE)	match	[1] NA	[1] NA
+pmax(NA_real_, 1, na.rm=TRUE)	match	[1] 1	[1] 1
+pmax(NA_real_, 1, na.rm=FALSE)	match	[1] NA	[1] NA
+pmax(NA_real_, Inf, na.rm=TRUE)	match	[1] Inf	[1] Inf
+pmax(NA_real_, Inf, na.rm=FALSE)	match	[1] NA	[1] NA
+pmax(NaN, NA_real_, na.rm=TRUE)	match	[1] NA	[1] NA
+pmax(NaN, NA_real_, na.rm=FALSE)	match	[1] NA	[1] NA
+pmax(NaN, NaN, na.rm=TRUE)	match	[1] NaN	[1] NaN
+pmax(NaN, NaN, na.rm=FALSE)	match	[1] NaN	[1] NaN
+pmax(NaN, 0, na.rm=TRUE)	match	[1] 0	[1] 0
+pmax(NaN, 0, na.rm=FALSE)	match	[1] NaN	[1] NaN
+pmax(NaN, 1, na.rm=TRUE)	match	[1] 1	[1] 1
+pmax(NaN, 1, na.rm=FALSE)	match	[1] NaN	[1] NaN
+pmax(NaN, Inf, na.rm=TRUE)	match	[1] Inf	[1] Inf
+pmax(NaN, Inf, na.rm=FALSE)	match	[1] NaN	[1] NaN
+pmax(0, NA_real_, na.rm=TRUE)	match	[1] 0	[1] 0
+pmax(0, NA_real_, na.rm=FALSE)	match	[1] NA	[1] NA
+pmax(0, NaN, na.rm=TRUE)	match	[1] 0	[1] 0
+pmax(0, NaN, na.rm=FALSE)	match	[1] NaN	[1] NaN
+pmax(0, 0, na.rm=TRUE)	match	[1] 0	[1] 0
+pmax(0, 0, na.rm=FALSE)	match	[1] 0	[1] 0
+pmax(0, 1, na.rm=TRUE)	match	[1] 1	[1] 1
+pmax(0, 1, na.rm=FALSE)	match	[1] 1	[1] 1
+pmax(0, Inf, na.rm=TRUE)	match	[1] Inf	[1] Inf
+pmax(0, Inf, na.rm=FALSE)	match	[1] Inf	[1] Inf
+pmax(1, NA_real_, na.rm=TRUE)	match	[1] 1	[1] 1
+pmax(1, NA_real_, na.rm=FALSE)	match	[1] NA	[1] NA
+pmax(1, NaN, na.rm=TRUE)	match	[1] 1	[1] 1
+pmax(1, NaN, na.rm=FALSE)	match	[1] NaN	[1] NaN
+pmax(1, 0, na.rm=TRUE)	match	[1] 1	[1] 1
+pmax(1, 0, na.rm=FALSE)	match	[1] 1	[1] 1
+pmax(1, 1, na.rm=TRUE)	match	[1] 1	[1] 1
+pmax(1, 1, na.rm=FALSE)	match	[1] 1	[1] 1
+pmax(1, Inf, na.rm=TRUE)	match	[1] Inf	[1] Inf
+pmax(1, Inf, na.rm=FALSE)	match	[1] Inf	[1] Inf
+pmax(Inf, NA_real_, na.rm=TRUE)	match	[1] Inf	[1] Inf
+pmax(Inf, NA_real_, na.rm=FALSE)	match	[1] NA	[1] NA
+pmax(Inf, NaN, na.rm=TRUE)	match	[1] Inf	[1] Inf
+pmax(Inf, NaN, na.rm=FALSE)	match	[1] NaN	[1] NaN
+pmax(Inf, 0, na.rm=TRUE)	match	[1] Inf	[1] Inf
+pmax(Inf, 0, na.rm=FALSE)	match	[1] Inf	[1] Inf
+pmax(Inf, 1, na.rm=TRUE)	match	[1] Inf	[1] Inf
+pmax(Inf, 1, na.rm=FALSE)	match	[1] Inf	[1] Inf
+pmax(Inf, Inf, na.rm=TRUE)	match	[1] Inf	[1] Inf
+pmax(Inf, Inf, na.rm=FALSE)	match	[1] Inf	[1] Inf
+sqrt(NA_real_)	match	[1] NA	[1] NA
+sqrt(NaN)	match	[1] NaN	[1] NaN
+abs(NA_real_)	match	[1] NA	[1] NA
+abs(NaN)	match	[1] NaN	[1] NaN
+sin(NA_real_)	match	[1] NA	[1] NA
+sin(NaN)	match	[1] NaN	[1] NaN
+log(NA_real_)	match	[1] NA	[1] NA
+log(NaN)	match	[1] NaN	[1] NaN
+exp(NA_real_)	match	[1] NA	[1] NA
+exp(NaN)	match	[1] NaN	[1] NaN
+gamma(NA_real_)	match	[1] NA	[1] NA
+gamma(NaN)	match	[1] NaN	[1] NaN
+lgamma(NA_real_)	match	[1] NA	[1] NA
+lgamma(NaN)	match	[1] NaN	[1] NaN
+digamma(NA_real_)	match	[1] NA	[1] NA
+digamma(NaN)	match	[1] NaN	[1] NaN
+trigamma(NA_real_)	match	[1] NA	[1] NA
+trigamma(NaN)	match	[1] NaN	[1] NaN
+sign(NA_real_)	match	[1] NA	[1] NA
+sign(NaN)	match	[1] NaN	[1] NaN
+round(NA_real_)	match	[1] NA	[1] NA
+round(NaN)	match	[1] NaN	[1] NaN
+dnorm(NA_real_)	match	[1] NA	[1] NA
+dnorm(NaN)	match	[1] NaN	[1] NaN
+pnorm(NA_real_)	match	[1] NA	[1] NA
+pnorm(NaN)	match	[1] NaN	[1] NaN
+qnorm(NA_real_)	match	[1] NA	[1] NA
+qnorm(NaN)	match	[1] NaN	[1] NaN
+c(NA_real_, NaN)	format	[1]  NA NaN	[1] NA NaN
+is.nan(c(NA, NA_integer_, NA_real_, NaN))	format	[1] FALSE FALSE FALSE  TRUE	[1] FALSE FALSE FALSE TRUE
+is.na(c(NA_character_, NA_real_, NaN))	format	[1]  TRUE  TRUE FALSE	[1] TRUE TRUE FALSE
+as.character(c(NA_real_, NaN))	format	[1] NA    "NaN"	[1] NA "NaN"
+as.double(c(NA_character_, "NaN", "bad"))	format	[1]  NA NaN  NA	[1] NA NaN NA
+match(c(NA_real_, NaN), c(NaN, NA_real_))	match	[1] 2 1	[1] 2 1
+unique(c(NA_real_, NaN, NA_real_, NaN))	format	[1]  NA NaN	[1] NA NaN
+duplicated(c(NA_real_, NaN, NA_real_, NaN))	format	[1] FALSE FALSE  TRUE  TRUE	[1] FALSE FALSE TRUE TRUE
+c(identical(NA_real_, NaN), identical(NA_real_, NA_real_))	format	[1] FALSE  TRUE	[1] FALSE TRUE
+x <- c(1, NaN); x[c(2, 3, NA)]	format	[1] NaN  NA  NA	[1] NaN NA NA
+x <- c(1, NaN); x[4] <- 9; x	format	[1]   1 NaN  NA   9	[1] 1 NaN NA 9
+rowSums(matrix(c(NA_real_, 1, 2, 3), 2))	format	[1] NA  4	[1] NA 4
+colMeans(matrix(c(NA_real_, 1, 2, 3), 2))	format	[1]  NA 2.5	[1] NA 2.5
+mean(c(1e308, 1e308))	format	[1] 1e+308	[1] 100000000000000001097906362944045541740492309677311846336810682903157585404911491537163328978494688899061249669721172515611590283743140088328307009198146046031271664502933027185697489699588559043338384466165001178426897626212945177628091195786707458122783970171784415105291802893207873272974885715430223118336

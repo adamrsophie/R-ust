@@ -1,0 +1,258 @@
+package	name	handled	unhandled
+base	abs	x	
+base	acos	x	
+base	acosh	x	
+base	all	na.rm	
+base	any	na.rm	
+base	anyDuplicated	x,fromLast	incomparables
+base	append	x,values,after	
+base	apply	X,MARGIN,FUN,simplify	
+base	as.character	x	
+base	as.double	x	
+base	as.factor	x	
+base	as.integer	x	
+base	as.list	x	
+base	as.logical	x	
+base	as.numeric	x	
+base	asin	x	
+base	asinh	x	
+base	atan	x	
+base	atan2	y,x	
+base	atanh	x	
+base	beta	a,b	
+base	c		recursive,use.names
+base	cbind		deparse.level
+base	ceiling	x	
+base	chartr	old,new,x	
+base	choose	n,k	
+base	class	x	
+base	col	x,as.factor	
+base	colMeans	x,na.rm	dims
+base	colSums	x,na.rm	dims
+base	cos	x	
+base	cosh	x	
+base	crossprod	x,y	
+base	cummax	x	
+base	cummin	x	
+base	cumprod	x	
+base	cumsum	x	
+base	data.frame		row.names,check.rows,check.names,fix.empty.names,stringsAsFactors
+base	diag	x,nrow,ncol	names
+base	diff	x,lag,differences	
+base	digamma	x	
+base	dim	x	
+base	duplicated	x	incomparables,fromLast,nmax
+base	endsWith	x,suffix	
+base	exp	x	
+base	expm1	x	
+base	factor	x,levels,labels,ordered	exclude,nmax
+base	factorial	x	
+base	floor	x	
+base	gamma	x	
+base	grep	pattern,x,ignore.case,value,fixed,invert	perl,useBytes
+base	grepl	pattern,x,ignore.case,fixed	perl,useBytes
+base	gsub	pattern,replacement,x,ignore.case,fixed	perl,useBytes
+base	identical	x,y	num.eq,single.NA,attrib.as.set,ignore.bytecode,ignore.environment,ignore.srcref,extptr.as.ref
+base	ifelse	test,yes,no	
+base	intersect	x,y	
+base	is.atomic	x	
+base	is.character	x	
+base	is.data.frame	x	
+base	is.double	x	
+base	is.factor	x	
+base	is.finite	x	
+base	is.function	x	
+base	is.infinite	x	
+base	is.integer	x	
+base	is.list	x	
+base	is.logical	x	
+base	is.matrix	x	
+base	is.na	x	
+base	is.nan	x	
+base	is.null	x	
+base	is.numeric	x	
+base	is.ordered	x	
+base	is.unsorted	x,na.rm,strictly	
+base	is.vector	x	mode
+base	isFALSE	x	
+base	isTRUE	x	
+base	lapply	X,FUN	
+base	lbeta	a,b	
+base	lchoose	n,k	
+base	length	x	
+base	lengths	x,use.names	
+base	levels	x	
+base	lfactorial	x	
+base	lgamma	x	
+base	list		
+base	log	x,base	
+base	log10	x	
+base	log1p	x	
+base	log2	x	
+base	logb	x,base	
+base	lower.tri	x,diag	
+base	match	x,table,nomatch	incomparables
+base	matrix	data,nrow,ncol,byrow	dimnames
+base	max	na.rm	
+base	mean	na.rm	x,trim
+base	min	na.rm	
+base	missing		x
+base	mode	x	
+base	names	x	
+base	nchar	x	type,allowNA,keepNA
+base	ncol	x	
+base	nlevels	x	
+base	nrow	x	
+base	nzchar	x,keepNA	
+base	order	na.last,decreasing	method
+base	ordered	x	
+base	paste	sep,collapse	recycle0
+base	paste0	collapse	recycle0
+base	pmax	na.rm	
+base	pmin	na.rm	
+base	print	x	digits,quote,na.print,print.gap,right,max,width,useSource
+base	prod	na.rm	
+base	psigamma	x,deriv	
+base	range	na.rm	
+base	rank	x,na.last,ties.method	
+base	rbind		deparse.level
+base	rep	x,times	length.out,each
+base	rep_len	x,length.out	
+base	rep.int	x,times	
+base	replace	x,list,values	
+base	rev	x	
+base	round	x,digits	
+base	row	x,as.factor	
+base	rowMeans	x,na.rm	dims
+base	rowSums	x,na.rm	dims
+base	sample	x,size,replace,prob	
+base	sample.int	n,size,replace,prob	useHash
+base	sapply	X,FUN,simplify	USE.NAMES
+base	seq	from,to,by	length.out,along.with
+base	seq_along	along.with	
+base	seq_len	length.out	
+base	seq.int	from,to,by	length.out,along.with
+base	set.seed	seed	kind,normal.kind,sample.kind
+base	setdiff	x,y	
+base	setequal	x,y	
+base	sign	x	
+base	signif	x,digits	
+base	sin	x	
+base	sinh	x	
+base	sort	x,decreasing	na.last
+base	split	x,f,drop	sep,lex.order
+base	sqrt	x	
+base	startsWith	x,prefix	
+base	strrep	x,times	
+base	strsplit	x,split,fixed	perl,useBytes
+base	strtrim	x,width	
+base	sub	pattern,replacement,x,ignore.case,fixed	perl,useBytes
+base	subset	x,subset	
+base	substr	x,start,stop	
+base	substring	text,first,last	
+base	sum	na.rm	
+base	t	x	
+base	table	useNA	exclude,dnn,deparse.level
+base	tabulate	bin,nbins	
+base	tan	x	
+base	tanh	x	
+base	tcrossprod	x,y	
+base	tolower	x	
+base	toupper	x	
+base	transform	_data	
+base	trigamma	x	
+base	trimws	x,which	whitespace
+base	trunc	x	
+base	typeof	x	
+base	union	x,y	
+base	unique	x	incomparables,fromLast,nmax
+base	unlist	x,recursive	use.names
+base	upper.tri	x,diag	
+base	which	x	arr.ind,useNames
+base	which.max	x	
+base	which.min	x	
+base	with	data,expr	
+base	xor	x,y	
+stats	complete.cases		
+stats	dbeta	x,shape1,shape2,ncp,log	
+stats	dbinom	x,size,prob,log	
+stats	dcauchy	x,location,scale,log	
+stats	dchisq	x,df,ncp,log	
+stats	dexp	x,rate,log	
+stats	df	x,df1,df2,ncp,log	
+stats	dgamma	x,shape,scale,log	rate
+stats	dgeom	x,prob,log	
+stats	dhyper	x,m,n,k,log	
+stats	dlnorm	x,meanlog,sdlog,log	
+stats	dlogis	x,location,scale,log	
+stats	dnbinom	x,size,prob,mu,log	
+stats	dnorm	x,mean,sd,log	
+stats	dpois	x,lambda,log	
+stats	dsignrank	x,n,log	
+stats	dt	x,df,ncp,log	
+stats	dunif	x,min,max,log	
+stats	dweibull	x,shape,scale,log	
+stats	dwilcox	x,m,n,log	
+stats	median	x,na.rm	
+stats	na.omit	object	
+stats	pbeta	q,shape1,shape2,ncp,lower.tail,log.p	
+stats	pbinom	q,size,prob,lower.tail,log.p	
+stats	pcauchy	q,location,scale,lower.tail,log.p	
+stats	pchisq	q,df,ncp,lower.tail,log.p	
+stats	pexp	q,rate,lower.tail,log.p	
+stats	pf	q,df1,df2,ncp,lower.tail,log.p	
+stats	pgamma	q,shape,scale,lower.tail,log.p	rate
+stats	pgeom	q,prob,lower.tail,log.p	
+stats	phyper	q,m,n,k,lower.tail,log.p	
+stats	plnorm	q,meanlog,sdlog,lower.tail,log.p	
+stats	plogis	q,location,scale,lower.tail,log.p	
+stats	pnbinom	q,size,prob,mu,lower.tail,log.p	
+stats	pnorm	q,mean,sd,lower.tail,log.p	
+stats	ppois	q,lambda,lower.tail,log.p	
+stats	psignrank	q,n,lower.tail,log.p	
+stats	pt	q,df,ncp,lower.tail,log.p	
+stats	punif	q,min,max,lower.tail,log.p	
+stats	pweibull	q,shape,scale,lower.tail,log.p	
+stats	pwilcox	q,m,n,lower.tail,log.p	
+stats	qbeta	p,shape1,shape2,ncp,lower.tail,log.p	
+stats	qbinom	p,size,prob,lower.tail,log.p	
+stats	qcauchy	p,location,scale,lower.tail,log.p	
+stats	qchisq	p,df,ncp,lower.tail,log.p	
+stats	qexp	p,rate,lower.tail,log.p	
+stats	qf	p,df1,df2,ncp,lower.tail,log.p	
+stats	qgamma	p,shape,scale,lower.tail,log.p	rate
+stats	qgeom	p,prob,lower.tail,log.p	
+stats	qhyper	p,m,n,k,lower.tail,log.p	
+stats	qlnorm	p,meanlog,sdlog,lower.tail,log.p	
+stats	qlogis	p,location,scale,lower.tail,log.p	
+stats	qnbinom	p,size,prob,mu,lower.tail,log.p	
+stats	qnorm	p,mean,sd,lower.tail,log.p	
+stats	qpois	p,lambda,lower.tail,log.p	
+stats	qsignrank	p,n,lower.tail,log.p	
+stats	qt	p,df,ncp,lower.tail,log.p	
+stats	qunif	p,min,max,lower.tail,log.p	
+stats	qweibull	p,shape,scale,lower.tail,log.p	
+stats	qwilcox	p,m,n,lower.tail,log.p	
+stats	rbeta	n,shape1,shape2	ncp
+stats	rbinom	n,size,prob	
+stats	rcauchy	n,location,scale	
+stats	rchisq	n,df	ncp
+stats	rexp	n,rate	
+stats	rf	n,df1,df2	ncp
+stats	rgamma	n,shape,rate,scale	
+stats	rgeom	n,prob	
+stats	rhyper	nn,m,n,k	
+stats	rlnorm	n,meanlog,sdlog	
+stats	rlogis	n,location,scale	
+stats	rnbinom	n,size,prob,mu	
+stats	rnorm	n,mean,sd	
+stats	rpois	n,lambda	
+stats	rsignrank	nn,n	
+stats	rt	n,df	ncp
+stats	runif	n,min,max	
+stats	rweibull	n,shape,scale	
+stats	rwilcox	nn,m,n	
+stats	sd	x,na.rm	
+stats	var	x,na.rm	y,use
+utils	head	x,n	
+utils	tail	x,n	keepnums,addrownums

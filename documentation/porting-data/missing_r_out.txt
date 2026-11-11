@@ -1,0 +1,592 @@
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NaN
+[1] NaN
+[1] NaN
+[1] NaN
+[1] NA
+[1] NaN
+[1] 0
+[1] 1
+[1] Inf
+[1] NA
+[1] NaN
+[1] 1
+[1] 2
+[1] Inf
+[1] NA
+[1] NaN
+[1] Inf
+[1] Inf
+[1] Inf
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NaN
+[1] NaN
+[1] NaN
+[1] NaN
+[1] NA
+[1] NaN
+[1] 0
+[1] -1
+[1] -Inf
+[1] NA
+[1] NaN
+[1] 1
+[1] 0
+[1] -Inf
+[1] NA
+[1] NaN
+[1] Inf
+[1] Inf
+[1] NaN
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NaN
+[1] NaN
+[1] NaN
+[1] NaN
+[1] NA
+[1] NaN
+[1] 0
+[1] 0
+[1] NaN
+[1] NA
+[1] NaN
+[1] 0
+[1] 1
+[1] Inf
+[1] NA
+[1] NaN
+[1] NaN
+[1] Inf
+[1] Inf
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NaN
+[1] NaN
+[1] NaN
+[1] NaN
+[1] NA
+[1] NaN
+[1] NaN
+[1] 0
+[1] 0
+[1] NA
+[1] NaN
+[1] Inf
+[1] 1
+[1] 0
+[1] NA
+[1] NaN
+[1] Inf
+[1] Inf
+[1] NaN
+[1] NA
+[1] NA
+[1] 1
+[1] NA
+[1] NA
+[1] NA
+[1] NaN
+[1] 1
+[1] NaN
+[1] NaN
+[1] NA
+[1] NaN
+[1] 1
+[1] 0
+[1] 0
+[1] 1
+[1] 1
+[1] 1
+[1] 1
+[1] 1
+[1] NA
+[1] NaN
+[1] 1
+[1] Inf
+[1] Inf
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NaN
+[1] NaN
+[1] NaN
+[1] NaN
+[1] NA
+[1] NaN
+[1] 0
+[1] 1
+[1] Inf
+[1] NA
+[1] NaN
+[1] 1
+[1] 2
+[1] Inf
+[1] NA
+[1] NaN
+[1] Inf
+[1] Inf
+[1] Inf
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NaN
+[1] NaN
+[1] NaN
+[1] NaN
+[1] NA
+[1] NaN
+[1] 0
+[1] 0
+[1] NaN
+[1] NA
+[1] NaN
+[1] 0
+[1] 1
+[1] Inf
+[1] NA
+[1] NaN
+[1] NaN
+[1] Inf
+[1] Inf
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NaN
+[1] NaN
+[1] NaN
+[1] NaN
+[1] NaN
+[1] NA
+[1] NaN
+[1] 0
+[1] 0.5
+[1] Inf
+[1] NA
+[1] NaN
+[1] 0.5
+[1] 1
+[1] Inf
+[1] NA
+[1] NaN
+[1] Inf
+[1] Inf
+[1] Inf
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NaN
+[1] NaN
+[1] NaN
+[1] NaN
+[1] NA
+[1] NaN
+[1] 0
+[1] 0
+[1] 0
+[1] NA
+[1] NaN
+[1] 0
+[1] 1
+[1] 1
+[1] NA
+[1] NaN
+[1] 0
+[1] 1
+[1] Inf
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NaN
+[1] NaN
+[1] NaN
+[1] NaN
+[1] NA
+[1] NaN
+[1] 0
+[1] 1
+[1] Inf
+[1] NA
+[1] NaN
+[1] 1
+[1] 1
+[1] Inf
+[1] NA
+[1] NaN
+[1] Inf
+[1] Inf
+[1] Inf
+[1] NA NA
+[1] NA NA
+[1] NA NA
+[1] NA NA
+[1] NA NA
+[1] NA NA
+[1] NaN NaN
+[1] NaN NaN
+[1] NaN NaN
+[1] NaN NaN
+[1] NA NA
+[1] NaN NaN
+[1] 0 0
+[1] 0 1
+[1]   0 Inf
+[1] NA NA
+[1] NaN NaN
+[1] 0 1
+[1] 1 1
+[1]   1 Inf
+[1] NA NA
+[1] NaN NaN
+[1]   0 Inf
+[1]   1 Inf
+[1] Inf Inf
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] 0
+[1] 0.5
+[1] Inf
+[1] NA
+[1] NA
+[1] 0.5
+[1] 1
+[1] Inf
+[1] NA
+[1] NA
+[1] Inf
+[1] Inf
+[1] Inf
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] 0
+[1] 0.5
+[1] NaN
+[1] NA
+[1] NA
+[1] 0.5
+[1] 0
+[1] NaN
+[1] NA
+[1] NA
+[1] NaN
+[1] NaN
+[1] NaN
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] NA
+[1] 0
+[1] 0.707106781187
+[1] NaN
+[1] NA
+[1] NA
+[1] 0.707106781187
+[1] 0
+[1] NaN
+[1] NA
+[1] NA
+[1] NaN
+[1] NaN
+[1] NaN
+[1] NA NA
+[1] NA NA
+[1] NA NA
+[1] NA NA
+[1] NA NA
+[1] NaN  NA
+[1] NaN NaN
+[1] NaN NaN
+[1] NaN NaN
+[1] NaN NaN
+[1]  0 NA
+[1]   0 NaN
+[1] 0 0
+[1] 0 1
+[1]   0 Inf
+[1]  1 NA
+[1]   1 NaN
+[1] 1 1
+[1] 1 2
+[1]   1 Inf
+[1] Inf  NA
+[1] Inf NaN
+[1] Inf Inf
+[1] Inf Inf
+[1] Inf Inf
+[1] NA NA
+[1] NA NA
+[1] NA NA
+[1] NA NA
+[1] NA NA
+[1] NaN  NA
+[1] NaN NaN
+[1] NaN NaN
+[1] NaN NaN
+[1] NaN NaN
+[1]  0 NA
+[1]   0 NaN
+[1] 0 0
+[1] 0 0
+[1]   0 NaN
+[1]  1 NA
+[1]   1 NaN
+[1] 1 0
+[1] 1 1
+[1]   1 Inf
+[1] Inf  NA
+[1] Inf NaN
+[1] Inf NaN
+[1] Inf Inf
+[1] Inf Inf
+[1] NA NA
+[1] NA NA
+[1] NA NA
+[1] NA NA
+[1] NA NA
+[1] NaN  NA
+[1] NaN NaN
+[1] NaN NaN
+[1] NaN NaN
+[1] NaN NaN
+[1]  0 NA
+[1]   0 NaN
+[1] 0 0
+[1] 0 0
+[1] 0 0
+[1]  1 NA
+[1]   1 NaN
+[1] 1 0
+[1] 1 1
+[1] 1 1
+[1] Inf  NA
+[1] Inf NaN
+[1] Inf   0
+[1] Inf   1
+[1] Inf Inf
+[1] NA NA
+[1] NA NA
+[1] NA NA
+[1] NA NA
+[1] NA NA
+[1] NaN  NA
+[1] NaN NaN
+[1] NaN NaN
+[1] NaN NaN
+[1] NaN NaN
+[1]  0 NA
+[1]   0 NaN
+[1] 0 0
+[1] 0 1
+[1]   0 Inf
+[1]  1 NA
+[1]   1 NaN
+[1] 1 1
+[1] 1 1
+[1]   1 Inf
+[1] Inf  NA
+[1] Inf NaN
+[1] Inf Inf
+[1] Inf Inf
+[1] Inf Inf
+[1] NA
+[1] NA
+[1] NaN
+[1] NaN
+[1] 0
+[1] NA
+[1] 1
+[1] NA
+[1] Inf
+[1] NA
+[1] NA
+[1] NA
+[1] NaN
+[1] NaN
+[1] 0
+[1] NaN
+[1] 1
+[1] NaN
+[1] Inf
+[1] NaN
+[1] 0
+[1] NA
+[1] 0
+[1] NaN
+[1] 0
+[1] 0
+[1] 0
+[1] 0
+[1] 0
+[1] 0
+[1] 1
+[1] NA
+[1] 1
+[1] NaN
+[1] 0
+[1] 0
+[1] 1
+[1] 1
+[1] 1
+[1] 1
+[1] Inf
+[1] NA
+[1] Inf
+[1] NaN
+[1] 0
+[1] 0
+[1] 1
+[1] 1
+[1] Inf
+[1] Inf
+[1] NA
+[1] NA
+[1] NaN
+[1] NaN
+[1] 0
+[1] NA
+[1] 1
+[1] NA
+[1] Inf
+[1] NA
+[1] NA
+[1] NA
+[1] NaN
+[1] NaN
+[1] 0
+[1] NaN
+[1] 1
+[1] NaN
+[1] Inf
+[1] NaN
+[1] 0
+[1] NA
+[1] 0
+[1] NaN
+[1] 0
+[1] 0
+[1] 1
+[1] 1
+[1] Inf
+[1] Inf
+[1] 1
+[1] NA
+[1] 1
+[1] NaN
+[1] 1
+[1] 1
+[1] 1
+[1] 1
+[1] Inf
+[1] Inf
+[1] Inf
+[1] NA
+[1] Inf
+[1] NaN
+[1] Inf
+[1] Inf
+[1] Inf
+[1] Inf
+[1] Inf
+[1] Inf
+[1] NA
+[1] NaN
+[1] NA
+[1] NaN
+[1] NA
+[1] NaN
+[1] NA
+[1] NaN
+[1] NA
+[1] NaN
+[1] NA
+[1] NaN
+[1] NA
+[1] NaN
+[1] NA
+[1] NaN
+[1] NA
+[1] NaN
+[1] NA
+[1] NaN
+[1] NA
+[1] NaN
+[1] NA
+[1] NaN
+[1] NA
+[1] NaN
+[1] NA
+[1] NaN
+[1]  NA NaN
+[1] FALSE FALSE FALSE  TRUE
+[1]  TRUE  TRUE FALSE
+[1] NA    "NaN"
+[1]  NA NaN  NA
+[1] 2 1
+[1]  NA NaN
+[1] FALSE FALSE  TRUE  TRUE
+[1] FALSE  TRUE
+[1] NaN  NA  NA
+[1]   1 NaN  NA   9
+[1] NA  4
+[1]  NA 2.5
+[1] 1e+308
