@@ -1,6 +1,6 @@
 use std::fs;
-use std::io::{self, IsTerminal, Read, Write};
-use std::path::{Path, PathBuf};
+use std::io::{self, BufRead, IsTerminal, Write};
+use std::path::PathBuf;
 
 mod launcher;
 mod rscript;
@@ -232,16 +232,8 @@ fn run_with_file(config: CliConfig, opened: Option<fs::File>) -> Result<i32, Str
         return run_input(config);
     }
     if let CliMode::File(path) = &config.mode {
-        let input = opened.map(Ok).unwrap_or_else(|| fs::File::open(path));
-        let source = match input {
-            Ok(ref file) => read_open_script(file),
-            Err(error) => Err(error),
-        };
-        let source = match source {
-            Ok(source) => source,
-            Err(error) if error.kind() == io::ErrorKind::InvalidData => {
-                return Err(format!("failed to read {}: {error}", path.display()));
-            }
+        let input = match opened.map(Ok).unwrap_or_else(|| fs::File::open(path)) {
+            Ok(file) => file,
             Err(error) => {
                 write_console(OutputEvent::Stdout(format!(
                     "Fatal error: {}\n",
@@ -251,22 +243,10 @@ fn run_with_file(config: CliConfig, opened: Option<fs::File>) -> Result<i32, Str
                 return Ok(2);
             }
         };
-        return execute_source(&config, &source, Some(write_console)).map(|(_, status)| status);
+        return execute_reader(&config, io::BufReader::new(&input), Some(write_console))
+            .map(|(_, status)| status);
     }
     execute(config, Some(write_console)).map(|(_, status)| status)
-}
-
-fn read_script(path: &Path) -> io::Result<String> {
-    read_open_script(&fs::File::open(path)?)
-}
-
-fn read_open_script(mut file: &fs::File) -> io::Result<String> {
-    let mut source = String::new();
-    match file.read_to_string(&mut source) {
-        Ok(_) => Ok(source),
-        Err(error) if error.kind() == io::ErrorKind::IsADirectory => Ok(String::new()),
-        Err(error) => Err(error),
-    }
 }
 
 fn initialize_frontend(
@@ -519,30 +499,39 @@ fn execute(
             return Ok((vec![event], 0));
         }
         CliMode::Expression(source) => format!("{source}\n"),
-        CliMode::File(path) => read_script(path)
-            .map_err(|error| format!("failed to read {}: {error}", path.display()))?,
+        CliMode::File(path) => {
+            let file = fs::File::open(path)
+                .map_err(|error| format!("failed to read {}: {error}", path.display()))?;
+            return execute_reader(&config, io::BufReader::new(file), sink);
+        }
         CliMode::Interactive | CliMode::Stdin => {
             return Err(
                 "run_to_string requires an expression, script file, help, or version; use run for stdin".into(),
             )
         }
     };
-    execute_source(&config, &source, sink)
+    execute_reader(&config, io::Cursor::new(source), sink)
 }
 
-fn execute_source(
+fn execute_reader(
     config: &CliConfig,
-    source: &str,
+    mut reader: impl BufRead,
     sink: Option<fn(OutputEvent) -> io::Result<()>>,
 ) -> Result<(Vec<OutputEvent>, i32), String> {
     let mut frontend =
         initialize_frontend(config, false, sink).map_err(|error| error.to_string())?;
-    let mut lines = source.split_inclusive('\n');
     let status = run_session(
         &mut frontend,
         false,
         config.no_save || config.vanilla,
-        || Ok(lines.next().unwrap_or_default().to_string()),
+        || {
+            let mut line = String::new();
+            match reader.read_line(&mut line) {
+                Ok(_) => Ok(line),
+                Err(error) if error.kind() == io::ErrorKind::IsADirectory => Ok(String::new()),
+                Err(error) => Err(error),
+            }
+        },
     )
     .map_err(|error| error.to_string())?;
     Ok((frontend.runtime_mut().take_output(), status))

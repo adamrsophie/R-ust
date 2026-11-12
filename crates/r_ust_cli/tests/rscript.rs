@@ -137,6 +137,61 @@ fn file_echo_preserves_eof_and_trailing_blank_lines() {
     }
 }
 
+fn run_file_bytes(source: &[u8]) -> Vec<Output> {
+    let script = Script::new("");
+    std::fs::write(&script.path, source).unwrap();
+    [
+        env!("CARGO_BIN_EXE_r_ust_cli"),
+        env!("CARGO_BIN_EXE_Rscript"),
+    ]
+    .into_iter()
+    .map(|binary| {
+        let mut command = Command::new(binary);
+        command.args(["--vanilla", "--no-echo"]);
+        if binary == env!("CARGO_BIN_EXE_r_ust_cli") {
+            command.arg("-f");
+        }
+        command
+            .arg(&script.path)
+            .stdin(Stdio::null())
+            .output()
+            .unwrap()
+    })
+    .collect()
+}
+
+#[test]
+fn file_quit_does_not_decode_unread_bytes() {
+    for output in run_file_bytes(b"cat('BEFORE')\nq('no')\n\x80\n") {
+        assert_eq!(output.status.code(), Some(0), "{output:?}");
+        assert_eq!(output.stdout, b"BEFORE");
+        assert!(output.stderr.is_empty());
+    }
+}
+
+#[test]
+fn file_read_error_preserves_output_from_earlier_lines() {
+    for output in run_file_bytes(b"cat('BEFORE')\n\x80\n") {
+        assert_eq!(output.status.code(), Some(1));
+        assert_eq!(output.stdout, b"BEFORE");
+        assert!(!output.stderr.is_empty());
+    }
+}
+
+#[test]
+fn file_capture_stops_before_unread_bytes() {
+    let script = Script::new("");
+    std::fs::write(&script.path, b"cat('BEFORE')\nq('no')\n\x80\n").unwrap();
+    let config = r_ust_cli::CliConfig::from_args([
+        "--vanilla",
+        "--no-echo",
+        "-f",
+        script.path.to_str().unwrap(),
+    ])
+    .unwrap();
+    assert_eq!(r_ust_cli::run_to_string(config).unwrap(), "BEFORE");
+}
+
 #[test]
 fn stdin_is_batch_input_with_state_and_continuations() {
     use std::io::Write;
