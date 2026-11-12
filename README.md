@@ -12,6 +12,14 @@ R-ust requires a stable Rust toolchain (edition 2021).
 cargo build --release
 ```
 
+Start the interactive console:
+
+```bash
+cargo run -q -p r_ust_cli
+```
+
+The console keeps variables and functions between commands. Use multiple lines for unfinished expressions; `+ ` marks continuation input. Errors return to the prompt. Press Ctrl-D to exit. Add `-- --quiet` to suppress the startup banner.
+
 Evaluate an expression:
 
 ```bash
@@ -41,6 +49,14 @@ cargo run -q -p r_ust_cli -- example.R
 [1] "review" "pass" "pass" "review" "review"
 [1] 79
 ```
+
+Read commands from stdin, without prompts:
+
+```bash
+printf 'x <- 1:5\nsum(x)\n' | cargo run -q -p r_ust_cli
+```
+
+Use `-` or `-f -` to request stdin explicitly, and `--help` for available options. Script and piped input stop on the first error with a nonzero exit status.
 
 ## Workspace
 
@@ -90,7 +106,9 @@ cargo run -q -p r_ust_cli -- example.R
 
 ## Known limitations
 
-R-ust does not yet provide an interactive console, reference semantics for environments, general replacement functions, full attribute support (including row names and arrays), formulas, S3 and S4 dispatch, namespaces and package loading, condition handling, connections, graphics, serialization, or the base and recommended packages.
+R-ust does not yet provide reference semantics for environments, general replacement functions, full attribute support (including row names and arrays), formulas, S3 and S4 dispatch, namespaces and package loading, condition handling, connections, graphics, serialization, or the base and recommended packages.
+
+The console uses basic terminal input. Command history, advanced line editing, interrupt recovery, `q()`/`quit()`, workspace saving, and full R command line compatibility remain missing.
 
 Output formatting differs from R in places: numbers generally use 12 decimal places with trailing zeros trimmed, while tiny values use 12 significant digits. R defaults to 7 significant digits. Names are not yet shown when printing named vectors, and character vectors are not column aligned.
 

@@ -1,15 +1,31 @@
 use std::fs;
-use std::io::{self, Write};
+use std::io::{self, BufRead, IsTerminal, Write};
 use std::path::PathBuf;
 
-use r_ust_runtime::{Frontend, OutputEvent, PORT_TARGET};
+use r_ust_runtime::{EvalError, Frontend, OutputEvent, ParseStatus, Parser, PORT_TARGET};
+
+const HELP: &str = "Usage: r_ust_cli [options] [script.R]
+
+With no script or expression, start a console on a terminal or read piped stdin.
+Console input supports multiple lines. Press Ctrl-D to exit.
+
+  -e EXPR          Evaluate an expression
+  -f, --file FILE  Run a script; use - for stdin
+  -                Read stdin without prompts
+  -q, --quiet      Suppress the console startup banner
+  --vanilla        Accepted for compatibility; startup files are not loaded
+  --version        Show version and R compatibility target
+  -h, --help       Show this help
+";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CliMode {
     Interactive,
+    Stdin,
     File(PathBuf),
     Expression(String),
     Version,
+    Help,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -35,6 +51,8 @@ impl CliConfig {
                 "--quiet" | "-q" => quiet = true,
                 "--vanilla" => vanilla = true,
                 "--version" | "version" => mode = CliMode::Version,
+                "--help" | "-h" => mode = CliMode::Help,
+                "-" => mode = CliMode::Stdin,
                 "-e" => {
                     let expression = args
                         .next()
@@ -45,7 +63,11 @@ impl CliConfig {
                     let file = args
                         .next()
                         .ok_or_else(|| format!("{arg} requires a file path"))?;
-                    mode = CliMode::File(PathBuf::from(file));
+                    mode = if file == "-" {
+                        CliMode::Stdin
+                    } else {
+                        CliMode::File(PathBuf::from(file))
+                    };
                 }
                 "--args" => break,
                 _ if arg.starts_with('-') => {
@@ -76,7 +98,61 @@ impl Default for CliConfig {
 }
 
 pub fn run(config: CliConfig) -> Result<(), String> {
+    if matches!(config.mode, CliMode::Interactive | CliMode::Stdin) {
+        return run_input(config);
+    }
     execute(config, Some(write_console)).map(|_| ())
+}
+
+fn run_input(config: CliConfig) -> Result<(), String> {
+    // shortcut: canonical terminal input; add a line editor for history and interrupt recovery.
+    let input = io::stdin();
+    let interactive = input.is_terminal() && config.mode == CliMode::Interactive;
+    let mut input = input.lock();
+    let mut frontend = Frontend::default();
+    frontend.runtime_mut().set_output_sink(write_console);
+    if interactive && !config.quiet {
+        write_console(OutputEvent::Stdout(format!(
+            "R-ust 0.1.0\n{PORT_TARGET}\nPress Ctrl-D to exit.\n"
+        )))
+        .map_err(|error| error.to_string())?;
+    }
+    let mut source = String::new();
+    loop {
+        if interactive {
+            write_console(OutputEvent::Stdout(
+                if source.is_empty() { "> " } else { "+ " }.to_string(),
+            ))
+            .map_err(|error| error.to_string())?;
+        }
+        if input
+            .read_line(&mut source)
+            .map_err(|error| error.to_string())?
+            == 0
+        {
+            return if source.is_empty() {
+                Ok(())
+            } else {
+                Err("parse error: unexpected end of input".to_string())
+            };
+        }
+        let result = match Parser.parse_all(&source) {
+            Ok(_) => match frontend.eval_source_printed(&source) {
+                Err(error @ EvalError::Output(_)) => return Err(error.to_string()),
+                result => result.map_err(|error| error.to_string()),
+            },
+            Err(error) if error.status == ParseStatus::Incomplete => continue,
+            Err(error) => Err(format!("parse error: {}", error.message)),
+        };
+        if let Err(error) = result {
+            if !interactive {
+                return Err(error);
+            }
+            write_console(OutputEvent::Stderr(format!("Error: {error}\n")))
+                .map_err(|error| error.to_string())?;
+        }
+        source.clear();
+    }
 }
 
 /// Captures stdout. Console messages on stderr are available through runtime output events.
@@ -96,8 +172,13 @@ fn execute(
     sink: Option<fn(OutputEvent) -> io::Result<()>>,
 ) -> Result<Vec<OutputEvent>, String> {
     let source = match config.mode {
-        CliMode::Version => {
-            let event = OutputEvent::Stdout(format!("R-ust 0.1.0\n{PORT_TARGET}\n"));
+        CliMode::Version | CliMode::Help => {
+            let text = if config.mode == CliMode::Help {
+                HELP.to_string()
+            } else {
+                format!("R-ust 0.1.0\n{PORT_TARGET}\n")
+            };
+            let event = OutputEvent::Stdout(text);
             if let Some(sink) = sink {
                 sink(event).map_err(|error| error.to_string())?;
                 return Ok(Vec::new());
@@ -107,9 +188,9 @@ fn execute(
         CliMode::Expression(source) => source,
         CliMode::File(path) => fs::read_to_string(&path)
             .map_err(|error| format!("failed to read {}: {error}", path.display()))?,
-        CliMode::Interactive => {
+        CliMode::Interactive | CliMode::Stdin => {
             return Err(
-                "interactive console is not implemented yet; use -e or a script file".to_string(),
+                "run_to_string requires an expression, script file, help, or version; use run for stdin".to_string(),
             )
         }
     };

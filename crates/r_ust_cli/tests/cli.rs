@@ -1,5 +1,77 @@
 use std::process::Command;
 
+fn run_stdin(source: &str, args: &[&str]) -> std::process::Output {
+    use std::io::Write;
+    use std::process::Stdio;
+    let mut child = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+        .args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(source.as_bytes())
+        .unwrap();
+    child.wait_with_output().unwrap()
+}
+
+#[test]
+fn stdin_mode_preserves_state_and_reads_multiline_expressions() {
+    let source = concat!(
+        "x <- 2 # keep newline after comment\n",
+        "f <- function(x,\n y = 3)\n{\n x +\n y\n}\n",
+        "f(x)\n",
+        "sum(\n1,\n2\n)\n",
+        "(1\n+2)\n",
+        "cat(\"done\\n\")\n",
+    );
+    for args in [&[][..], &["-"][..], &["-f", "-"][..]] {
+        let output = run_stdin(source, args);
+        assert!(output.status.success(), "{:?}", output);
+        assert_eq!(
+            String::from_utf8(output.stdout).unwrap(),
+            "[1] 5\n[1] 3\n[1] 3\ndone\n"
+        );
+        assert!(output.stderr.is_empty());
+    }
+}
+
+#[test]
+fn stdin_mode_reports_errors_without_reading_later_commands() {
+    for source in [
+        "print(1)\nmissing_value\nprint(2)\n",
+        "print(1)\n)\nprint(2)\n",
+        "print(1)\nsum(\n",
+    ] {
+        let output = run_stdin(source, &[]);
+        assert!(!output.status.success(), "{source}");
+        assert_eq!(String::from_utf8(output.stdout).unwrap(), "[1] 1\n");
+        assert!(!output.stderr.is_empty());
+    }
+    let output = run_stdin("# empty session\n", &[]);
+    assert!(output.status.success());
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+}
+
+#[test]
+fn help_mode_explains_console_and_script_usage() {
+    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+        .arg("--help")
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let text = String::from_utf8(output.stdout).unwrap();
+    for expected in ["Usage:", "-e", "-f", "stdin", "Ctrl-D"] {
+        assert!(text.contains(expected), "missing {expected}: {text}");
+    }
+    assert!(output.stderr.is_empty());
+}
+
 #[test]
 fn expression_mode_tracks_visibility_and_console_effects() {
     for (source, expected_stdout, expected_stderr) in [

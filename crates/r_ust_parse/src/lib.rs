@@ -87,6 +87,7 @@ enum Token {
     RBracket,
     Comma,
     Colon,
+    Newline,
     Semicolon,
     AssignLeft,
     AssignLeftSuper,
@@ -125,12 +126,19 @@ impl<'a> Lexer<'a> {
 
     fn tokenize(mut self) -> Result<Vec<Token>, ParseError> {
         let mut tokens = Vec::new();
+        let mut groups = Vec::new();
         while let Some(ch) = self.peek() {
             match ch {
                 ' ' | '\t' | '\r' => {
                     self.advance();
                 }
-                '\n' | ';' => {
+                '\n' => {
+                    self.advance();
+                    if !matches!(groups.last(), Some('(' | '[')) {
+                        tokens.push(Token::Newline);
+                    }
+                }
+                ';' => {
                     self.advance();
                     tokens.push(Token::Semicolon);
                 }
@@ -180,26 +188,32 @@ impl<'a> Lexer<'a> {
                 }
                 '(' => {
                     self.advance();
+                    groups.push('(');
                     tokens.push(Token::LParen);
                 }
                 ')' => {
                     self.advance();
+                    groups.pop();
                     tokens.push(Token::RParen);
                 }
                 '{' => {
                     self.advance();
+                    groups.push('{');
                     tokens.push(Token::LBrace);
                 }
                 '}' => {
                     self.advance();
+                    groups.pop();
                     tokens.push(Token::RBrace);
                 }
                 '[' => {
                     self.advance();
+                    groups.push('[');
                     tokens.push(Token::LBracket);
                 }
                 ']' => {
                     self.advance();
+                    groups.pop();
                     tokens.push(Token::RBracket);
                 }
                 ',' => {
@@ -314,10 +328,10 @@ impl<'a> Lexer<'a> {
 
     fn skip_comment(&mut self) {
         while let Some(ch) = self.peek() {
-            self.advance();
             if ch == '\n' {
                 break;
             }
+            self.advance();
         }
     }
 
@@ -631,6 +645,7 @@ impl SyntaxParser {
     }
 
     fn parse_unary(&mut self) -> Result<Sexp, ParseError> {
+        self.consume_newlines();
         let (op, precedence) = match self.peek() {
             Token::Plus => (UnaryOp::Plus, 12),
             Token::Minus => (UnaryOp::Minus, 12),
@@ -703,9 +718,7 @@ impl SyntaxParser {
                 }
                 Token::Dollar => {
                     self.advance();
-                    let Token::Ident(name) = self.advance().clone() else {
-                        return Err(ParseError::new("expected name after $"));
-                    };
+                    let name = self.parse_name("expected name after $")?;
                     expr = Sexp::Dollar {
                         value: Box::new(expr),
                         name,
@@ -798,9 +811,7 @@ impl SyntaxParser {
             return Ok(parameters);
         }
         loop {
-            let Token::Ident(name) = self.advance().clone() else {
-                return Err(ParseError::new("expected function parameter name"));
-            };
+            let name = self.parse_name("expected function parameter name")?;
             let parameter = if matches!(self.peek(), Token::AssignEqual) {
                 self.advance();
                 FunctionParameter::optional(name, self.parse_expression()?)
@@ -844,11 +855,10 @@ impl SyntaxParser {
 
     fn parse_for_expression(&mut self) -> Result<Sexp, ParseError> {
         self.expect(Token::LParen)?;
-        let Token::Ident(variable) = self.advance().clone() else {
-            return Err(ParseError::new("expected loop variable name"));
-        };
+        let variable = self.parse_name("expected loop variable name")?;
         match self.advance().clone() {
             Token::Ident(keyword) if keyword == "in" => {}
+            Token::Eof => return Err(ParseError::incomplete("expected in")),
             other => return Err(ParseError::new(format!("expected in, found {other:?}"))),
         }
         let sequence = self.parse_expression()?;
@@ -897,7 +907,7 @@ impl SyntaxParser {
 
     fn consume_separators(&mut self) -> bool {
         let mut consumed = false;
-        while matches!(self.peek(), Token::Semicolon) {
+        while matches!(self.peek(), Token::Semicolon | Token::Newline) {
             self.advance();
             consumed = true;
         }
@@ -905,13 +915,31 @@ impl SyntaxParser {
     }
 
     fn expect(&mut self, expected: Token) -> Result<(), ParseError> {
+        self.consume_newlines();
         let actual = self.advance().clone();
         if std::mem::discriminant(&actual) == std::mem::discriminant(&expected) {
             Ok(())
+        } else if matches!(actual, Token::Eof) {
+            Err(ParseError::incomplete(format!("expected {expected:?}")))
         } else {
             Err(ParseError::new(format!(
                 "expected {expected:?}, found {actual:?}"
             )))
+        }
+    }
+
+    fn consume_newlines(&mut self) {
+        while matches!(self.peek(), Token::Newline) {
+            self.advance();
+        }
+    }
+
+    fn parse_name(&mut self, message: &str) -> Result<String, ParseError> {
+        self.consume_newlines();
+        match self.advance().clone() {
+            Token::Ident(name) => Ok(name),
+            Token::Eof => Err(ParseError::incomplete(message)),
+            _ => Err(ParseError::new(message)),
         }
     }
 
@@ -936,6 +964,59 @@ impl SyntaxParser {
 mod tests {
     use super::{ParseStatus, Parser};
     use r_ust_sexp::{BinaryOp, Sexp};
+
+    #[test]
+    fn classifies_unfinished_console_input() {
+        for source in [
+            "{\n",
+            "sum(\n",
+            "function(\n",
+            "function(x,\n",
+            "if(TRUE)\n",
+            "for(\n",
+            "for(i\n",
+            "x$\n",
+            "x <-\n",
+            "1 +\n",
+        ] {
+            assert_eq!(
+                Parser.parse_all(source).unwrap_err().status,
+                ParseStatus::Incomplete,
+                "{source}"
+            );
+        }
+        for source in [")", "1 +; 2", "sum(;) ", "function(2)"] {
+            assert_eq!(
+                Parser.parse_all(source).unwrap_err().status,
+                ParseStatus::Error,
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn parses_multiline_input_without_merging_statements() {
+        for source in [
+            "1 +\n2",
+            "sum(\n1,\n2\n)",
+            "(1\n+ 2)",
+            "function(x)\n{\n x +\n 1\n}",
+            "sum({\n x <- 1\n x + 2\n})",
+        ] {
+            assert_eq!(
+                Parser.parse_all(source).unwrap().expressions.len(),
+                1,
+                "{source}"
+            );
+        }
+        for source in ["1\n+2", "x <- 1 # comment\nx", "{1}\n{2}"] {
+            assert_eq!(
+                Parser.parse_all(source).unwrap().expressions.len(),
+                2,
+                "{source}"
+            );
+        }
+    }
 
     #[test]
     fn parses_assignment_and_precedence() {
