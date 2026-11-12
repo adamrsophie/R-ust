@@ -2,6 +2,8 @@
 
 R-ust is an implementation of the R language in Rust, targeting compatibility with R 4.6.0.
 
+[Project website](https://adamrsophie.github.io/R-ust/)
+
 The project is an early proof of concept. It provides a pure Rust port of R's standalone mathematical library (Rmath), a C ABI for that library, and a parser, evaluator, and command line interface that run a growing subset of the R language.
 
 ## Quick start

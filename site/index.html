@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#173f90">
+  <meta name="description" content="R-ust is an early implementation of the R language and standalone Rmath library in Rust, targeting compatibility with R 4.6.0.">
+  <meta property="og:title" content="R-ust | R syntax. Rust foundations.">
+  <meta property="og:description" content="A growing R interpreter, an interactive CLI, and a standalone math library, written in Rust.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://adamrsophie.github.io/R-ust/">
+  <link rel="canonical" href="https://adamrsophie.github.io/R-ust/">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="fonts/plex-sans-regular.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="site.js"></script>
+  <title>R-ust | R syntax. Rust foundations.</title>
+</head>
+<body id="top">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <nav class="container navigation" aria-label="Main navigation">
+      <a class="brand" href="#top" aria-label="R-ust home"><span class="brand-mark" aria-hidden="true">R</span>R-ust</a>
+      <div class="navigation-links">
+        <a href="#examples">Examples</a>
+        <a href="#build">Build</a>
+        <a href="#compatibility">Compatibility</a>
+        <a class="source-link" href="https://github.com/adamrsophie/R-ust">GitHub</a>
+      </div>
+    </nav>
+  </header>
+  <main id="main">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="container hero-layout">
+        <div class="hero-copy">
+          <p class="development-status"><span aria-hidden="true"></span>Early implementation</p>
+          <h1 id="hero-title">R syntax.<br>Rust foundations.</h1>
+          <p class="hero-description">A growing R interpreter and standalone math library, written in Rust. Explore familiar expressions through a new implementation.</p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="#build">Build R-ust</a>
+            <a class="hero-source" href="https://github.com/adamrsophie/R-ust">View source</a>
+          </div>
+          <p class="target-version">Compatibility target <strong>R 4.6.0</strong></p>
+        </div>
+        <section class="example-window" id="examples" aria-labelledby="example-title">
+          <div class="example-heading">
+            <h2 id="example-title">Inside the console</h2>
+            <span>Captured CLI examples</span>
+          </div>
+          <div class="example-choices" role="group" aria-label="Choose a CLI example" hidden>
+            <button type="button" data-example="arithmetic" aria-pressed="true">Vectors</button>
+            <button type="button" data-example="loops" aria-pressed="false">Control flow</button>
+            <button type="button" data-example="rmath" aria-pressed="false">Rmath</button>
+          </div>
+          <div class="example-input">
+            <div class="code-heading"><span>R code</span><button class="copy-button" type="button" data-copy="example-code" hidden>Copy R code</button></div>
+            <pre><code id="example-code">x &lt;- 1:5
+sum(x)
+typeof(x)</code></pre>
+          </div>
+          <div class="example-output">
+            <span class="output-label">Output</span>
+            <pre aria-live="polite" aria-atomic="true"><code id="example-output">[1] 15
+[1] "integer"</code></pre>
+          </div>
+          <p class="example-note">Run these examples in your own R-ust console.</p>
+        </section>
+      </div>
+    </section>
+
+    <section class="scope-section container" aria-labelledby="scope-title">
+      <div class="section-introduction">
+        <h2 id="scope-title">From expressions<br>to native math.</h2>
+        <p>R-ust brings language evaluation and numerical routines into a Rust workspace. The implementation is still growing, with compatibility gaps tracked in the repository.</p>
+      </div>
+      <div class="feature-map">
+        <article>
+          <span class="feature-symbol" aria-hidden="true">&gt;</span>
+          <h3>Run R code</h3>
+          <p>Use vectors, closures, control flow, and familiar numerical functions in an interactive console, a script, or an expression.</p>
+          <a href="https://github.com/adamrsophie/R-ust#supported-language-features">Explore language support</a>
+        </article>
+        <article>
+          <span class="feature-symbol math-symbol" aria-hidden="true">ƒ</span>
+          <h3>Use standalone Rmath</h3>
+          <p>The standalone math interface is implemented in Rust, with 154 C ABI exports. Several algorithms and random streams differ from R.</p>
+          <a href="https://github.com/adamrsophie/R-ust#rmath-library">Read about Rmath</a>
+        </article>
+        <article>
+          <span class="feature-symbol" aria-hidden="true">{ }</span>
+          <h3>Explore the implementation</h3>
+          <p>Separate crates handle parsing, evaluation, object storage, mathematics, and the command line. Follow the port directly in the source.</p>
+          <a href="https://github.com/adamrsophie/R-ust/tree/main/crates">Browse the crates</a>
+        </article>
+      </div>
+    </section>
+
+    <section class="build-section" id="build" aria-labelledby="build-title">
+      <div class="container build-layout">
+        <div>
+          <h2 id="build-title">Start with<br>a Rust toolchain.</h2>
+          <p>Clone the repository and launch the console with Cargo. Running R-ust does not require an R installation.</p>
+          <p>The console keeps variables between commands and accepts multiline input. Use <code>q()</code> or Ctrl-D to exit. <code>--no-save</code> skips the default save prompt.</p>
+          <a href="https://www.rust-lang.org/tools/install">Install Rust</a>
+        </div>
+        <div class="build-commands">
+          <div class="command-block">
+            <div class="code-heading"><h3>Build and launch</h3><button class="copy-button" type="button" data-copy="setup-command" hidden>Copy setup</button></div>
+            <pre><code id="setup-command">git clone https://github.com/adamrsophie/R-ust.git
+cd R-ust
+cargo run --release -p r_ust_cli -- --quiet --no-save</code></pre>
+          </div>
+          <div class="command-block compact-command">
+            <div class="code-heading"><h3>Evaluate an expression</h3><button class="copy-button" type="button" data-copy="expression-command" hidden>Copy command</button></div>
+            <pre><code id="expression-command">cargo run -q -p r_ust_cli -- -e 'sum(1:5)'</code></pre>
+          </div>
+          <div class="command-block compact-command">
+            <div class="code-heading"><h3>Run a script</h3><button class="copy-button" type="button" data-copy="script-command" hidden>Copy command</button></div>
+            <pre><code id="script-command">cargo run -q -p r_ust_cli -- script.R</code></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="compatibility-section container" id="compatibility" aria-labelledby="compatibility-title">
+      <div class="section-introduction">
+        <h2 id="compatibility-title">A clear view<br>of compatibility.</h2>
+        <p>R 4.6.0 is the target. Language coverage and numerical behavior remain incomplete. Check the current limitations before relying on results.</p>
+      </div>
+      <table class="compatibility-table">
+        <caption class="visually-hidden">Current implementation scope</caption>
+        <thead><tr><th scope="col">Area</th><th scope="col">Current scope</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Command line</th><td><span class="state state-available">Available</span><p>Interactive console, expressions, scripts, stdin, output, and exit handling.</p></td></tr>
+          <tr><th scope="row">R language</th><td><span class="state state-partial">Growing subset</span><p>Core types, operators, closures, control flow, and a selection of built-in functions.</p></td></tr>
+          <tr><th scope="row">Standalone Rmath</th><td><span class="state state-partial">Implemented interface</span><p>All 154 public interface functions are exported. Accuracy and random-stream differences remain.</p></td></tr>
+          <tr><th scope="row">R ecosystem</th><td><span class="state state-missing">Not implemented</span><p>Package loading, graphics, S3/S4 dispatch, and the complete base and recommended packages.</p></td></tr>
+        </tbody>
+      </table>
+      <div class="compatibility-notes">
+        <p>Workspace saving, complete shutdown hooks, command history, and interrupt recovery also remain unfinished.</p>
+        <a href="https://github.com/adamrsophie/R-ust#known-limitations">Read current limitations</a>
+      </div>
+    </section>
+  </main>
+  <footer class="site-footer">
+    <div class="container footer-layout">
+      <a class="brand" href="#top"><span class="brand-mark" aria-hidden="true">R</span>R-ust</a>
+      <p>An open-source R implementation in Rust.</p>
+      <div><a href="https://github.com/adamrsophie/R-ust/blob/main/LICENSE">GPL-3.0-or-later</a><a href="https://github.com/adamrsophie/R-ust">Source on GitHub</a></div>
+    </div>
+  </footer>
+  <p class="copy-status" role="status" aria-live="polite" id="copy-status"></p>
+</body>
+</html>
