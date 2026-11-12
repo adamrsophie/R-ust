@@ -96,7 +96,9 @@ cargo run -q -p r_ust_cli -- --no-echo example.R first "two words"
 
 `commandArgs()` returns the invocation, including the program name. For a positional script, an implicit `--args` separator is inserted before its arguments. `commandArgs(trailingOnly = TRUE)` returns only arguments after the first separator, including empty strings and option-like values. `interactive()` is true only for the terminal console, and false for expressions, scripts, and explicit stdin.
 
-Repeat `-e` to evaluate expressions in one session. Each expression gets a terminating newline, so comments and unfinished syntax can continue across `-e` arguments. Combining `-e` with a file option is an error. Echo uses primary or continuation prompts at each input read, includes comments and blank lines, normalizes CRLF endings, and stops reading source on quit or error. Code after a semicolon on an already-read line can therefore appear in echo even when it is never evaluated.
+Repeat `-e` to evaluate expressions in one session. Each admitted expression gets a terminating newline, so comments and unfinished syntax can continue across `-e` arguments. Combining an admitted expression with a file option is an error. Echo uses primary or continuation prompts at each input read, includes comments and blank lines, normalizes CRLF endings, and stops reading source on quit or error. Code after a semicolon on an already-read line can therefore appear in echo even when it is never evaluated.
+
+Expressions share R's 10,000-byte input buffer. Admission counts existing decoded source, the new encoded argument and two terminator bytes. Oversized arguments are omitted with a startup warning; later arguments can still fit. Omitted arguments remain visible in `commandArgs()`. If none are admitted, input falls back to non-interactive stdin. The main CLI can also run an explicit file alongside omitted expressions. Startup warnings precede evaluation and preserve macOS R's byte truncation, even when it cuts inside UTF-8. `scripts/check-expression-buffer.py` compares these cases with R 4.6.0.
 
 Both frontends process `-e` backslashes and whitespace markers using the macOS R 4.6.0 launcher's rules, including octal/hex byte escapes, escaped backslashes, and NUL removal. `commandArgs()` exposes the encoded expression; execution receives decoded source. `scripts/check-cli-launcher.py` compares source execution and invocation encoding with R. Other shells' echo rules are unverified. The launcher rejects `\c` truncation and non-UTF-8 escape results explicitly. Quoted strings decode R control, octal/hex, and `\u`/`\U` escapes; non-UTF-8 strings and unpaired surrogates remain unsupported.
 
@@ -133,6 +135,8 @@ For executable scripts, put the directory containing R-ust's `Rscript` on `PATH`
 | `r_ust_cli` | Command line interface |
 
 Embedded evaluators report `EvalError::Quit(QuitRequest)` without exiting the host process. The CLI handles shutdown and returns the requested integer process status from `r_ust_cli::run`.
+
+`CliConfig::startup_stdout` holds raw bytes emitted before the session starts. Struct literals must initialize it or use `..CliConfig::default()`. `run_to_string` captures UTF-8 startup output and returns an error when those bytes are not valid UTF-8; `run` streams the original bytes.
 
 Hosts can set R-visible arguments and interactive status through `RuntimeState::set_session_context`. Embedded runtimes default to an empty argument vector and non-interactive status; they do not expose the host process's arguments automatically.
 

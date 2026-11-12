@@ -1,4 +1,4 @@
-use super::launcher::{decode_argument, encode_expression};
+use super::launcher::{append_expression, decode_argument, encode_expression};
 use super::{run, write_console, CliConfig, CliMode, OutputEvent, PORT_TARGET};
 
 const HELP: &str = "Usage: Rscript [options] file [args]
@@ -58,7 +58,9 @@ where
     }
 
     let mut invocation = vec![program, "--no-echo".to_string(), "--no-restore".to_string()];
-    let mut expressions = Vec::new();
+    let mut expressions = String::new();
+    let mut expression_mode = false;
+    let mut startup_stdout = Vec::new();
     let mut verbose = false;
     let mut vanilla = false;
     let mut file = None;
@@ -68,9 +70,10 @@ where
             let option = args.next().unwrap();
             let expression = args.next().ok_or("-e requires an expression")?;
             let encoded = encode_expression(&expression)?;
-            expressions.push(decode_argument(&encoded));
+            expression_mode = true;
+            append_expression(&mut expressions, &mut startup_stdout, &encoded);
             invocation.extend([option, encoded]);
-        } else if !expressions.is_empty() {
+        } else if expression_mode {
             break;
         } else if arg.starts_with("--") {
             let option = args.next().unwrap();
@@ -107,8 +110,13 @@ where
             break;
         }
     }
-    let mode = if !expressions.is_empty() {
-        CliMode::Expression(expressions.join("\n"))
+    let mode = if expression_mode {
+        if expressions.is_empty() {
+            CliMode::Stdin
+        } else {
+            expressions.pop();
+            CliMode::Expression(expressions)
+        }
     } else {
         match file.ok_or("file name is missing")?.as_str() {
             "-" => CliMode::Stdin,
@@ -127,6 +135,7 @@ where
         no_save: true,
         vanilla,
         command_args: invocation,
+        startup_stdout,
     };
     if verbose {
         write_console(OutputEvent::Stderr(format!(

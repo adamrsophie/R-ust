@@ -48,6 +48,8 @@ pub struct CliConfig {
     pub no_save: bool,
     /// R-visible invocation, including the program name and an optional --args separator.
     pub command_args: Vec<String>,
+    /// Raw stdout emitted before the session starts; warning truncation may split UTF-8.
+    pub startup_stdout: Vec<u8>,
 }
 
 impl CliConfig {
@@ -61,6 +63,7 @@ impl CliConfig {
         let mut vanilla = false;
         let mut no_save = false;
         let mut mode = CliMode::Interactive;
+        let mut startup_stdout = Vec::new();
         let mut command_args = vec!["r_ust_cli".to_string()];
         command_args.extend(args.into_iter().map(Into::into));
         let mut args = command_args.clone().into_iter().skip(1).peekable();
@@ -81,7 +84,7 @@ impl CliConfig {
                 "--version" | "version" => mode = CliMode::Version,
                 "--help" | "-h" => mode = CliMode::Help,
                 "-" => {
-                    if matches!(mode, CliMode::Expression(_)) {
+                    if matches!(&mode, CliMode::Expression(source) if !source.is_empty()) {
                         return Err("cannot use stdin and -e together".to_string());
                     }
                     mode = CliMode::Stdin;
@@ -94,20 +97,22 @@ impl CliConfig {
                     let encoded = launcher::encode_expression(&expression)?;
                     let index = command_args.len() - args.len() - 1;
                     command_args[index] = encoded.clone();
-                    let expression = launcher::decode_argument(&encoded);
-                    match &mut mode {
-                        CliMode::Expression(source) => {
-                            source.push('\n');
-                            source.push_str(&expression);
-                        }
+                    let mut source = match &mut mode {
+                        CliMode::Expression(source) => std::mem::take(source),
+                        _ => String::new(),
+                    };
+                    launcher::append_expression(&mut source, &mut startup_stdout, &encoded);
+                    match mode {
                         CliMode::File(_) | CliMode::Stdin => {
-                            return Err("cannot use a script file and -e together".to_string());
+                            if !source.is_empty() {
+                                return Err("cannot use a script file and -e together".to_string());
+                            }
                         }
-                        _ => mode = CliMode::Expression(expression),
+                        _ => mode = CliMode::Expression(source),
                     }
                 }
                 _ if arg == "--file" || arg == "-f" || arg.starts_with("--file=") => {
-                    if matches!(mode, CliMode::Expression(_)) {
+                    if matches!(&mode, CliMode::Expression(source) if !source.is_empty()) {
                         return Err("cannot use a script file and -e together".to_string());
                     }
                     let file = arg
@@ -142,6 +147,15 @@ impl CliConfig {
             }
         }
 
+        if let CliMode::Expression(source) = &mut mode {
+            source.pop();
+            if source.is_empty() {
+                mode = CliMode::Stdin;
+            }
+        }
+        if matches!(mode, CliMode::Help | CliMode::Version) {
+            startup_stdout.clear();
+        }
         Ok(Self {
             mode,
             quiet,
@@ -149,6 +163,7 @@ impl CliConfig {
             vanilla,
             no_save,
             command_args,
+            startup_stdout,
         })
     }
 }
@@ -162,11 +177,19 @@ impl Default for CliConfig {
             vanilla: false,
             no_save: false,
             command_args: vec!["r_ust_cli".to_string()],
+            startup_stdout: Vec::new(),
         }
     }
 }
 
 pub fn run(config: CliConfig) -> Result<i32, String> {
+    if !config.startup_stdout.is_empty() {
+        let mut stdout = io::stdout().lock();
+        stdout
+            .write_all(&config.startup_stdout)
+            .and_then(|_| stdout.flush())
+            .map_err(|error| error.to_string())?;
+    }
     if matches!(config.mode, CliMode::Interactive | CliMode::Stdin) {
         return run_input(config);
     }
@@ -380,14 +403,17 @@ fn complete_quit(
 
 /// Captures stdout, including explicit quit requests. Use `run` for process exit status.
 pub fn run_to_string(config: CliConfig) -> Result<String, String> {
+    let startup = String::from_utf8(config.startup_stdout.clone())
+        .map_err(|_| "startup output is not UTF-8; use run to stream raw bytes".to_string())?;
     let (output, _) = execute(config, None)?;
-    Ok(output
-        .into_iter()
-        .filter_map(|event| match event {
-            OutputEvent::Stdout(text) => Some(text),
-            OutputEvent::Stderr(_) => None,
-        })
-        .collect())
+    Ok(startup
+        + &output
+            .into_iter()
+            .filter_map(|event| match event {
+                OutputEvent::Stdout(text) => Some(text),
+                OutputEvent::Stderr(_) => None,
+            })
+            .collect::<String>())
 }
 
 fn execute(
@@ -471,6 +497,7 @@ mod tests {
                     .into_iter()
                     .map(str::to_string)
                     .collect(),
+                startup_stdout: Vec::new(),
             }
         );
     }

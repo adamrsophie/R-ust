@@ -1,4 +1,4 @@
-// shortcut: match macOS R 4.6.0 echo; add shell-specific rules before claiming other platforms.
+// shortcut: match macOS R 4.6.0 launcher rules; port platform rules before claiming other platforms.
 pub(super) fn encode_expression(argument: &str) -> Result<String, String> {
     let mut bytes = argument.bytes().peekable();
     let mut expanded = Vec::with_capacity(argument.len());
@@ -84,6 +84,19 @@ pub(super) fn decode_argument(encoded: &str) -> String {
         output.push(ch);
     }
     output
+}
+
+pub(super) fn append_expression(source: &mut String, startup_stdout: &mut Vec<u8>, encoded: &str) {
+    if source.len() + encoded.len() + 2 <= 10000 {
+        source.push_str(&decode_argument(encoded));
+        source.push('\n');
+    } else {
+        let mut warning =
+            format!("WARNING: '-e {encoded}' omitted as input is too long\n").into_bytes();
+        warning.truncate(1024 + 128 - 1);
+        warning.push(b'\n');
+        startup_stdout.extend(warning);
+    }
 }
 
 #[cfg(test)]

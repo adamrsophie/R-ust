@@ -104,13 +104,9 @@ with tempfile.TemporaryDirectory(prefix="r-ust-strings-") as directory:
             u, uu = run(native, data)
             kind = case["kind"]
             if case.get("expression_boundary") and "expression" in mode:
-                kind = "known-expression-buffer-limit"
-                native_ok = (u.returncode == 0 and u.stdout == case["expected"] and not u.stderr
-                             if case["kind"] == "valid" else
-                             u.returncode == 1 and u.stdout == b"before\n"
-                             and b"Unicode escapes is too long" in u.stderr)
-                passed = (r.returncode == 0 and not r.stderr and native_ok
-                          and r.stdout.startswith(b"WARNING: '-e ") and len(r.stdout) == 1152)
+                kind = "expression-buffer"
+                passed = (r.returncode == u.returncode == 0 and not r.stderr and not u.stderr
+                          and r.stdout == u.stdout and r.stdout.startswith(b"WARNING: '-e "))
             elif kind == "valid":
                 passed = (r.returncode == u.returncode == 0 and r.stdout == u.stdout == case["expected"]
                           and not r.stderr and not u.stderr)
