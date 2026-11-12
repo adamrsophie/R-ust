@@ -154,6 +154,7 @@ Interactive embedded hosts install a console reader through `RuntimeState::set_i
 - R's UTF-8 blank class plus form feed, with LF and CRLF line endings. Bare CR, vertical tab, and nonbreaking spaces are not whitespace separators.
 - Single- and double-quoted strings with R control escapes, octal/hex bytes, Unicode escapes (including braced forms and paired surrogates), and escaped newlines; unknown escapes and mixed Unicode/byte escapes are errors
 - Raw string literals with `r` or `R`, either quote, `()`, `[]`, `{}`, or `||` delimiters, and matching dash counts; backslashes remain literal
+- Backtick-quoted names in assignments, calls, parameters, argument tags, loops, and `$` access; control and UTF-8 byte escapes decode, while Unicode escapes inside backticks are errors
 - Assignment with `<-`, `=`, `->`, `<<-`, and `->>`, including replacement through `[`, `[[`, `$`, and `names<-`
 - Control flow: `if`/`else`, `for`, `while`, `repeat`, `break`, `next`, and `return()`
 - Closures with lazily evaluated arguments and defaults, `missing()`, `...` forwarding, and exact named and positional argument matching
@@ -186,7 +187,7 @@ Interactive embedded hosts install a console reader through `RuntimeState::set_i
 
 R-ust does not yet provide reference semantics for environments, general replacement functions, full attribute support (including row names and arrays), formulas, S3 and S4 dispatch, namespaces and package loading, condition handling, connections, graphics, serialization, or the base and recommended packages.
 
-String values require UTF-8. Non-UTF-8 byte strings, unpaired surrogates, encoding metadata, and full R display formatting remain incomplete. Backtick names are not parsed. `scripts/check-string-escapes.py` and `scripts/check-raw-strings.py` compare quoted/raw string values and errors through stdin, files, and both expression frontends with R 4.6.0.
+String values and symbol names require UTF-8. Non-UTF-8 byte strings/names, unpaired surrogates, encoding metadata, and full R display formatting remain incomplete. `scripts/check-string-escapes.py`, `scripts/check-raw-strings.py`, and `scripts/check-backticks.py` compare string/name values and errors through stdin, files, and both expression frontends with R 4.6.0. Calling operators or special forms by quoted name remains incomplete.
 
 The console uses basic terminal input. Command history, advanced line editing, interrupt recovery, workspace saving, `.Last.sys`, exit finalizers, and full R command line compatibility remain missing. Quit warnings print directly to stderr without R condition objects or full diagnostic formatting.
 

@@ -174,6 +174,11 @@ impl RuntimeState {
             | Sexp::Closure { .. } => EvalFlow::Value(expr.clone()),
             Sexp::MissingArg(name) => return Err(EvalError::MissingArgument(name.clone())),
             Sexp::Promise { .. } => EvalFlow::Value(self.force_value(expr.clone())?),
+            Sexp::Symbol(name) if name == "..." => {
+                return Err(EvalError::Domain(
+                    "'...' used in an incorrect context".into(),
+                ));
+            }
             Sexp::Symbol(name) => self
                 .lookup(name)?
                 .ok_or_else(|| EvalError::UndefinedSymbol(name.clone()))

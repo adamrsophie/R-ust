@@ -138,6 +138,7 @@ enum Token {
     Integer(i32),
     String(String),
     Ident(String),
+    QuotedIdent(String),
     Plus,
     Minus,
     Star,
@@ -229,6 +230,9 @@ impl<'a> Lexer<'a> {
                 }
                 '"' | '\'' => {
                     tokens.push(Token::String(self.lex_string()?));
+                }
+                '`' => {
+                    tokens.push(Token::QuotedIdent(self.lex_string()?));
                 }
                 'r' | 'R' if matches!(self.peek_next(), Some('"' | '\'')) => {
                     tokens.push(Token::String(self.lex_raw_string()?));
@@ -515,6 +519,14 @@ impl<'a> Lexer<'a> {
         let mut has_byte_escape = false;
         while let Some(ch) = self.advance() {
             if ch == quote {
+                if quote == '`' {
+                    if bytes.is_empty() {
+                        return Err(ParseError::new("attempt to use zero-length variable name"));
+                    }
+                    if bytes.len() > 10000 {
+                        return Err(ParseError::new("variable names are limited to 10000 bytes"));
+                    }
+                }
                 if has_unicode {
                     if has_byte_escape {
                         return Err(ParseError::new(
@@ -589,6 +601,11 @@ impl<'a> Lexer<'a> {
                         continue;
                     }
                     'u' | 'U' => {
+                        if quote == '`' {
+                            return Err(ParseError::new(
+                                "Unicode escapes are not supported inside backticks",
+                            ));
+                        }
                         let braced = self.consume('{');
                         let start = self.position;
                         let value =
@@ -979,24 +996,25 @@ impl SyntaxParser {
             return Ok(arguments);
         }
         loop {
-            let argument = if let Token::Ident(name) = self.peek().clone() {
-                if matches!(self.peek_n(1), Some(Token::AssignEqual)) {
-                    self.advance();
-                    self.advance();
-                    let value = if matches!(self.peek(), Token::Comma | Token::RParen) {
-                        Sexp::MissingArg(name.clone())
+            let argument =
+                if let Token::Ident(name) | Token::QuotedIdent(name) = self.peek().clone() {
+                    if matches!(self.peek_n(1), Some(Token::AssignEqual)) {
+                        self.advance();
+                        self.advance();
+                        let value = if matches!(self.peek(), Token::Comma | Token::RParen) {
+                            Sexp::MissingArg(name.clone())
+                        } else {
+                            self.parse_expression()?
+                        };
+                        CallArgument::named(name, value)
                     } else {
-                        self.parse_expression()?
-                    };
-                    CallArgument::named(name, value)
+                        CallArgument::positional(self.parse_expression()?)
+                    }
+                } else if matches!(self.peek(), Token::Comma | Token::RParen) {
+                    CallArgument::positional(Sexp::MissingArg(String::new()))
                 } else {
                     CallArgument::positional(self.parse_expression()?)
-                }
-            } else if matches!(self.peek(), Token::Comma | Token::RParen) {
-                CallArgument::positional(Sexp::MissingArg(String::new()))
-            } else {
-                CallArgument::positional(self.parse_expression()?)
-            };
+                };
             arguments.push(argument);
             if !matches!(self.peek(), Token::Comma) {
                 break;
@@ -1011,6 +1029,7 @@ impl SyntaxParser {
             Token::Number(value) => Ok(Sexp::Real(vec![value])),
             Token::Integer(value) => Ok(Sexp::Integer(vec![Some(value)])),
             Token::String(value) => Ok(Sexp::String(vec![Some(value)])),
+            Token::QuotedIdent(name) => Ok(Sexp::Symbol(name)),
             Token::Ident(name) => Ok(match name.as_str() {
                 "function" => self.parse_function_definition()?,
                 "if" => self.parse_if_expression()?,
@@ -1189,7 +1208,7 @@ impl SyntaxParser {
     fn parse_name(&mut self, message: &str) -> Result<String, ParseError> {
         self.consume_newlines();
         match self.advance().clone() {
-            Token::Ident(name) => Ok(name),
+            Token::Ident(name) | Token::QuotedIdent(name) => Ok(name),
             Token::Eof => Err(ParseError::incomplete(message)),
             _ => Err(ParseError::new(message)),
         }
