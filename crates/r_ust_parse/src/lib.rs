@@ -230,6 +230,9 @@ impl<'a> Lexer<'a> {
                 '"' | '\'' => {
                     tokens.push(Token::String(self.lex_string()?));
                 }
+                'r' | 'R' if matches!(self.peek_next(), Some('"' | '\'')) => {
+                    tokens.push(Token::String(self.lex_raw_string()?));
+                }
                 'A'..='Z' | 'a'..='z' | '_' | '.' => {
                     tokens.push(Token::Ident(self.lex_identifier()));
                 }
@@ -456,13 +459,52 @@ impl<'a> Lexer<'a> {
         let value = text
             .parse::<f64>()
             .map_err(|_| ParseError::new(format!("invalid numeric literal {text:?}")))?;
-        if self.consume('L') {
-            if value.fract() == 0.0 && value <= i32::MAX as f64 {
-                return Ok(Token::Integer(value as i32));
-            }
-            // shortcut: invalid L qualifiers use double silently until parser warnings exist.
+        // shortcut: invalid L qualifiers use double silently until parser warnings exist.
+        if self.consume('L') && value.fract() == 0.0 && value <= i32::MAX as f64 {
+            return Ok(Token::Integer(value as i32));
         }
         Ok(Token::Number(value))
+    }
+
+    fn lex_raw_string(&mut self) -> Result<String, ParseError> {
+        self.advance();
+        let quote = self.advance().expect("raw string quote");
+        let mut dashes = 0;
+        while self.consume('-') {
+            dashes += 1;
+        }
+        let close = match self.advance() {
+            Some('(') => ')',
+            Some('[') => ']',
+            Some('{') => '}',
+            Some('|') => '|',
+            _ => return Err(ParseError::new("malformed raw string opener")),
+        };
+        let mut value = String::new();
+        while let Some(ch) = self.advance() {
+            if ch == close {
+                let checkpoint = self.position;
+                if (0..dashes).all(|_| self.consume('-')) && self.consume(quote) {
+                    return Ok(value);
+                }
+                self.position = checkpoint;
+            }
+            Self::validate_literal_character(ch)?;
+            value.push(ch);
+        }
+        Err(ParseError::incomplete("unterminated raw string literal"))
+    }
+
+    fn validate_literal_character(ch: char) -> Result<(), ParseError> {
+        if matches!(ch, '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}') {
+            return Err(ParseError::new(
+                "bidi formatting not allowed, use escapes instead",
+            ));
+        }
+        if ch == '\0' {
+            return Err(ParseError::new("nul character not allowed"));
+        }
+        Ok(())
     }
 
     fn lex_string(&mut self) -> Result<String, ParseError> {
@@ -578,14 +620,7 @@ impl<'a> Lexer<'a> {
                     }
                 }
             } else {
-                if matches!(ch, '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}') {
-                    return Err(ParseError::new(
-                        "bidi formatting not allowed, use escapes instead",
-                    ));
-                }
-                if ch == '\0' {
-                    return Err(ParseError::new("nul character not allowed"));
-                }
+                Self::validate_literal_character(ch)?;
                 ch
             };
             let mut encoded = [0; 4];
