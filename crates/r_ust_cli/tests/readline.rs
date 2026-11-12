@@ -8,6 +8,7 @@ fn batch_readline_does_not_consume_following_source_lines() {
         env!("CARGO_BIN_EXE_Rscript"),
     ] {
         let mut child = Command::new(executable)
+            .arg("--no-echo")
             .arg("-")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -37,6 +38,7 @@ fn expression_readline_remains_non_interactive() {
         env!("CARGO_BIN_EXE_Rscript"),
     ] {
         let output = Command::new(executable)
+            .arg("--no-echo")
             .args(["-e", "withVisible(readline(\"p\"))$visible"])
             .stdin(Stdio::null())
             .output()

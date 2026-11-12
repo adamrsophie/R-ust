@@ -54,11 +54,11 @@ names = ["width", "digits", "expressions", "deparse.cutoff", "max.print", "warni
          "echo", "check.bounds", "keep.source", "warn", "contrasts", "matprod"]
 for name in names:
     for value in values:
-        kind = "known-echo-limit" if name == "echo" and value in ("TRUE", "NA") else "validation"
+        kind = "validation"
         if name == "deparse.cutoff" and value in ("FALSE", "NA", "NA_real_", "'bad'", "''", "as.numeric(NULL)", "as.character(NULL)", "list(80)"):
             kind = "known-print-limit"
         code = f"options({name}={value});v<-getOption('{name}');cat(typeof(v),':',v,'\\n',sep='')"
-        if kind == "known-echo-limit":
+        if name == "echo" and value in ("TRUE", "NA"):
             code = f"options(echo={value});print(typeof(getOption('echo')));getOption('echo')"
         cases.append((kind, code))
 
@@ -174,7 +174,7 @@ with tempfile.TemporaryDirectory(prefix="r-ust-options-") as directory:
         reference = subprocess.run(["Rscript", "--vanilla", "--default-packages=NULL", "-e", code], cwd=directory,
                                    capture_output=True, timeout=20)
         for snapshot in snapshots:
-            native = subprocess.run([str(snapshot), "-e", code], cwd=directory,
+            native = subprocess.run([str(snapshot), "--no-echo", "-e", code], cwd=directory,
                                     capture_output=True, timeout=20)
             passed = (reference.returncode == native.returncode
                       and reference.stdout == native.stdout)
@@ -184,11 +184,7 @@ with tempfile.TemporaryDirectory(prefix="r-ust-options-") as directory:
                 passed = passed and reference.returncode != 0
             known_limit = kind.startswith("known-")
             limit_observed = False
-            if kind == "known-echo-limit":
-                limit_observed = (reference.returncode == native.returncode == 0
-                                  and reference.stdout == native.stdout + b"> \n"
-                                  and not reference.stderr and not native.stderr)
-            elif kind == "known-print-limit":
+            if kind == "known-print-limit":
                 limit_observed = (reference.returncode == native.returncode == 0
                                   and reference.stdout == native.stdout
                                   and b"invalid 'deparse.cutoff'" in reference.stderr
@@ -219,7 +215,7 @@ limits = [row for row in results if row["known_limit"] and row["limit_observed"]
 for row in failed:
     print(json.dumps(row))
 print(f"{len(cases)} expressions, {len(results)} batch comparisons, {len(terminals)} terminal checks; {len(failed)} failures")
-print(f"{len(limits)} known print/echo limits observed, not counted as passing")
+print(f"{len(limits)} known printing limits observed, not counted as passing")
 print("Values/stdout/status compared. Warning presence checked; diagnostic wording and condition objects not compared.")
 if failed:
     raise SystemExit(1)

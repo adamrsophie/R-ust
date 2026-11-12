@@ -45,7 +45,7 @@ with tempfile.TemporaryDirectory(prefix="r-ust-session-") as directory:
     for kind, args in cases:
         r = subprocess.run(["R", "--vanilla", "--slave", *args], cwd=directory,
                            capture_output=True, text=True, timeout=15)
-        u = subprocess.run([str(binary), *args], cwd=directory,
+        u = subprocess.run([str(binary), "--slave", *args], cwd=directory,
                            capture_output=True, text=True, timeout=15)
         passed = r.returncode == u.returncode and r.stdout == u.stdout
         passed = passed and (r.returncode != 0 if kind == "error" else not r.stderr and not u.stderr)

@@ -132,6 +132,7 @@ where
     let mut config = CliConfig {
         mode,
         quiet: true,
+        no_echo: true,
         no_save: true,
         vanilla,
         command_args: invocation,

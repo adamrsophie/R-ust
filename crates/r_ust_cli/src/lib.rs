@@ -18,8 +18,9 @@ Workspace saving is not implemented; choose n or c at the save prompt.
 
   -e EXPR          Evaluate an expression; may be repeated
   -f, --file FILE  Run a script; use - for stdin (also --file=FILE)
-  -                Read stdin without prompts
-  -q, --quiet      Suppress the console startup banner
+  -                Read stdin; use --no-echo to suppress input and prompts
+  -q, --quiet      Suppress the startup banner (also --silent)
+  -s, --no-echo    Suppress input echo, banner, and default save prompts (also --slave)
   --no-save        Exit without prompting to save the workspace
   --vanilla        Implies --no-save; startup files are not loaded
   --args ...       Pass remaining arguments to commandArgs(trailingOnly = TRUE)
@@ -41,6 +42,7 @@ pub enum CliMode {
 pub struct CliConfig {
     pub mode: CliMode,
     pub quiet: bool,
+    pub no_echo: bool,
     pub vanilla: bool,
     pub no_save: bool,
     /// R-visible invocation, including the program name and an optional --args separator.
@@ -54,6 +56,7 @@ impl CliConfig {
         S: Into<String>,
     {
         let mut quiet = false;
+        let mut no_echo = false;
         let mut vanilla = false;
         let mut no_save = false;
         let mut mode = CliMode::Interactive;
@@ -63,7 +66,12 @@ impl CliConfig {
 
         while let Some(arg) = args.next() {
             match arg.as_str() {
-                "--quiet" | "-q" => quiet = true,
+                "--quiet" | "--silent" | "-q" => quiet = true,
+                "--no-echo" | "--slave" | "-s" => {
+                    quiet = true;
+                    no_echo = true;
+                    no_save = true;
+                }
                 "--vanilla" => {
                     vanilla = true;
                     no_save = true;
@@ -132,6 +140,7 @@ impl CliConfig {
         Ok(Self {
             mode,
             quiet,
+            no_echo,
             vanilla,
             no_save,
             command_args,
@@ -144,6 +153,7 @@ impl Default for CliConfig {
         Self {
             mode: CliMode::Interactive,
             quiet: false,
+            no_echo: false,
             vanilla: false,
             no_save: false,
             command_args: vec!["r_ust_cli".to_string()],
@@ -158,47 +168,81 @@ pub fn run(config: CliConfig) -> Result<i32, String> {
     execute(config, Some(write_console)).map(|(_, status)| status)
 }
 
-fn run_input(config: CliConfig) -> Result<i32, String> {
-    // shortcut: canonical terminal input; add a line editor for history and interrupt recovery.
-    let input = io::stdin();
-    let interactive = input.is_terminal() && config.mode == CliMode::Interactive;
+fn initialize_frontend(
+    config: &CliConfig,
+    interactive: bool,
+    sink: Option<fn(OutputEvent) -> io::Result<()>>,
+) -> Result<Frontend, EvalError> {
     let mut frontend = Frontend::default();
     frontend
         .runtime_mut()
-        .set_session_context(config.command_args, interactive);
+        .set_session_context(config.command_args.clone(), interactive);
+    if let Some(sink) = sink {
+        frontend.runtime_mut().set_output_sink(sink);
+    }
+    frontend.runtime_mut().set_input_reader(read_console_line);
     frontend
         .runtime_mut()
-        .set_option("quiet", Sexp::Logical(vec![Some(config.quiet)]))
-        .map_err(|error| error.to_string())?;
-    frontend.runtime_mut().set_output_sink(write_console);
-    frontend.runtime_mut().set_input_reader(read_console_line);
-    if interactive && !config.quiet {
-        write_console(OutputEvent::Stdout(format!(
+        .set_option("quiet", Sexp::Logical(vec![Some(config.quiet)]))?;
+    frontend
+        .runtime_mut()
+        .set_option("echo", Sexp::Logical(vec![Some(!config.no_echo)]))?;
+    if !config.quiet {
+        frontend.runtime_mut().emit(OutputEvent::Stdout(format!(
             "R-ust 0.1.0\n{PORT_TARGET}\nUse q() or Ctrl-D to exit.\n"
-        )))
-        .map_err(|error| error.to_string())?;
+        )))?;
     }
+    Ok(frontend)
+}
+
+fn run_input(config: CliConfig) -> Result<i32, String> {
+    let interactive = io::stdin().is_terminal() && config.mode == CliMode::Interactive;
+    let mut frontend = initialize_frontend(&config, interactive, Some(write_console))
+        .map_err(|error| error.to_string())?;
+    run_session(
+        &mut frontend,
+        interactive,
+        config.no_save || config.vanilla,
+        read_console_line,
+    )
+    .map_err(|error| error.to_string())
+}
+
+fn echo_enabled(frontend: &Frontend) -> bool {
+    !matches!(frontend.runtime().get_option("echo"), Some(Sexp::Logical(values)) if values.first() == Some(&Some(false)))
+}
+
+fn run_session(
+    frontend: &mut Frontend,
+    interactive: bool,
+    no_save: bool,
+    mut read_line: impl FnMut() -> io::Result<String>,
+) -> Result<i32, EvalError> {
     let mut source = String::new();
     'session: loop {
-        if interactive {
-            write_console(OutputEvent::Stdout(
-                match frontend.runtime().get_option(if source.is_empty() {
-                    "prompt"
-                } else {
-                    "continue"
-                }) {
-                    Some(Sexp::String(values)) => {
-                        values[0].clone().expect("validated console prompt")
-                    }
-                    _ => return Err("invalid console prompt option".into()),
-                },
-            ))
-            .map_err(|error| error.to_string())?;
+        let echo = echo_enabled(frontend);
+        if echo {
+            let key = if source.is_empty() {
+                "prompt"
+            } else {
+                "continue"
+            };
+            let prompt = match frontend.runtime().get_option(key) {
+                Some(Sexp::String(values)) => values.first().and_then(Option::as_ref).cloned(),
+                _ => None,
+            }
+            .ok_or_else(|| EvalError::Type(format!("invalid '{key}' option")))?;
+            frontend.runtime_mut().emit(OutputEvent::Stdout(prompt))?;
         }
-        let line = read_console_line().map_err(|error| error.to_string())?;
+        let mut line = read_line().map_err(|error| EvalError::Input(error.to_string()))?;
         let result = if line.is_empty() {
             if !source.is_empty() {
-                return Err("parse error: unexpected end of input".to_string());
+                return Err(EvalError::Parse("unexpected end of input".into()));
+            }
+            if echo {
+                frontend
+                    .runtime_mut()
+                    .emit(OutputEvent::Stdout("\n".into()))?;
             }
             Err(EvalError::Quit(QuitRequest {
                 save: SaveAction::Default,
@@ -206,6 +250,17 @@ fn run_input(config: CliConfig) -> Result<i32, String> {
                 run_last: true,
             }))
         } else {
+            if line.ends_with("\r\n") {
+                line.remove(line.len() - 2);
+            }
+            if !line.ends_with('\n') {
+                line.push('\n');
+            }
+            if echo && !interactive {
+                frontend
+                    .runtime_mut()
+                    .emit(OutputEvent::Stdout(line.clone()))?;
+            }
             source.push_str(&line);
             let mut statements = Parser.parse_iter(&source);
             let mut result = Ok(());
@@ -236,25 +291,22 @@ fn run_input(config: CliConfig) -> Result<i32, String> {
             result
         };
         let result = match result {
-            Err(EvalError::Quit(request)) => match complete_quit(
-                &mut frontend,
-                request,
-                interactive,
-                config.no_save || config.vanilla,
-                read_console_line,
-            ) {
-                Ok(Some(status)) => return Ok(status),
-                Ok(None) => Ok(()),
-                Err(error) => Err(error),
-            },
+            Err(EvalError::Quit(request)) => {
+                match complete_quit(frontend, request, interactive, no_save, read_console_line) {
+                    Ok(Some(status)) => return Ok(status),
+                    Ok(None) => Ok(()),
+                    Err(error) => Err(error),
+                }
+            }
             other => other,
         };
         if let Err(error) = result {
             if !interactive || matches!(error, EvalError::Output(_) | EvalError::Input(_)) {
-                return Err(error.to_string());
+                return Err(error);
             }
-            write_console(OutputEvent::Stderr(format!("Error: {error}\n")))
-                .map_err(|error| error.to_string())?;
+            frontend
+                .runtime_mut()
+                .emit(OutputEvent::Stderr(format!("Error: {error}\n")))?;
         }
         source.clear();
     }
@@ -337,7 +389,7 @@ fn execute(
     config: CliConfig,
     sink: Option<fn(OutputEvent) -> io::Result<()>>,
 ) -> Result<(Vec<OutputEvent>, i32), String> {
-    let source = match config.mode {
+    let source = match &config.mode {
         CliMode::Version | CliMode::Help => {
             let text = if config.mode == CliMode::Help {
                 HELP.to_string()
@@ -351,49 +403,30 @@ fn execute(
             }
             return Ok((vec![event], 0));
         }
-        CliMode::Expression(source) => source,
-        CliMode::File(path) => fs::read_to_string(&path)
+        CliMode::Expression(source) => format!("{source}\n"),
+        CliMode::File(path) => fs::read_to_string(path)
             .map_err(|error| format!("failed to read {}: {error}", path.display()))?,
         CliMode::Interactive | CliMode::Stdin => {
             return Err(
-                "run_to_string requires an expression, script file, help, or version; use run for stdin".to_string(),
+                "run_to_string requires an expression, script file, help, or version; use run for stdin".into(),
             )
         }
     };
-    let mut frontend = Frontend::default();
-    frontend
-        .runtime_mut()
-        .set_session_context(config.command_args, false);
-    frontend
-        .runtime_mut()
-        .set_option("quiet", Sexp::Logical(vec![Some(config.quiet)]))
-        .map_err(|error| error.to_string())?;
-    if let Some(sink) = sink {
-        frontend.runtime_mut().set_output_sink(sink);
-    }
-    let status = match frontend.eval_source_printed(&source) {
-        Ok(()) => complete_quit(
-            &mut frontend,
-            QuitRequest {
-                save: SaveAction::No,
-                status: 0,
-                run_last: true,
-            },
-            false,
-            true,
-            read_console_line,
-        ),
-        Err(EvalError::Quit(request)) => {
-            complete_quit(&mut frontend, request, false, true, read_console_line)
-        }
-        Err(error) => return Err(error.to_string()),
-    }
-    .map_err(|error| error.to_string())?
-    .unwrap_or(0);
+    let mut frontend =
+        initialize_frontend(&config, false, sink).map_err(|error| error.to_string())?;
+    let mut lines = source.split_inclusive('\n');
+    let status = run_session(
+        &mut frontend,
+        false,
+        config.no_save || config.vanilla,
+        || Ok(lines.next().unwrap_or_default().to_string()),
+    )
+    .map_err(|error| error.to_string())?;
     Ok((frontend.runtime_mut().take_output(), status))
 }
 
 fn read_console_line() -> io::Result<String> {
+    // shortcut: canonical terminal input; add a line editor for history and interrupt recovery.
     let mut line = String::new();
     io::stdin().read_line(&mut line)?;
     Ok(line)
@@ -426,6 +459,7 @@ mod tests {
             CliConfig {
                 mode: CliMode::Expression("1 + 1".to_string()),
                 quiet: true,
+                no_echo: false,
                 vanilla: true,
                 no_save: true,
                 command_args: vec!["r_ust_cli", "--vanilla", "-q", "-e", "1 + 1"]
@@ -441,11 +475,40 @@ mod tests {
         let output = run_to_string(CliConfig {
             mode: CliMode::Expression("x <- 1 + 1; x".to_string()),
             quiet: true,
+            no_echo: true,
             vanilla: true,
             no_save: true,
             ..CliConfig::default()
         })
         .unwrap();
         assert_eq!(output, "[1] 2\n");
+    }
+
+    #[test]
+    fn prompt_output_failure_prevents_input_reads() {
+        let mut frontend = r_ust_runtime::Frontend::default();
+        frontend
+            .runtime_mut()
+            .set_option("echo", r_ust_runtime::Sexp::Logical(vec![Some(true)]))
+            .unwrap();
+        frontend
+            .runtime_mut()
+            .set_output_sink(|_| Err(std::io::Error::other("closed output")));
+        let mut read = false;
+        let result = super::run_session(&mut frontend, false, true, || {
+            read = true;
+            Ok(String::new())
+        });
+        assert!(matches!(result, Err(r_ust_runtime::EvalError::Output(_))));
+        assert!(!read);
+    }
+
+    #[test]
+    fn source_input_failure_preserves_error_kind() {
+        let mut frontend = r_ust_runtime::Frontend::default();
+        let result = super::run_session(&mut frontend, false, true, || {
+            Err(std::io::Error::other("closed input"))
+        });
+        assert!(matches!(result, Err(r_ust_runtime::EvalError::Input(_))));
     }
 }

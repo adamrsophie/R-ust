@@ -22,6 +22,8 @@ cargo run -q -p r_ust_cli
 
 The console keeps variables and functions between commands. Use multiple lines for unfinished expressions; `+ ` marks continuation input. Errors return to the prompt. Use `q()` or Ctrl-D to exit, then choose `n` to discard the workspace or `c` to cancel. Workspace saving is not implemented; choosing `y` reports an error and keeps the console open. Add `-- --quiet --no-save` to suppress the startup banner and default save prompt.
 
+The main CLI echoes input by default, including scripts, expressions and piped commands. `--quiet` or `--silent` hides the startup banner. `--no-echo`, `-s` or `--slave` suppresses input echo and prompts, hides the banner, and implies `--no-save`. Automatic printing of visible values continues. `options(echo = FALSE)` suppresses subsequent input echo and prompts; `TRUE` or `NA` enables them on the next read. Rscript starts with echo disabled.
+
 Ask for an answer inside the terminal console:
 
 ```r
@@ -41,7 +43,7 @@ options(old)
 
 Each runtime owns its option store. `options()` returns a snapshot; named arguments or a single named list set values and return previous values invisibly. Unnamed character arguments query options. Setting a custom option to `NULL` removes it. `getOption(name, default)` evaluates the default only when the option is unset. Core setters validate and coerce values using R's bounds and type rules; earlier changes survive a later invalid setter in the same call. Primary and continuation prompt changes take effect on the next console read, including after an error.
 
-Option support remains partial. The store initializes core defaults; package, platform, and startup-file defaults are incomplete. Printing, echo modes, evaluation-depth limits, source retention, warning conditions, and other option consumers still need work. `.Options` pairlists, locale-sensitive ordering of option names, and missing names in query-result lists are not supported. Setter warnings use direct stderr output, without R condition objects or full diagnostic formatting.
+Option support remains partial. The store initializes core defaults; package, platform, and startup-file defaults are incomplete. Printing, evaluation-depth limits, source retention, warning conditions, and other option consumers still need work. `.Options` pairlists, locale-sensitive ordering of option names, and missing names in query-result lists are not supported. Setter warnings use direct stderr output, without R condition objects or full diagnostic formatting.
 
 Complete statements run before later input is parsed. Earlier output survives a later syntax error, and an incomplete statement waits for more input without repeating commands already executed.
 
@@ -50,7 +52,7 @@ Complete statements run before later input is parsed. Earlier output survives a 
 Evaluate an expression:
 
 ```bash
-cargo run -q -p r_ust_cli -- -e 's <- 0; for (i in 1:5) { if (i == 3) next; s <- s + i }; s; pnorm(qnorm(0.7))'
+cargo run -q -p r_ust_cli -- --no-echo -e 's <- 0; for (i in 1:5) { if (i == 3) next; s <- s + i }; s; pnorm(qnorm(0.7))'
 ```
 
 ```text
@@ -69,7 +71,7 @@ mean(scores)
 ```
 
 ```bash
-cargo run -q -p r_ust_cli -- example.R
+cargo run -q -p r_ust_cli -- --no-echo example.R
 ```
 
 ```text
@@ -80,7 +82,7 @@ cargo run -q -p r_ust_cli -- example.R
 Read commands from stdin, without prompts:
 
 ```bash
-printf 'x <- 1:5\nsum(x)\n' | cargo run -q -p r_ust_cli
+printf 'x <- 1:5\nsum(x)\n' | cargo run -q -p r_ust_cli -- --no-echo
 ```
 
 Use `-` or `-f -` to request stdin explicitly, and `--help` for available options. Script and piped input stop on the first error with a nonzero exit status.
@@ -88,13 +90,15 @@ Use `-` or `-f -` to request stdin explicitly, and `--help` for available option
 Pass arguments after a script path, or use `--args` after expressions or `-f`/`--file=FILE`:
 
 ```bash
-cargo run -q -p r_ust_cli -- -e 'writeLines(commandArgs(TRUE))' --args first "two words"
-cargo run -q -p r_ust_cli -- example.R first "two words"
+cargo run -q -p r_ust_cli -- --no-echo -e 'writeLines(commandArgs(TRUE))' --args first "two words"
+cargo run -q -p r_ust_cli -- --no-echo example.R first "two words"
 ```
 
 `commandArgs()` returns the invocation, including the program name. For a positional script, an implicit `--args` separator is inserted before its arguments. `commandArgs(trailingOnly = TRUE)` returns only arguments after the first separator, including empty strings and option-like values. `interactive()` is true only for the terminal console, and false for expressions, scripts, and explicit stdin.
 
-Repeat `-e` to evaluate expressions in one session. Expressions join with newlines, so comments and unfinished syntax can continue across `-e` arguments. Combining `-e` with a file option is an error.
+Repeat `-e` to evaluate expressions in one session. Each expression gets a terminating newline, so comments and unfinished syntax can continue across `-e` arguments. Combining `-e` with a file option is an error. Echo uses primary or continuation prompts at each input read, includes comments and blank lines, normalizes CRLF endings, and stops reading source on quit or error. Code after a semicolon on an already-read line can therefore appear in echo even when it is never evaluated.
+
+Remaining input boundaries: `-e` does not yet reproduce the Unix R shell launcher's backslash processing. Lines longer than R's console buffer echo as one line rather than separate buffer chunks. Stdin encoding translation and byte cuts inside UTF-8 characters are not implemented. `scripts/check-cli-echo.py` records launcher and long-line differences separately from passing comparisons.
 
 ## Native Rscript frontend
 

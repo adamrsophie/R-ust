@@ -1,5 +1,12 @@
 use std::process::Command;
 
+fn batch_command() -> Command {
+    let binary = env!("CARGO_BIN_EXE_r_ust_cli");
+    let mut command = Command::new(binary);
+    command.arg("--no-echo");
+    command
+}
+
 #[test]
 fn expression_arguments_preserve_invocation_and_trailing_values() {
     let code = "writeLines(commandArgs());writeLines(commandArgs(TRUE));interactive()";
@@ -14,13 +21,10 @@ fn expression_arguments_preserve_invocation_and_trailing_values() {
         "",
         "--args",
     ];
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
-        .args(args)
-        .output()
-        .unwrap();
+    let output = batch_command().args(args).output().unwrap();
     assert!(output.status.success(), "{:?}", output);
     let expected = format!(
-        "{}\n{}\nα\ntwo words\n--flag\n\n--args\n[1] FALSE\n",
+        "{}\n--no-echo\n{}\nα\ntwo words\n--flag\n\n--args\n[1] FALSE\n",
         env!("CARGO_BIN_EXE_r_ust_cli"),
         args.join("\n")
     );
@@ -47,10 +51,7 @@ fn repeated_expressions_share_state_and_continue_incomplete_syntax() {
             "[1] 1\n",
         ),
     ] {
-        let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
-            .args(&args)
-            .output()
-            .unwrap();
+        let output = batch_command().args(&args).output().unwrap();
         assert!(output.status.success(), "{args:?}: {output:?}");
         assert_eq!(String::from_utf8(output.stdout).unwrap(), expected);
         assert!(output.stderr.is_empty());
@@ -63,10 +64,7 @@ fn repeated_expressions_share_state_and_continue_incomplete_syntax() {
         vec!["--file="],
         vec!["-e", ""],
     ] {
-        let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
-            .args(&args)
-            .output()
-            .unwrap();
+        let output = batch_command().args(&args).output().unwrap();
         assert_eq!(output.status.code(), Some(2), "{args:?}");
     }
 }
@@ -94,10 +92,7 @@ fn script_arguments_are_not_parsed_as_options_or_other_files() {
             "--help".into(),
         ],
     ] {
-        let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
-            .args(&args)
-            .output()
-            .unwrap();
+        let output = batch_command().args(&args).output().unwrap();
         assert!(output.status.success(), "{args:?}: {output:?}");
         assert_eq!(
             String::from_utf8(output.stdout).unwrap(),
@@ -122,10 +117,7 @@ fn statements_execute_before_later_parse_errors() {
         ("{if(TRUE) print(1);else(2)}", 1, ""),
     ] {
         for output in [
-            Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
-                .args(["-e", source])
-                .output()
-                .unwrap(),
+            batch_command().args(["-e", source]).output().unwrap(),
             run_stdin(source, &["-"]),
         ] {
             assert_eq!(output.status.code(), Some(status), "{source}: {:?}", output);
@@ -136,7 +128,7 @@ fn statements_execute_before_later_parse_errors() {
             );
         }
     }
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args(["-e", "print(1);missing_value;@"])
         .output()
         .unwrap();
@@ -182,10 +174,7 @@ fn quit_unwinds_nested_calls_and_preserves_exit_status() {
         (".Last<-function()q(\"no\",4,FALSE);q(\"no\",3)", 4, ""),
         (".Last<-1;q(\"no\")", 0, ""),
     ] {
-        let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
-            .args(["-e", source])
-            .output()
-            .unwrap();
+        let output = batch_command().args(["-e", source]).output().unwrap();
         assert_eq!(output.status.code(), Some(status), "{source}: {:?}", output);
         assert_eq!(
             String::from_utf8(output.stdout).unwrap(),
@@ -208,10 +197,7 @@ fn quit_validates_arguments_before_forcing_and_rejects_workspace_saving() {
         "q(1)",
         "q(\"yes\")",
     ] {
-        let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
-            .args(["-e", source])
-            .output()
-            .unwrap();
+        let output = batch_command().args(["-e", source]).output().unwrap();
         assert_eq!(output.status.code(), Some(1), "{source}");
         assert!(output.stdout.is_empty(), "{source}: {:?}", output.stdout);
         assert!(!output.stderr.is_empty(), "{source}");
@@ -225,7 +211,7 @@ fn quit_validates_arguments_before_forcing_and_rejects_workspace_saving() {
 fn run_stdin(source: &str, args: &[&str]) -> std::process::Output {
     use std::io::Write;
     use std::process::Stdio;
-    let mut child = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let mut child = batch_command()
         .args(args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -282,10 +268,7 @@ fn stdin_mode_reports_errors_without_reading_later_commands() {
 
 #[test]
 fn help_mode_explains_console_and_script_usage() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
-        .arg("--help")
-        .output()
-        .unwrap();
+    let output = batch_command().arg("--help").output().unwrap();
     assert!(output.status.success());
     let text = String::from_utf8(output.stdout).unwrap();
     for expected in ["Usage:", "-e", "-f", "stdin", "Ctrl-D"] {
@@ -296,10 +279,7 @@ fn help_mode_explains_console_and_script_usage() {
 
 #[test]
 fn option_errors_use_status_two() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
-        .arg("--bad-option")
-        .output()
-        .unwrap();
+    let output = batch_command().arg("--bad-option").output().unwrap();
     assert_eq!(output.status.code(), Some(2));
     assert!(output.stdout.is_empty());
     assert!(!output.stderr.is_empty());
@@ -338,10 +318,7 @@ fn expression_mode_tracks_visibility_and_console_effects() {
         ("a<-1:3; (a[2]<-9); a", "[1] 9\n[1] 1 9 3\n", ""),
         ("invisible(lapply(1:2,print))", "[1] 1\n[1] 2\n", ""),
     ] {
-        let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
-            .args(["-e", source])
-            .output()
-            .unwrap();
+        let output = batch_command().args(["-e", source]).output().unwrap();
         assert!(
             output.status.success(),
             "{source}: {}",
@@ -362,7 +339,7 @@ fn expression_mode_tracks_visibility_and_console_effects() {
 
 #[test]
 fn expression_mode_preserves_output_before_error() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args(["-e", "print(1); missing_value"])
         .output()
         .unwrap();
@@ -379,7 +356,7 @@ fn expression_mode_flushes_output_during_execution() {
     use std::process::Stdio;
     use std::sync::mpsc;
     use std::time::Duration;
-    let mut child = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let mut child = batch_command()
         .args(["-e", "print(\"ready\"); repeat {}"])
         .stdout(Stdio::piped())
         .spawn()
@@ -400,7 +377,7 @@ fn expression_mode_flushes_output_during_execution() {
 
 #[test]
 fn expression_mode_runs_arithmetic_and_rmath() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args(["--vanilla", "-q", "-e", "x <- 1 + 2 * 3; x; dnorm(0)"])
         .output()
         .expect("run r_ust_cli");
@@ -416,7 +393,7 @@ fn expression_mode_runs_arithmetic_and_rmath() {
 
 #[test]
 fn expression_mode_runs_right_and_super_assignment() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -437,7 +414,7 @@ fn expression_mode_runs_right_and_super_assignment() {
 
 #[test]
 fn expression_mode_runs_user_functions_and_return() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -459,7 +436,7 @@ fn expression_mode_runs_user_functions_and_return() {
 
 #[test]
 fn expression_mode_runs_lazy_closure_arguments() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -481,7 +458,7 @@ fn expression_mode_runs_lazy_closure_arguments() {
 
 #[test]
 fn expression_mode_runs_missing_argument_checks() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -503,7 +480,7 @@ fn expression_mode_runs_missing_argument_checks() {
 
 #[test]
 fn expression_mode_runs_dots_capture_and_forwarding() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -527,7 +504,7 @@ fn expression_mode_runs_dots_capture_and_forwarding() {
 
 #[test]
 fn expression_mode_runs_loops_and_subsets() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -549,7 +526,7 @@ fn expression_mode_runs_loops_and_subsets() {
 
 #[test]
 fn expression_mode_runs_subset_assignment_and_vector_helpers() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -571,7 +548,7 @@ fn expression_mode_runs_subset_assignment_and_vector_helpers() {
 
 #[test]
 fn expression_mode_runs_logical_ops_and_predicates() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -594,7 +571,7 @@ fn expression_mode_runs_logical_ops_and_predicates() {
 
 #[test]
 fn expression_mode_runs_logical_identity_helpers() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -618,7 +595,7 @@ fn expression_mode_runs_logical_identity_helpers() {
 
 #[test]
 fn expression_mode_runs_uniform_sampling_helpers() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -645,7 +622,7 @@ fn expression_mode_runs_uniform_sampling_helpers() {
 
 #[test]
 fn expression_mode_runs_additional_random_distribution_helpers() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -684,7 +661,7 @@ fn expression_mode_runs_additional_random_distribution_helpers() {
 
 #[test]
 fn expression_mode_runs_lists_and_extractors() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -710,7 +687,7 @@ fn expression_mode_runs_lists_and_extractors() {
 
 #[test]
 fn expression_mode_runs_data_frame_helpers() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -739,7 +716,7 @@ fn expression_mode_runs_data_frame_helpers() {
 
 #[test]
 fn expression_mode_runs_factor_helpers() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -771,7 +748,7 @@ fn expression_mode_runs_factor_helpers() {
 
 #[test]
 fn expression_mode_runs_coercion_and_type_predicates() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -796,7 +773,7 @@ fn expression_mode_runs_coercion_and_type_predicates() {
 
 #[test]
 fn expression_mode_runs_structural_vector_helpers() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -827,7 +804,7 @@ fn expression_mode_runs_structural_vector_helpers() {
 
 #[test]
 fn expression_mode_runs_base_numeric_helpers() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -860,7 +837,7 @@ fn expression_mode_runs_base_numeric_helpers() {
 
 #[test]
 fn expression_mode_runs_special_numeric_helpers() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -894,7 +871,7 @@ fn expression_mode_runs_special_numeric_helpers() {
 
 #[test]
 fn expression_mode_runs_additional_distribution_families() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -924,7 +901,7 @@ fn expression_mode_runs_additional_distribution_families() {
 
 #[test]
 fn expression_mode_runs_continuous_distribution_families() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -956,7 +933,7 @@ fn expression_mode_runs_continuous_distribution_families() {
 
 #[test]
 fn expression_mode_runs_gamma_and_hypergeometric_distribution_families() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -981,7 +958,7 @@ fn expression_mode_runs_gamma_and_hypergeometric_distribution_families() {
 
 #[test]
 fn expression_mode_runs_negative_binomial_and_rank_distribution_families() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -1013,7 +990,7 @@ fn expression_mode_runs_negative_binomial_and_rank_distribution_families() {
 
 #[test]
 fn expression_mode_runs_noncentral_distribution_forms() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -1045,7 +1022,7 @@ fn expression_mode_runs_noncentral_distribution_forms() {
 
 #[test]
 fn expression_mode_runs_statistical_vector_helpers() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -1081,7 +1058,7 @@ fn expression_mode_runs_statistical_vector_helpers() {
 
 #[test]
 fn expression_mode_runs_data_mask_helpers() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -1105,7 +1082,7 @@ fn expression_mode_runs_data_mask_helpers() {
 
 #[test]
 fn expression_mode_runs_missing_data_helpers() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -1130,7 +1107,7 @@ fn expression_mode_runs_missing_data_helpers() {
 
 #[test]
 fn expression_mode_runs_split_and_table_helpers() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -1156,7 +1133,7 @@ fn expression_mode_runs_split_and_table_helpers() {
 
 #[test]
 fn expression_mode_runs_lapply_and_sapply() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -1182,7 +1159,7 @@ fn expression_mode_runs_lapply_and_sapply() {
 
 #[test]
 fn expression_mode_runs_matrix_apply() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -1206,7 +1183,7 @@ fn expression_mode_runs_matrix_apply() {
 
 #[test]
 fn expression_mode_runs_bind_helpers() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -1230,7 +1207,7 @@ fn expression_mode_runs_bind_helpers() {
 
 #[test]
 fn expression_mode_runs_logical_subsetting_and_match() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -1254,7 +1231,7 @@ fn expression_mode_runs_logical_subsetting_and_match() {
 
 #[test]
 fn expression_mode_runs_string_helpers() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -1293,7 +1270,7 @@ fn expression_mode_runs_string_helpers() {
 
 #[test]
 fn expression_mode_runs_additional_string_helpers() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -1318,7 +1295,7 @@ fn expression_mode_runs_additional_string_helpers() {
 
 #[test]
 fn expression_mode_runs_vector_order_helpers() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -1347,7 +1324,7 @@ fn expression_mode_runs_vector_order_helpers() {
 
 #[test]
 fn expression_mode_runs_set_helpers() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -1378,7 +1355,7 @@ fn expression_mode_runs_set_helpers() {
 
 #[test]
 fn expression_mode_runs_position_sortedness_and_tabulate_helpers() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -1406,7 +1383,7 @@ fn expression_mode_runs_position_sortedness_and_tabulate_helpers() {
 
 #[test]
 fn expression_mode_runs_matrix_helpers() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -1435,7 +1412,7 @@ fn expression_mode_runs_matrix_helpers() {
 
 #[test]
 fn expression_mode_runs_matrix_index_generators() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -1464,7 +1441,7 @@ fn expression_mode_runs_matrix_index_generators() {
 
 #[test]
 fn expression_mode_runs_matrix_crossprod_helpers() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -1491,7 +1468,7 @@ fn expression_mode_runs_matrix_crossprod_helpers() {
 
 #[test]
 fn expression_mode_runs_extract_and_dollar_assignment() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .args([
             "--vanilla",
             "-q",
@@ -1515,7 +1492,7 @@ fn expression_mode_runs_extract_and_dollar_assignment() {
 
 #[test]
 fn version_mode_reports_runtime_target() {
-    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+    let output = batch_command()
         .arg("--version")
         .output()
         .expect("run r_ust_cli");

@@ -137,7 +137,7 @@ with tempfile.TemporaryDirectory(prefix="r-ust-readline-") as directory:
         r = subprocess.run(["Rscript", "--vanilla", "-e", code], cwd=directory,
                            capture_output=True, timeout=20)
         for snapshot in snapshots:
-            u = subprocess.run([str(snapshot), "-e", code], cwd=directory,
+            u = subprocess.run([str(snapshot), "--no-echo", "-e", code], cwd=directory,
                                capture_output=True, timeout=20)
             if kind == "unsupported":
                 passed = r.returncode == 0 and u.returncode != 0 and b"not implemented" in u.stderr

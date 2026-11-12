@@ -550,7 +550,8 @@ impl RuntimeState {
         Ok(())
     }
 
-    fn emit(&mut self, event: OutputEvent) -> Result<(), EvalError> {
+    /// Sends host output to the installed sink, or buffers it for later collection.
+    pub fn emit(&mut self, event: OutputEvent) -> Result<(), EvalError> {
         if let Some(sink) = self.output_sink {
             sink(event).map_err(|error| EvalError::Output(error.to_string()))
         } else {

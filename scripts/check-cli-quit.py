@@ -59,7 +59,7 @@ with tempfile.TemporaryDirectory(prefix="r-ust-quit-parity-") as directory:
     for kind, code in cases:
         r = subprocess.run(["Rscript", "--vanilla", "-e", code], cwd=directory,
                            capture_output=True, text=True, timeout=15)
-        u = subprocess.run([str(binary), "-e", code], cwd=directory,
+        u = subprocess.run([str(binary), "--no-echo", "-e", code], cwd=directory,
                            capture_output=True, text=True, timeout=15)
         if kind == "error":
             passed = r.returncode != 0 and r.returncode == u.returncode and r.stdout == u.stdout
