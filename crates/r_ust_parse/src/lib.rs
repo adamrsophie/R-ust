@@ -464,29 +464,151 @@ impl<'a> Lexer<'a> {
 
     fn lex_string(&mut self) -> Result<String, ParseError> {
         let quote = self.advance().expect("string opener");
-        let mut out = String::new();
+        let mut bytes = Vec::new();
+        let mut code_points: Vec<u32> = Vec::new();
+        let mut has_unicode = false;
+        let mut has_byte_escape = false;
         while let Some(ch) = self.advance() {
             if ch == quote {
-                return Ok(out);
+                if has_unicode {
+                    if has_byte_escape {
+                        return Err(ParseError::new(
+                            "mixing Unicode and octal/hex escapes in a string is not allowed",
+                        ));
+                    }
+                    if code_points.len() >= 9999 {
+                        return Err(ParseError::new(
+                            "string containing Unicode escapes is too long",
+                        ));
+                    }
+                    let mut out = String::new();
+                    let mut points = code_points.into_iter();
+                    while let Some(mut point) = points.next() {
+                        if (0xd800..=0xdbff).contains(&point) {
+                            let low = points
+                                .next()
+                                .filter(|low| (0xdc00..=0xdfff).contains(low))
+                                .ok_or_else(|| {
+                                    ParseError::new(
+                                        "unpaired surrogate strings are not supported yet",
+                                    )
+                                })?;
+                            point = 0x10000 + ((point - 0xd800) << 10) + low - 0xdc00;
+                        }
+                        out.push(char::from_u32(point).ok_or_else(|| {
+                            ParseError::new("unpaired surrogate strings are not supported yet")
+                        })?);
+                    }
+                    return Ok(out);
+                }
+                // shortcut: string values require UTF-8; preserve raw bytes when string encodings are implemented.
+                return String::from_utf8(bytes)
+                    .map_err(|_| ParseError::new("non-UTF-8 byte strings are not supported yet"));
             }
-            if ch == '\\' {
+            let decoded = if ch == '\\' {
                 let escaped = self
                     .advance()
                     .ok_or_else(|| ParseError::incomplete("unterminated string escape"))?;
                 match escaped {
-                    'n' => out.push('\n'),
-                    'r' => out.push('\r'),
-                    't' => out.push('\t'),
-                    '\\' => out.push('\\'),
-                    '\'' => out.push('\''),
-                    '"' => out.push('"'),
-                    other => out.push(other),
+                    'a' => '\x07',
+                    'b' => '\x08',
+                    'f' => '\x0c',
+                    'n' => '\n',
+                    'r' => '\r',
+                    't' => '\t',
+                    'v' => '\x0b',
+                    '\\' | '\'' | '"' | '`' | ' ' | '\n' => escaped,
+                    '0'..='7' | 'x' => {
+                        let value = if escaped == 'x' {
+                            let start = self.position;
+                            let value = self.lex_escape_digits(16, 2, 0)?;
+                            if self.position == start {
+                                return Err(ParseError::new(
+                                    "'\\x' used without hex digits in character string",
+                                ));
+                            }
+                            value
+                        } else {
+                            self.lex_escape_digits(8, 2, escaped as u32 - '0' as u32)?
+                        };
+                        if value == 0 {
+                            return Err(ParseError::new("nul character not allowed"));
+                        }
+                        if value > 255 {
+                            return Err(ParseError::new(
+                                "octal escape exceeds maximum allowed value \\377",
+                            ));
+                        }
+                        bytes.push(value as u8);
+                        has_byte_escape = true;
+                        continue;
+                    }
+                    'u' | 'U' => {
+                        let braced = self.consume('{');
+                        let start = self.position;
+                        let value =
+                            self.lex_escape_digits(16, if escaped == 'u' { 4 } else { 8 }, 0)?;
+                        if self.position == start {
+                            return Err(ParseError::new("Unicode escape used without hex digits"));
+                        }
+                        if braced && !self.consume('}') {
+                            return Err(if self.peek().is_none() {
+                                ParseError::incomplete("unterminated Unicode escape")
+                            } else {
+                                ParseError::new("invalid braced Unicode escape")
+                            });
+                        }
+                        if value == 0 {
+                            return Err(ParseError::new("nul character not allowed"));
+                        }
+                        if value > 0x10ffff {
+                            return Err(ParseError::new("invalid Unicode escape value"));
+                        }
+                        code_points.push(value);
+                        has_unicode = true;
+                        continue;
+                    }
+                    other => {
+                        return Err(ParseError::new(format!(
+                            "'\\{other}' is an unrecognized escape in character string"
+                        )))
+                    }
                 }
             } else {
-                out.push(ch);
-            }
+                if matches!(ch, '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}') {
+                    return Err(ParseError::new(
+                        "bidi formatting not allowed, use escapes instead",
+                    ));
+                }
+                if ch == '\0' {
+                    return Err(ParseError::new("nul character not allowed"));
+                }
+                ch
+            };
+            let mut encoded = [0; 4];
+            bytes.extend_from_slice(decoded.encode_utf8(&mut encoded).as_bytes());
+            code_points.push(decoded as u32);
         }
         Err(ParseError::incomplete("unterminated string literal"))
+    }
+
+    fn lex_escape_digits(
+        &mut self,
+        radix: u32,
+        limit: usize,
+        mut value: u32,
+    ) -> Result<u32, ParseError> {
+        for _ in 0..limit {
+            let ch = self
+                .peek()
+                .ok_or_else(|| ParseError::incomplete("unterminated string escape"))?;
+            let Some(digit) = ch.to_digit(radix) else {
+                break;
+            };
+            self.advance();
+            value = value * radix + digit;
+        }
+        Ok(value)
     }
 
     fn lex_identifier(&mut self) -> String {

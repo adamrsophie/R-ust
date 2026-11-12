@@ -73,8 +73,8 @@ with tempfile.TemporaryDirectory(prefix="r-ust-launcher-") as directory:
                             passed=(r == u and r["status"] == 0)))
         for source in [r"cat('a\\ab')", r"cat('a\\vb')", r"cat('a\\x41b')"]:
             r, u = run(reference + ["-e", source]), run(native + ["-e", source])
-            limits.append(dict(frontend=name, kind="R string parser escapes", source=source,
-                               r=r, rust=u, limit_observed=(r != u and r["status"] == 0)))
+            results.append(dict(frontend=name, lane="R string parser escapes", source=source,
+                                r=r, rust=u, passed=(r == u and r["status"] == 0)))
         for source in [r"cat('a\xffb')", r"cat('a\cb')"]:
             u = run(native + ["-e", source])
             expected_status = 2 if name == "R" else 1

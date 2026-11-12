@@ -98,7 +98,7 @@ cargo run -q -p r_ust_cli -- --no-echo example.R first "two words"
 
 Repeat `-e` to evaluate expressions in one session. Each expression gets a terminating newline, so comments and unfinished syntax can continue across `-e` arguments. Combining `-e` with a file option is an error. Echo uses primary or continuation prompts at each input read, includes comments and blank lines, normalizes CRLF endings, and stops reading source on quit or error. Code after a semicolon on an already-read line can therefore appear in echo even when it is never evaluated.
 
-Both frontends process `-e` backslashes and whitespace markers using the macOS R 4.6.0 launcher's rules, including octal/hex byte escapes, escaped backslashes, and NUL removal. `commandArgs()` exposes the encoded expression; execution receives decoded source. `scripts/check-cli-launcher.py` compares source execution and invocation encoding with R. Other shells' echo rules are unverified. The launcher rejects `\c` truncation and non-UTF-8 escape results explicitly; R string-parser escapes remain incomplete.
+Both frontends process `-e` backslashes and whitespace markers using the macOS R 4.6.0 launcher's rules, including octal/hex byte escapes, escaped backslashes, and NUL removal. `commandArgs()` exposes the encoded expression; execution receives decoded source. `scripts/check-cli-launcher.py` compares source execution and invocation encoding with R. Other shells' echo rules are unverified. The launcher rejects `\c` truncation and non-UTF-8 escape results explicitly. Quoted strings decode R control, octal/hex, and `\u`/`\U` escapes; non-UTF-8 strings and unpaired surrogates remain unsupported.
 
 Remaining input boundaries: lines longer than R's console buffer echo as one line rather than separate buffer chunks. Stdin encoding translation and byte cuts inside UTF-8 characters are not implemented. `scripts/check-cli-echo.py` records long-line differences separately from passing comparisons. Main CLI argument errors return status 2, including invalid `-e` values; R's launcher uses status 1.
 
@@ -145,6 +145,7 @@ Interactive embedded hosts install a console reader through `RuntimeState::set_i
 **Syntax and evaluation**
 
 - Double, integer (`1L`), logical, character, and `NULL` literals
+- Single- and double-quoted strings with R control escapes, octal/hex bytes, Unicode escapes (including braced forms and paired surrogates), and escaped newlines; unknown escapes and mixed Unicode/byte escapes are errors
 - Assignment with `<-`, `=`, `->`, `<<-`, and `->>`, including replacement through `[`, `[[`, `$`, and `names<-`
 - Control flow: `if`/`else`, `for`, `while`, `repeat`, `break`, `next`, and `return()`
 - Closures with lazily evaluated arguments and defaults, `missing()`, `...` forwarding, and exact named and positional argument matching
@@ -176,6 +177,8 @@ Interactive embedded hosts install a console reader through `RuntimeState::set_i
 ## Known limitations
 
 R-ust does not yet provide reference semantics for environments, general replacement functions, full attribute support (including row names and arrays), formulas, S3 and S4 dispatch, namespaces and package loading, condition handling, connections, graphics, serialization, or the base and recommended packages.
+
+String values require UTF-8. Non-UTF-8 byte strings, unpaired surrogates, encoding metadata, and full R display formatting remain incomplete. Raw string literals and backtick names are not parsed. `scripts/check-string-escapes.py` compares quoted-string values and errors through stdin, files, and both expression frontends with R 4.6.0.
 
 The console uses basic terminal input. Command history, advanced line editing, interrupt recovery, workspace saving, `.Last.sys`, exit finalizers, and full R command line compatibility remain missing. Quit warnings print directly to stderr without R condition objects or full diagnostic formatting.
 
