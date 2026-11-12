@@ -52,13 +52,6 @@ impl Parser {
     }
 
     pub fn parse_all(&self, source: &str) -> Result<ParseResult, ParseError> {
-        if source.trim().is_empty() {
-            return Ok(ParseResult {
-                status: ParseStatus::Null,
-                expressions: Vec::new(),
-            });
-        }
-
         let tokens = Lexer::new(source).tokenize()?;
         let mut parser = SyntaxParser {
             tokens,
@@ -205,7 +198,17 @@ impl<'a> Lexer<'a> {
         let mut groups = Vec::new();
         while let Some(ch) = self.peek() {
             match ch {
-                ' ' | '\t' | '\r' => {
+                ' '
+                | '\t'
+                | '\x0c'
+                | '\u{1680}'
+                | '\u{2000}'..='\u{2006}'
+                | '\u{2008}'..='\u{200a}'
+                | '\u{205f}'
+                | '\u{3000}' => {
+                    self.advance();
+                }
+                '\r' if self.peek_next() == Some('\n') => {
                     self.advance();
                 }
                 '\n' => {

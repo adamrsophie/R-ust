@@ -117,6 +117,8 @@ cargo run -q -p r_ust_cli --bin Rscript -- example.R first "two words"
 
 Rscript runs files, repeated `-e` expressions, and stdin via `-`. It is non-interactive even when stdin is a terminal. After a file, every remaining token is a user argument. After expressions, only consecutive `-e` options add code; the first other token starts user arguments. Put frontend options before the file or first expression. A literal `--args` after code is itself a user argument, matching Rscript.
 
+Script files preserve their trailing blank lines and EOF behavior. Rscript reads a file once and evaluates it without the extra newline used for `-e` arguments. `scripts/check-file-input.py` compares files and piped input with R, including LF/CRLF, comments, errors, quit handling, and whitespace rules.
+
 `commandArgs()` includes the native executable name, the default `--no-echo` and `--no-restore` options, and the normalized invocation. Expression whitespace and file-path spaces use the Unix R launcher's encoding. `commandArgs(TRUE)` preserves user arguments, including empty strings. Source-file open failures return status 2; parse and evaluation errors return status 1; `q()` preserves its requested status.
 
 For executable scripts, put the directory containing R-ust's `Rscript` on `PATH` and start the script with `#!/usr/bin/env Rscript`. Joined shebang options such as `--vanilla --quiet` are supported. `--help`, `--version`, and `--verbose` describe this R-ust frontend. Package selection, startup file loading, workspace saving/restoration, and other R options remain incomplete; requests for unavailable package selection or save/restore behavior fail explicitly.
@@ -149,6 +151,7 @@ Interactive embedded hosts install a console reader through `RuntimeState::set_i
 **Syntax and evaluation**
 
 - Double, integer (`1L`), logical, character, and `NULL` literals
+- R's UTF-8 blank class plus form feed, with LF and CRLF line endings. Bare CR, vertical tab, and nonbreaking spaces are not whitespace separators.
 - Single- and double-quoted strings with R control escapes, octal/hex bytes, Unicode escapes (including braced forms and paired surrogates), and escaped newlines; unknown escapes and mixed Unicode/byte escapes are errors
 - Assignment with `<-`, `=`, `->`, `<<-`, and `->>`, including replacement through `[`, `[[`, `$`, and `names<-`
 - Control flow: `if`/`else`, `for`, `while`, `repeat`, `break`, `next`, and `return()`

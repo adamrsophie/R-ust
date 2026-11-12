@@ -121,6 +121,23 @@ fn file_arguments_remain_literal_and_file_paths_keep_spaces() {
 }
 
 #[test]
+fn file_echo_preserves_eof_and_trailing_blank_lines() {
+    for (source, expected) in [
+        ("options(echo=TRUE)\n1\n", "> 1\n[1] 1\n> \n"),
+        ("options(echo=TRUE)\n1", "> 1\n[1] 1\n> \n"),
+        ("options(echo=TRUE)\n# comment\n", "> # comment\n> \n"),
+        ("options(echo=TRUE)\n\n", "> \n> \n"),
+    ] {
+        let script = Script::new(source);
+        assert_eq!(
+            stdout(run(&["--vanilla", script.path.to_str().unwrap()])),
+            expected,
+            "{source:?}"
+        );
+    }
+}
+
+#[test]
 fn stdin_is_batch_input_with_state_and_continuations() {
     use std::io::Write;
     let mut child = Command::new(env!("CARGO_BIN_EXE_Rscript"))

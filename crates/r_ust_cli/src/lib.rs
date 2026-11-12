@@ -278,6 +278,7 @@ fn run_session(
                 run_last: true,
             }))
         } else {
+            let unterminated_cr = line.ends_with('\r');
             if line.ends_with("\r\n") {
                 line.remove(line.len() - 2);
             }
@@ -288,6 +289,10 @@ fn run_session(
                 frontend
                     .runtime_mut()
                     .emit(OutputEvent::Stdout(line.clone()))?;
+            }
+            // Keep a bare CR at EOF distinct from an actual CRLF input pair.
+            if unterminated_cr {
+                line.pop();
             }
             source.push_str(&line);
             let mut statements = Parser.parse_iter(&source);
@@ -443,8 +448,16 @@ fn execute(
             )
         }
     };
+    execute_source(&config, &source, sink)
+}
+
+fn execute_source(
+    config: &CliConfig,
+    source: &str,
+    sink: Option<fn(OutputEvent) -> io::Result<()>>,
+) -> Result<(Vec<OutputEvent>, i32), String> {
     let mut frontend =
-        initialize_frontend(&config, false, sink).map_err(|error| error.to_string())?;
+        initialize_frontend(config, false, sink).map_err(|error| error.to_string())?;
     let mut lines = source.split_inclusive('\n');
     let status = run_session(
         &mut frontend,
