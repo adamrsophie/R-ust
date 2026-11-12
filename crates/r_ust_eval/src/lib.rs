@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::fmt;
 
+mod options;
+
 use r_ust_gc::{Gc, GcConfig};
 use r_ust_parse::Parser;
 use r_ust_sexp::{
@@ -99,6 +101,8 @@ pub struct RuntimeState {
     interactive: bool,
     input_reader: Option<fn() -> std::io::Result<String>>,
     console_prompt: String,
+    options: std::collections::BTreeMap<String, Sexp>,
+    warned_strings_as_factors: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -119,13 +123,20 @@ impl RuntimeState {
             interactive: false,
             input_reader: None,
             console_prompt: String::new(),
+            options: options::defaults(),
+            warned_strings_as_factors: false,
         }
     }
 
-    /// Sets host-owned session metadata. Embedded runtimes default to no arguments and batch mode.
+    /// Sets session metadata and initializes echo/source retention for the session mode.
+    /// Embedded runtimes default to no arguments and batch mode.
     pub fn set_session_context(&mut self, command_args: Vec<String>, interactive: bool) {
         self.command_args = command_args;
         self.interactive = interactive;
+        self.options
+            .insert("echo".into(), Sexp::Logical(vec![Some(interactive)]));
+        self.options
+            .insert("keep.source".into(), Sexp::Logical(vec![Some(interactive)]));
     }
 
     /// Installs host console input. Return one raw line, or an empty string at EOF.
@@ -588,6 +599,9 @@ impl RuntimeState {
                 if name == "readline" {
                     return self.eval_readline(arguments);
                 }
+                if name == "getOption" {
+                    return self.eval_get_option(arguments);
+                }
                 if matches!(name.as_str(), "invisible" | "withVisible") {
                     return self.eval_visibility_call(name, arguments);
                 }
@@ -816,7 +830,7 @@ impl RuntimeState {
     fn call_builtin(&mut self, name: &str, args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
         self.visible = true;
         let result = match name {
-            "q" | "quit" | "commandArgs" | "readline" => {
+            "q" | "quit" | "commandArgs" | "readline" | "getOption" => {
                 let arguments = args
                     .iter()
                     .map(|arg| CallArgument {
@@ -827,6 +841,7 @@ impl RuntimeState {
                 let result = match name {
                     "commandArgs" => self.eval_command_args(&arguments),
                     "readline" => self.eval_readline(&arguments),
+                    "getOption" => self.eval_get_option(&arguments),
                     _ => self.eval_quit_call(&arguments),
                 };
                 return match result? {
@@ -836,6 +851,7 @@ impl RuntimeState {
                     ))),
                 };
             }
+            "options" => return self.call_options(args),
             "interactive" => {
                 if !args.is_empty() {
                     return Err(EvalError::Arity(
@@ -2005,6 +2021,8 @@ fn is_builtin(name: &str) -> bool {
             | "commandArgs"
             | "interactive"
             | "readline"
+            | "options"
+            | "getOption"
             | "rbind"
             | "list"
             | "apply"

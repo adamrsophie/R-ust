@@ -31,6 +31,18 @@ cat("Hello,", name, "\n")
 
 `readline()` flushes its prompt before reading an answer, trims leading and trailing spaces and tabs, and returns a visible character scalar. EOF at the question returns `""`. In expressions, scripts, and piped input, it prints the prompt with a newline and returns `""` without consuming stdin. Compound prompt deparsing, byte truncation that would produce invalid UTF-8, and existing number-to-string differences remain limitations.
 
+Configure console prompts and restore previous settings:
+
+```r
+old <- options(prompt = "R> ", continue = "more> ")
+getOption("prompt")
+options(old)
+```
+
+Each runtime owns its option store. `options()` returns a snapshot; named arguments or a single named list set values and return previous values invisibly. Unnamed character arguments query options. Setting a custom option to `NULL` removes it. `getOption(name, default)` evaluates the default only when the option is unset. Core setters validate and coerce values using R's bounds and type rules; earlier changes survive a later invalid setter in the same call. Primary and continuation prompt changes take effect on the next console read, including after an error.
+
+Option support remains partial. The store initializes core defaults; package, platform, and startup-file defaults are incomplete. Printing, echo modes, evaluation-depth limits, source retention, warning conditions, and other option consumers still need work. `.Options` pairlists, locale-sensitive ordering of option names, and missing names in query-result lists are not supported. Setter warnings use direct stderr output, without R condition objects or full diagnostic formatting.
+
 Complete statements run before later input is parsed. Earlier output survives a later syntax error, and an incomplete statement waits for more input without repeating commands already executed.
 
 `q("no", status = 3)` exits with the requested process status. A global `.Last` function runs on normal exit unless `runLast = FALSE`. Expressions, scripts, and piped input default to exiting without saving.
@@ -117,6 +129,8 @@ For executable scripts, put the directory containing R-ust's `Rscript` on `PATH`
 Embedded evaluators report `EvalError::Quit(QuitRequest)` without exiting the host process. The CLI handles shutdown and returns the requested integer process status from `r_ust_cli::run`.
 
 Hosts can set R-visible arguments and interactive status through `RuntimeState::set_session_context`. Embedded runtimes default to an empty argument vector and non-interactive status; they do not expose the host process's arguments automatically.
+
+`RuntimeState::get_option` reads the host's option store without changing visibility. `RuntimeState::set_option` applies the same validation as R-visible setters and returns the previous value. Setting session context initializes the `echo` and `keep.source` options for that session mode; CLI startup also records its `quiet` setting.
 
 Interactive embedded hosts install a console reader through `RuntimeState::set_input_reader`; the callback returns one raw line or an empty string at EOF. The evaluator never reads host stdin automatically. Input failures propagate as `EvalError::Input`, and output failures prevent input from being read.
 

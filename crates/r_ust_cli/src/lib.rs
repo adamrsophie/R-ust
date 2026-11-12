@@ -6,7 +6,8 @@ mod rscript;
 pub use rscript::run_rscript;
 
 use r_ust_runtime::{
-    EvalError, Frontend, OutputEvent, ParseStatus, Parser, QuitRequest, SaveAction, PORT_TARGET,
+    EvalError, Frontend, OutputEvent, ParseStatus, Parser, QuitRequest, SaveAction, Sexp,
+    PORT_TARGET,
 };
 
 const HELP: &str = "Usage: r_ust_cli [options] [script.R]
@@ -165,6 +166,10 @@ fn run_input(config: CliConfig) -> Result<i32, String> {
     frontend
         .runtime_mut()
         .set_session_context(config.command_args, interactive);
+    frontend
+        .runtime_mut()
+        .set_option("quiet", Sexp::Logical(vec![Some(config.quiet)]))
+        .map_err(|error| error.to_string())?;
     frontend.runtime_mut().set_output_sink(write_console);
     frontend.runtime_mut().set_input_reader(read_console_line);
     if interactive && !config.quiet {
@@ -177,7 +182,16 @@ fn run_input(config: CliConfig) -> Result<i32, String> {
     'session: loop {
         if interactive {
             write_console(OutputEvent::Stdout(
-                if source.is_empty() { "> " } else { "+ " }.to_string(),
+                match frontend.runtime().get_option(if source.is_empty() {
+                    "prompt"
+                } else {
+                    "continue"
+                }) {
+                    Some(Sexp::String(values)) => {
+                        values[0].clone().expect("validated console prompt")
+                    }
+                    _ => return Err("invalid console prompt option".into()),
+                },
             ))
             .map_err(|error| error.to_string())?;
         }
@@ -350,6 +364,10 @@ fn execute(
     frontend
         .runtime_mut()
         .set_session_context(config.command_args, false);
+    frontend
+        .runtime_mut()
+        .set_option("quiet", Sexp::Logical(vec![Some(config.quiet)]))
+        .map_err(|error| error.to_string())?;
     if let Some(sink) = sink {
         frontend.runtime_mut().set_output_sink(sink);
     }
