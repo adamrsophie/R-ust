@@ -3,7 +3,7 @@ pub const PORT_TARGET: &str = "R 4.6.0 Unix CLI, implemented in Rust";
 pub use r_ust_eval::{
     format_sexp, EvalError, Frontend, OutputEvent, QuitRequest, RuntimeState, SaveAction,
 };
-pub use r_ust_parse::{ParseError, ParseResult, ParseStatus, Parser};
+pub use r_ust_parse::{ParseError, ParseIter, ParseResult, ParseStatus, Parser};
 pub use r_ust_sexp::{
     BinaryOp, CallArgument, FunctionParameter, Sexp, SexpHeader, SexpType, UnaryOp,
 };

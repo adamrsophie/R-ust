@@ -1,4 +1,4 @@
-"""Compare quit behavior against installed R; run after building r_ust_cli."""
+"""Compare quit and statement execution against installed R after building r_ust_cli."""
 import hashlib
 import json
 from pathlib import Path
@@ -8,6 +8,17 @@ import tempfile
 
 binary = Path(sys.argv[1] if len(sys.argv) > 1 else "target/debug/r_ust_cli").resolve()
 cases = [
+    ("valid", 'q("no",status=3); @'),
+    ("valid", 'print(1);q("no");"unfinished'),
+    ("valid", 'cat("é; # 😀");q("no");@'),
+    ("valid", '{if(TRUE)1\nelse 2}'),
+    ("error", 'print(1);@'),
+    ("error", 'print(1);sum(\n'),
+    ("error", '{q("no",status=3);@}'),
+    ("error", '{print(1);@}'),
+    ("error", 'if(TRUE)1\nelse 2'),
+    ("error", '{if(TRUE)print(1);else(2)}'),
+    ("error", 'print(1);missing_value;@'),
     ("valid", "print(1); q(); print(2)"),
     ("valid", 'quit("no", 7); print(2)'),
     ("valid", 'f<-function(){for(i in 1:3)q("no",status=3);99};f();99'),

@@ -1434,18 +1434,23 @@ impl Frontend {
             .collect()
     }
 
-    /// Emits explicit console effects and visible top-level values in evaluation order.
+    /// Parses and evaluates statements in order, emitting effects and visible values immediately.
     pub fn eval_source_printed(&mut self, source: &str) -> Result<(), EvalError> {
-        let parsed = self
-            .parser
-            .parse_all(source)
-            .map_err(|error| EvalError::Parse(error.message))?;
-        for expr in &parsed.expressions {
-            let value = self.runtime.eval(expr)?;
-            if self.runtime.is_visible() {
-                self.runtime
-                    .emit(OutputEvent::Stdout(format!("{}\n", format_sexp(&value))))?;
+        for parsed in self.parser.parse_iter(source) {
+            let parsed = parsed.map_err(|error| EvalError::Parse(error.message))?;
+            for expr in &parsed.expressions {
+                self.eval_printed(expr)?;
             }
+        }
+        Ok(())
+    }
+
+    /// Evaluates one parsed expression and emits its visible result.
+    pub fn eval_printed(&mut self, expr: &Sexp) -> Result<(), EvalError> {
+        let value = self.runtime.eval(expr)?;
+        if self.runtime.is_visible() {
+            self.runtime
+                .emit(OutputEvent::Stdout(format!("{}\n", format_sexp(&value))))?;
         }
         Ok(())
     }

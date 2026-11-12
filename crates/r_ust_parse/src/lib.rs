@@ -42,6 +42,15 @@ pub struct ParseResult {
 pub struct Parser;
 
 impl Parser {
+    /// Parses complete statements lazily; later text is not tokenized until requested.
+    pub fn parse_iter<'a>(&self, source: &'a str) -> ParseIter<'a> {
+        ParseIter {
+            lexer: Lexer::new(source),
+            consumed_bytes: 0,
+            finished: false,
+        }
+    }
+
     pub fn parse_all(&self, source: &str) -> Result<ParseResult, ParseError> {
         if source.trim().is_empty() {
             return Ok(ParseResult {
@@ -54,6 +63,7 @@ impl Parser {
         let mut parser = SyntaxParser {
             tokens,
             position: 0,
+            block_depth: 0,
         };
         let expressions = parser.parse_program()?;
         Ok(ParseResult {
@@ -64,6 +74,68 @@ impl Parser {
             },
             expressions,
         })
+    }
+}
+
+pub struct ParseIter<'a> {
+    lexer: Lexer<'a>,
+    consumed_bytes: usize,
+    finished: bool,
+}
+
+impl ParseIter<'_> {
+    /// Bytes through the last complete statement, excluding a failing or incomplete statement.
+    pub fn consumed_bytes(&self) -> usize {
+        self.consumed_bytes
+    }
+}
+
+impl Iterator for ParseIter<'_> {
+    type Item = Result<ParseResult, ParseError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.finished || self.lexer.peek().is_none() {
+            self.finished = true;
+            return None;
+        }
+        let mut tokens = Vec::new();
+        loop {
+            match self.lexer.tokenize_chunk(true) {
+                Ok(chunk) => tokens.extend(chunk),
+                Err(error) => {
+                    self.finished = true;
+                    return Some(Err(error));
+                }
+            }
+            let mut parser = SyntaxParser {
+                tokens,
+                position: 0,
+                block_depth: 0,
+            };
+            match parser.parse_program() {
+                Ok(expressions) => {
+                    self.consumed_bytes = self.lexer.byte_position();
+                    return Some(Ok(ParseResult {
+                        status: if expressions.is_empty() {
+                            ParseStatus::Null
+                        } else {
+                            ParseStatus::Ok
+                        },
+                        expressions,
+                    }));
+                }
+                Err(error)
+                    if error.status == ParseStatus::Incomplete && self.lexer.peek().is_some() =>
+                {
+                    tokens = parser.tokens;
+                    tokens.pop(); // Replace the temporary end marker when adding the continuation.
+                }
+                Err(error) => {
+                    self.finished = true;
+                    return Some(Err(error));
+                }
+            }
+        }
     }
 }
 
@@ -125,6 +197,10 @@ impl<'a> Lexer<'a> {
     }
 
     fn tokenize(mut self) -> Result<Vec<Token>, ParseError> {
+        self.tokenize_chunk(false)
+    }
+
+    fn tokenize_chunk(&mut self, stop_at_statement: bool) -> Result<Vec<Token>, ParseError> {
         let mut tokens = Vec::new();
         let mut groups = Vec::new();
         while let Some(ch) = self.peek() {
@@ -298,6 +374,12 @@ impl<'a> Lexer<'a> {
                     )));
                 }
             }
+            if stop_at_statement
+                && groups.is_empty()
+                && matches!(tokens.last(), Some(Token::Newline | Token::Semicolon))
+            {
+                break;
+            }
         }
         tokens.push(Token::Eof);
         Ok(tokens)
@@ -445,6 +527,7 @@ impl<'a> Lexer<'a> {
 struct SyntaxParser {
     tokens: Vec<Token>,
     position: usize,
+    block_depth: usize,
 }
 
 impl SyntaxParser {
@@ -770,6 +853,7 @@ impl SyntaxParser {
                 "for" => self.parse_for_expression()?,
                 "while" => self.parse_while_expression()?,
                 "repeat" => self.parse_repeat_expression()?,
+                "else" => return Err(ParseError::new("unexpected 'else'")),
                 "break" => Sexp::Break,
                 "next" => Sexp::Next,
                 "NULL" => Sexp::Nil,
@@ -837,7 +921,9 @@ impl SyntaxParser {
         let then_branch = self.parse_expression()?;
 
         let saved = self.position;
-        self.consume_separators();
+        if self.block_depth > 0 {
+            self.consume_newlines();
+        }
         let else_branch = if matches!(self.peek(), Token::Ident(name) if name == "else") {
             self.advance();
             Some(Box::new(self.parse_expression()?))
@@ -890,6 +976,7 @@ impl SyntaxParser {
     }
 
     fn parse_block_after_open(&mut self) -> Result<Sexp, ParseError> {
+        self.block_depth += 1;
         let mut expressions = Vec::new();
         self.consume_separators();
         while !matches!(self.peek(), Token::RBrace | Token::Eof) {
@@ -902,6 +989,7 @@ impl SyntaxParser {
             }
         }
         self.expect(Token::RBrace)?;
+        self.block_depth -= 1;
         Ok(Sexp::Block(expressions))
     }
 
@@ -964,6 +1052,73 @@ impl SyntaxParser {
 mod tests {
     use super::{ParseStatus, Parser};
     use r_ust_sexp::{BinaryOp, Sexp};
+
+    #[test]
+    fn statement_iterator_stops_before_later_lexical_errors() {
+        let first = "cat(\"é;😀\");";
+        let source = format!("{first} @");
+        let mut statements = Parser.parse_iter(&source);
+        assert_eq!(statements.next().unwrap().unwrap().expressions.len(), 1);
+        assert_eq!(statements.consumed_bytes(), first.len());
+        assert_eq!(
+            statements.next().unwrap().unwrap_err().status,
+            ParseStatus::Error
+        );
+        assert_eq!(statements.consumed_bytes(), first.len());
+        assert!(statements.next().is_none());
+    }
+
+    #[test]
+    fn incomplete_statement_keeps_only_complete_prefix_committed() {
+        let mut statements = Parser.parse_iter("print(1);sum(\n");
+        statements.next().unwrap().unwrap();
+        assert_eq!(
+            statements.next().unwrap().unwrap_err().status,
+            ParseStatus::Incomplete
+        );
+        assert_eq!(statements.consumed_bytes(), "print(1);".len());
+        assert!(statements.next().is_none());
+    }
+
+    #[test]
+    fn statement_iterator_preserves_grouped_and_multiline_syntax() {
+        for source in [
+            "1 +\n2;3",
+            "sum({\nx<-1\nx+2\n},4);5",
+            "f<-function(x)\n{x+1};f(2)",
+            "cat(\"; # \\\"\"); # comment\n2",
+            " ; # blank input\n",
+            "{if(TRUE)1\nelse 2};3",
+        ] {
+            let expected = Parser.parse_all(source).unwrap().expressions;
+            let mut statements = Parser.parse_iter(source);
+            let mut actual = Vec::new();
+            for parsed in statements.by_ref() {
+                actual.extend(parsed.unwrap().expressions);
+            }
+            assert_eq!(actual, expected, "{source}");
+            assert_eq!(statements.consumed_bytes(), source.len(), "{source}");
+        }
+    }
+
+    #[test]
+    fn else_obeys_newline_and_semicolon_boundaries() {
+        for source in [
+            "if(TRUE)1\nelse 2",
+            "if(TRUE)1;else 2",
+            "f<-function(x)if(x)1\nelse 2",
+            "{if(TRUE)1;else(2)}",
+        ] {
+            assert!(Parser.parse_all(source).is_err(), "{source}");
+        }
+        for source in [
+            "if(TRUE)1 else 2",
+            "{if(TRUE)1\nelse 2}",
+            "(if(TRUE)1\nelse 2)",
+        ] {
+            assert!(Parser.parse_all(source).is_ok(), "{source}");
+        }
+    }
 
     #[test]
     fn classifies_unfinished_console_input() {

@@ -130,7 +130,7 @@ fn run_input(config: CliConfig) -> Result<i32, String> {
         .map_err(|error| error.to_string())?;
     }
     let mut source = String::new();
-    loop {
+    'session: loop {
         if interactive {
             write_console(OutputEvent::Stdout(
                 if source.is_empty() { "> " } else { "+ " }.to_string(),
@@ -151,11 +151,33 @@ fn run_input(config: CliConfig) -> Result<i32, String> {
                 run_last: true,
             }))
         } else {
-            match Parser.parse_all(&source) {
-                Ok(_) => frontend.eval_source_printed(&source),
-                Err(error) if error.status == ParseStatus::Incomplete => continue,
-                Err(error) => Err(EvalError::Parse(error.message)),
+            let mut statements = Parser.parse_iter(&source);
+            let mut result = Ok(());
+            while let Some(parsed) = statements.next() {
+                match parsed {
+                    Ok(parsed) => {
+                        if let Err(error) = parsed
+                            .expressions
+                            .iter()
+                            .try_for_each(|expr| frontend.eval_printed(expr))
+                        {
+                            result = Err(error);
+                            break;
+                        }
+                    }
+                    Err(error) if error.status == ParseStatus::Incomplete => {
+                        let consumed = statements.consumed_bytes();
+                        drop(statements);
+                        source.drain(..consumed);
+                        continue 'session;
+                    }
+                    Err(error) => {
+                        result = Err(EvalError::Parse(error.message));
+                        break;
+                    }
+                }
             }
+            result
         };
         let result = match result {
             Err(EvalError::Quit(request)) => match complete_quit(

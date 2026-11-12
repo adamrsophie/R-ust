@@ -1,6 +1,58 @@
 use std::process::Command;
 
 #[test]
+fn statements_execute_before_later_parse_errors() {
+    for (source, status, stdout) in [
+        ("q(\"no\",status=3); @", 3, ""),
+        ("print(1);q(\"no\");\"unfinished", 0, "[1] 1\n"),
+        ("print(1); @", 1, "[1] 1\n"),
+        ("print(1); sum(\n", 1, "[1] 1\n"),
+        ("{print(1); @}", 1, ""),
+        ("{q(\"no\",status=3); @}", 1, ""),
+        ("if(TRUE) 1\nelse 2", 1, "[1] 1\n"),
+        ("{if(TRUE) 1\nelse 2}", 0, "[1] 1\n"),
+        ("{if(TRUE) print(1);else(2)}", 1, ""),
+    ] {
+        for output in [
+            Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+                .args(["-e", source])
+                .output()
+                .unwrap(),
+            run_stdin(source, &["-"]),
+        ] {
+            assert_eq!(output.status.code(), Some(status), "{source}: {:?}", output);
+            assert_eq!(
+                String::from_utf8(output.stdout).unwrap(),
+                stdout,
+                "{source}"
+            );
+        }
+    }
+    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+        .args(["-e", "print(1);missing_value;@"])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(String::from_utf8(output.stdout).unwrap(), "[1] 1\n");
+    assert!(String::from_utf8(output.stderr)
+        .unwrap()
+        .contains("object 'missing_value' not found"));
+}
+
+#[test]
+fn statements_before_incomplete_input_are_not_repeated() {
+    for (source, stdout) in [
+        ("print(1);x<-2;sum(\nx,3)\n", "[1] 1\n[1] 5\n"),
+        ("cat(\"é\");sum(\n2,3)\n", "é[1] 5\n"),
+    ] {
+        let output = run_stdin(source, &[]);
+        assert!(output.status.success(), "{:?}", output);
+        assert_eq!(String::from_utf8(output.stdout).unwrap(), stdout);
+        assert!(output.stderr.is_empty());
+    }
+}
+
+#[test]
 fn quit_unwinds_nested_calls_and_preserves_exit_status() {
     for (source, status, stdout) in [
         ("print(1); q(); print(2)", 0, "[1] 1\n"),
