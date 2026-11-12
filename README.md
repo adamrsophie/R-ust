@@ -75,6 +75,23 @@ cargo run -q -p r_ust_cli -- example.R first "two words"
 
 Repeat `-e` to evaluate expressions in one session. Expressions join with newlines, so comments and unfinished syntax can continue across `-e` arguments. Combining `-e` with a file option is an error.
 
+## Native Rscript frontend
+
+The workspace also builds a native `Rscript` executable. It uses the Rust interpreter directly and does not require an R installation.
+
+```bash
+cargo build --release -p r_ust_cli --bins
+./target/release/Rscript --vanilla -e 'sum(1:5)'
+./target/release/Rscript --vanilla example.R first "two words"
+cargo run -q -p r_ust_cli --bin Rscript -- example.R first "two words"
+```
+
+Rscript runs files, repeated `-e` expressions, and stdin via `-`. It is non-interactive even when stdin is a terminal. After a file, every remaining token is a user argument. After expressions, only consecutive `-e` options add code; the first other token starts user arguments. Put frontend options before the file or first expression. A literal `--args` after code is itself a user argument, matching Rscript.
+
+`commandArgs()` includes the native executable name, the default `--no-echo` and `--no-restore` options, and the normalized invocation. Expression whitespace and file-path spaces use the Unix R launcher's encoding. `commandArgs(TRUE)` preserves user arguments, including empty strings. Source-file open failures return status 2; parse and evaluation errors return status 1; `q()` preserves its requested status.
+
+For executable scripts, put the directory containing R-ust's `Rscript` on `PATH` and start the script with `#!/usr/bin/env Rscript`. Joined shebang options such as `--vanilla --quiet` are supported. `--help`, `--version`, and `--verbose` describe this R-ust frontend. Package selection, startup file loading, workspace saving/restoration, and other R options remain incomplete; requests for unavailable package selection or save/restore behavior fail explicitly.
+
 ## Workspace
 
 | Crate | Purpose |
@@ -150,6 +167,7 @@ cargo test
 scripts/check-c-abi.sh
 python3 scripts/check-cli-quit.py
 python3 scripts/check-cli-session.py
+python3 scripts/check-rscript.py
 ```
 
 `scripts/check-c-abi.sh` builds the static library and links a C program against it to exercise the exported Rmath ABI. It requires a C compiler.
@@ -157,6 +175,8 @@ python3 scripts/check-cli-session.py
 `scripts/check-cli-quit.py` compares exit behavior with installed R using isolated processes. It requires `Rscript` and a built CLI, records results in `target/cli-quit-parity.json`, and reports unsupported workspace saving separately. Error wording and full warning layout are not compared.
 
 `scripts/check-cli-session.py` compares argument handling, session metadata, expression sequencing, and condition checks with installed R. It requires `R` and a built CLI and records results in `target/cli-session-parity.json`. Diagnostic wording is not compared.
+
+`scripts/check-rscript.py` compares the native frontend with an independent Rscript 4.6.0 installation on `PATH`. It snapshots the built executable, checks argument normalization, scripts, expressions, stdin, and exit behavior, and records results in `target/rscript-parity.json`. Unsupported package/save/restore options are reported separately. Diagnostic, help, version, and verbose wording are not compared.
 
 ## License
 

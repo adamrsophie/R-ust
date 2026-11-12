@@ -2,6 +2,9 @@ use std::fs;
 use std::io::{self, BufRead, IsTerminal, Write};
 use std::path::PathBuf;
 
+mod rscript;
+pub use rscript::run_rscript;
+
 use r_ust_runtime::{
     EvalError, Frontend, OutputEvent, ParseStatus, Parser, QuitRequest, SaveAction, PORT_TARGET,
 };

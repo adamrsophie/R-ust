@@ -4,6 +4,11 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+default-run = "r_ust_cli"
+
+[[bin]]
+name = "Rscript"
+path = "src/bin/Rscript.rs"
 
 [dependencies]
 r_ust_runtime = { path = "../r_ust_runtime" }
