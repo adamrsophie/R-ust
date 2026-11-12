@@ -823,10 +823,17 @@ impl SyntaxParser {
                 if matches!(self.peek_n(1), Some(Token::AssignEqual)) {
                     self.advance();
                     self.advance();
-                    CallArgument::named(name, self.parse_expression()?)
+                    let value = if matches!(self.peek(), Token::Comma | Token::RParen) {
+                        Sexp::MissingArg(name.clone())
+                    } else {
+                        self.parse_expression()?
+                    };
+                    CallArgument::named(name, value)
                 } else {
                     CallArgument::positional(self.parse_expression()?)
                 }
+            } else if matches!(self.peek(), Token::Comma | Token::RParen) {
+                CallArgument::positional(Sexp::MissingArg(String::new()))
             } else {
                 CallArgument::positional(self.parse_expression()?)
             };
@@ -835,9 +842,6 @@ impl SyntaxParser {
                 break;
             }
             self.advance();
-            if matches!(self.peek(), Token::RParen) {
-                break;
-            }
         }
         Ok(arguments)
     }
@@ -1052,6 +1056,20 @@ impl SyntaxParser {
 mod tests {
     use super::{ParseStatus, Parser};
     use r_ust_sexp::{BinaryOp, Sexp};
+
+    #[test]
+    fn omitted_call_arguments_keep_their_positions_and_names() {
+        let parsed = Parser.parse_all("f(a=, ,3,)").unwrap();
+        let Sexp::Call { arguments, .. } = &parsed.expressions[0] else {
+            panic!("expected call");
+        };
+        assert_eq!(arguments.len(), 4);
+        assert_eq!(arguments[0].name.as_deref(), Some("a"));
+        assert!(matches!(&arguments[0].value, Sexp::MissingArg(name) if name == "a"));
+        assert!(matches!(&arguments[1].value, Sexp::MissingArg(_)));
+        assert!(matches!(&arguments[2].value, Sexp::Real(values) if values == &[3.0]));
+        assert!(matches!(&arguments[3].value, Sexp::MissingArg(_)));
+    }
 
     #[test]
     fn statement_iterator_stops_before_later_lexical_errors() {

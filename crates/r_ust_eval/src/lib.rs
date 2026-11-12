@@ -93,6 +93,8 @@ pub struct RuntimeState {
     visible: bool,
     output: Vec<OutputEvent>,
     output_sink: Option<fn(OutputEvent) -> std::io::Result<()>>,
+    command_args: Vec<String>,
+    interactive: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -109,7 +111,15 @@ impl RuntimeState {
             visible: true,
             output: Vec::new(),
             output_sink: None,
+            command_args: Vec::new(),
+            interactive: false,
         }
+    }
+
+    /// Sets host-owned session metadata. Embedded runtimes default to no arguments and batch mode.
+    pub fn set_session_context(&mut self, command_args: Vec<String>, interactive: bool) {
+        self.command_args = command_args;
+        self.interactive = interactive;
     }
 
     pub fn eval(&mut self, expr: &Sexp) -> Result<Sexp, EvalError> {
@@ -128,7 +138,6 @@ impl RuntimeState {
         self.visible = true;
         let result = match expr {
             Sexp::Nil
-            | Sexp::MissingArg(_)
             | Sexp::Logical(_)
             | Sexp::Integer(_)
             | Sexp::Real(_)
@@ -140,6 +149,7 @@ impl RuntimeState {
             | Sexp::Matrix { .. }
             | Sexp::Dots(_)
             | Sexp::Closure { .. } => EvalFlow::Value(expr.clone()),
+            Sexp::MissingArg(name) => return Err(EvalError::MissingArgument(name.clone())),
             Sexp::Promise { .. } => EvalFlow::Value(self.force_value(expr.clone())?),
             Sexp::Symbol(name) => self
                 .lookup(name)?
@@ -560,6 +570,9 @@ impl RuntimeState {
                 if matches!(name.as_str(), "q" | "quit") {
                     return self.eval_quit_call(arguments);
                 }
+                if name == "commandArgs" {
+                    return self.eval_command_args(arguments);
+                }
                 if matches!(name.as_str(), "invisible" | "withVisible") {
                     return self.eval_visibility_call(name, arguments);
                 }
@@ -646,16 +659,51 @@ impl RuntimeState {
         }
     }
 
+    fn eval_command_args(&mut self, arguments: &[CallArgument]) -> Result<EvalFlow, EvalError> {
+        let arguments = expand_dots_call_arguments(arguments, &self.visible_environment())?;
+        let [argument] = bind_named_arguments(&arguments, ["trailingOnly"])?;
+        let trailing_only = if let Some(argument) = argument {
+            if matches!(argument.value, Sexp::MissingArg(_)) {
+                false
+            } else {
+                let value = match self.eval_flow(&argument.value)? {
+                    EvalFlow::Value(value) => value,
+                    flow => return Ok(flow),
+                };
+                condition_truth(&value)?
+            }
+        } else {
+            false
+        };
+        let start = if trailing_only {
+            self.command_args
+                .iter()
+                .position(|arg| arg == "--args")
+                .map_or(self.command_args.len(), |index| index + 1)
+        } else {
+            0
+        };
+        self.visible = true;
+        Ok(EvalFlow::Value(Sexp::String(
+            self.command_args[start..]
+                .iter()
+                .cloned()
+                .map(Some)
+                .collect(),
+        )))
+    }
+
     fn eval_quit_call(&mut self, arguments: &[CallArgument]) -> Result<EvalFlow, EvalError> {
         let arguments = expand_dots_call_arguments(arguments, &self.visible_environment())?;
-        let bound = bind_quit_arguments(&arguments)?;
+        let bound = bind_named_arguments(&arguments, ["save", "status", "runLast"])?;
         let mut values = [
             Sexp::String(vec![Some("default".to_string())]),
             Sexp::Integer(vec![Some(0)]),
             Sexp::Logical(vec![Some(true)]),
         ];
         for (index, argument) in bound.into_iter().enumerate() {
-            if let Some(argument) = argument {
+            if let Some(argument) = argument.filter(|arg| !matches!(arg.value, Sexp::MissingArg(_)))
+            {
                 values[index] = match self.eval_flow(&argument.value)? {
                     EvalFlow::Value(value) => value,
                     flow => return Ok(flow),
@@ -700,7 +748,7 @@ impl RuntimeState {
     fn call_builtin(&mut self, name: &str, args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
         self.visible = true;
         let result = match name {
-            "q" | "quit" => {
+            "q" | "quit" | "commandArgs" => {
                 let arguments = args
                     .iter()
                     .map(|arg| CallArgument {
@@ -708,12 +756,25 @@ impl RuntimeState {
                         value: arg.value.clone(),
                     })
                     .collect::<Vec<_>>();
-                return match self.eval_quit_call(&arguments)? {
-                    EvalFlow::Value(value) | EvalFlow::Return(value) => Ok(value),
-                    _ => Err(EvalError::Control(
-                        "loop control used in quit arguments".to_string(),
-                    )),
+                let result = if name == "commandArgs" {
+                    self.eval_command_args(&arguments)
+                } else {
+                    self.eval_quit_call(&arguments)
                 };
+                return match result? {
+                    EvalFlow::Value(value) | EvalFlow::Return(value) => Ok(value),
+                    _ => Err(EvalError::Control(format!(
+                        "loop control used in {name} arguments"
+                    ))),
+                };
+            }
+            "interactive" => {
+                if !args.is_empty() {
+                    return Err(EvalError::Arity(
+                        "interactive() takes no arguments".to_string(),
+                    ));
+                }
+                Sexp::Logical(vec![Some(self.interactive)])
             }
             "print" => {
                 let value = positional(args, 0, "x")?.clone();
@@ -1243,7 +1304,9 @@ impl RuntimeState {
         parameters: &[FunctionParameter],
     ) -> Result<(), EvalError> {
         for parameter in parameters {
-            if self.current_scope_contains(&parameter.name) {
+            if self.current_scope_contains(&parameter.name)
+                && !matches!(self.raw_lookup(&parameter.name), Some(Sexp::MissingArg(_)))
+            {
                 continue;
             }
             let value = if let Some(default) = &parameter.default {
@@ -1477,12 +1540,12 @@ fn visibility_result(value: Sexp, visible: bool) -> Sexp {
     ])
 }
 
-fn bind_quit_arguments(
-    arguments: &[CallArgument],
-) -> Result<[Option<&CallArgument>; 3], EvalError> {
-    let formals = ["save", "status", "runLast"];
-    let mut bound = [None; 3];
-    let mut exact = [false; 3];
+fn bind_named_arguments<'a, const N: usize>(
+    arguments: &'a [CallArgument],
+    formals: [&str; N],
+) -> Result<[Option<&'a CallArgument>; N], EvalError> {
+    let mut bound = [None; N];
+    let mut exact = [false; N];
     for argument in arguments {
         if let Some(index) = argument
             .name
@@ -1594,11 +1657,15 @@ fn is_assignment(expr: &Sexp) -> bool {
 }
 
 fn condition_truth(value: &Sexp) -> Result<bool, EvalError> {
-    let values = logical_values(value)?;
-    match values.first().copied().flatten() {
-        Some(value) => Ok(value),
-        None => Err(EvalError::Domain(
+    let values = coerce_logical_values(value)?;
+    match values.as_slice() {
+        [] => Err(EvalError::Domain("argument is of length zero".to_string())),
+        [Some(value)] => Ok(*value),
+        [None] => Err(EvalError::Domain(
             "missing value where TRUE/FALSE needed".to_string(),
+        )),
+        _ => Err(EvalError::Domain(
+            "the condition has length > 1".to_string(),
         )),
     }
 }
@@ -1804,6 +1871,9 @@ fn bind_supplied_argument_promises(
 }
 
 fn promise(expression: Sexp, environment: Vec<(String, Sexp)>, supplied: bool) -> Sexp {
+    if matches!(expression, Sexp::MissingArg(_)) {
+        return expression;
+    }
     Sexp::Promise {
         expression: Box::new(expression),
         environment,
@@ -1827,6 +1897,8 @@ fn is_builtin(name: &str) -> bool {
     matches!(
         name,
         "c" | "cbind"
+            | "commandArgs"
+            | "interactive"
             | "rbind"
             | "list"
             | "apply"
@@ -9086,7 +9158,7 @@ fn coerce_logical_values(value: &Sexp) -> Result<Vec<Option<bool>>, EvalError> {
     match value {
         Sexp::String(values) => Ok(values
             .iter()
-            .map(|value| match value.as_deref().map(str::trim) {
+            .map(|value| match value.as_deref() {
                 Some("TRUE") | Some("True") | Some("true") | Some("T") => Some(true),
                 Some("FALSE") | Some("False") | Some("false") | Some("F") => Some(false),
                 _ => None,

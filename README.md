@@ -64,6 +64,17 @@ printf 'x <- 1:5\nsum(x)\n' | cargo run -q -p r_ust_cli
 
 Use `-` or `-f -` to request stdin explicitly, and `--help` for available options. Script and piped input stop on the first error with a nonzero exit status.
 
+Pass arguments after a script path, or use `--args` after expressions or `-f`/`--file=FILE`:
+
+```bash
+cargo run -q -p r_ust_cli -- -e 'writeLines(commandArgs(TRUE))' --args first "two words"
+cargo run -q -p r_ust_cli -- example.R first "two words"
+```
+
+`commandArgs()` returns the invocation, including the program name. For a positional script, an implicit `--args` separator is inserted before its arguments. `commandArgs(trailingOnly = TRUE)` returns only arguments after the first separator, including empty strings and option-like values. `interactive()` is true only for the terminal console, and false for expressions, scripts, and explicit stdin.
+
+Repeat `-e` to evaluate expressions in one session. Expressions join with newlines, so comments and unfinished syntax can continue across `-e` arguments. Combining `-e` with a file option is an error.
+
 ## Workspace
 
 | Crate | Purpose |
@@ -78,6 +89,8 @@ Use `-` or `-f -` to request stdin explicitly, and `--help` for available option
 | `r_ust_cli` | Command line interface |
 
 Embedded evaluators report `EvalError::Quit(QuitRequest)` without exiting the host process. The CLI handles shutdown and returns the requested integer process status from `r_ust_cli::run`.
+
+Hosts can set R-visible arguments and interactive status through `RuntimeState::set_session_context`. Embedded runtimes default to an empty argument vector and non-interactive status; they do not expose the host process's arguments automatically.
 
 ## Supported language features
 
@@ -136,11 +149,14 @@ Several Rmath families use different algorithms from R, and their agreement with
 cargo test
 scripts/check-c-abi.sh
 python3 scripts/check-cli-quit.py
+python3 scripts/check-cli-session.py
 ```
 
 `scripts/check-c-abi.sh` builds the static library and links a C program against it to exercise the exported Rmath ABI. It requires a C compiler.
 
 `scripts/check-cli-quit.py` compares exit behavior with installed R using isolated processes. It requires `Rscript` and a built CLI, records results in `target/cli-quit-parity.json`, and reports unsupported workspace saving separately. Error wording and full warning layout are not compared.
+
+`scripts/check-cli-session.py` compares argument handling, session metadata, expression sequencing, and condition checks with installed R. It requires `R` and a built CLI and records results in `target/cli-session-parity.json`. Diagnostic wording is not compared.
 
 ## License
 

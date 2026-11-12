@@ -12,12 +12,13 @@ With no script or expression, start a console on a terminal or read piped stdin.
 Console input supports multiple lines. Use q() or Ctrl-D to exit.
 Workspace saving is not implemented; choose n or c at the save prompt.
 
-  -e EXPR          Evaluate an expression
-  -f, --file FILE  Run a script; use - for stdin
+  -e EXPR          Evaluate an expression; may be repeated
+  -f, --file FILE  Run a script; use - for stdin (also --file=FILE)
   -                Read stdin without prompts
   -q, --quiet      Suppress the console startup banner
   --no-save        Exit without prompting to save the workspace
   --vanilla        Implies --no-save; startup files are not loaded
+  --args ...       Pass remaining arguments to commandArgs(trailingOnly = TRUE)
   --version        Show version and R compatibility target
   -h, --help       Show this help
 ";
@@ -38,6 +39,8 @@ pub struct CliConfig {
     pub quiet: bool,
     pub vanilla: bool,
     pub no_save: bool,
+    /// R-visible invocation, including the program name and an optional --args separator.
+    pub command_args: Vec<String>,
 }
 
 impl CliConfig {
@@ -50,7 +53,9 @@ impl CliConfig {
         let mut vanilla = false;
         let mut no_save = false;
         let mut mode = CliMode::Interactive;
-        let mut args = args.into_iter().map(Into::into).peekable();
+        let mut command_args = vec!["r_ust_cli".to_string()];
+        command_args.extend(args.into_iter().map(Into::into));
+        let mut args = command_args[1..].to_vec().into_iter().peekable();
 
         while let Some(arg) = args.next() {
             match arg.as_str() {
@@ -62,16 +67,37 @@ impl CliConfig {
                 "--no-save" => no_save = true,
                 "--version" | "version" => mode = CliMode::Version,
                 "--help" | "-h" => mode = CliMode::Help,
-                "-" => mode = CliMode::Stdin,
+                "-" => {
+                    if matches!(mode, CliMode::Expression(_)) {
+                        return Err("cannot use stdin and -e together".to_string());
+                    }
+                    mode = CliMode::Stdin;
+                }
                 "-e" => {
                     let expression = args
                         .next()
+                        .filter(|expression| !expression.is_empty())
                         .ok_or_else(|| "-e requires an expression".to_string())?;
-                    mode = CliMode::Expression(expression);
+                    match &mut mode {
+                        CliMode::Expression(source) => {
+                            source.push('\n');
+                            source.push_str(&expression);
+                        }
+                        CliMode::File(_) | CliMode::Stdin => {
+                            return Err("cannot use a script file and -e together".to_string());
+                        }
+                        _ => mode = CliMode::Expression(expression),
+                    }
                 }
-                "--file" | "-f" => {
-                    let file = args
-                        .next()
+                _ if arg == "--file" || arg == "-f" || arg.starts_with("--file=") => {
+                    if matches!(mode, CliMode::Expression(_)) {
+                        return Err("cannot use a script file and -e together".to_string());
+                    }
+                    let file = arg
+                        .strip_prefix("--file=")
+                        .map(str::to_string)
+                        .or_else(|| args.next())
+                        .filter(|file| !file.is_empty())
                         .ok_or_else(|| format!("{arg} requires a file path"))?;
                     mode = if file == "-" {
                         CliMode::Stdin
@@ -84,7 +110,17 @@ impl CliConfig {
                     return Err(format!("unsupported CLI option {arg}"));
                 }
                 _ => {
+                    if matches!(mode, CliMode::Expression(_)) {
+                        return Err("use --args before expression arguments".to_string());
+                    }
+                    if matches!(mode, CliMode::File(_) | CliMode::Stdin) {
+                        return Err("use --args before file or stdin arguments".to_string());
+                    }
                     mode = CliMode::File(PathBuf::from(arg));
+                    if args.peek().is_some_and(|arg| arg != "--args") {
+                        command_args.insert(command_args.len() - args.len(), "--args".to_string());
+                    }
+                    break;
                 }
             }
         }
@@ -94,6 +130,7 @@ impl CliConfig {
             quiet,
             vanilla,
             no_save,
+            command_args,
         })
     }
 }
@@ -105,6 +142,7 @@ impl Default for CliConfig {
             quiet: false,
             vanilla: false,
             no_save: false,
+            command_args: vec!["r_ust_cli".to_string()],
         }
     }
 }
@@ -122,6 +160,9 @@ fn run_input(config: CliConfig) -> Result<i32, String> {
     let interactive = input.is_terminal() && config.mode == CliMode::Interactive;
     let mut input = input.lock();
     let mut frontend = Frontend::default();
+    frontend
+        .runtime_mut()
+        .set_session_context(config.command_args, interactive);
     frontend.runtime_mut().set_output_sink(write_console);
     if interactive && !config.quiet {
         write_console(OutputEvent::Stdout(format!(
@@ -305,6 +346,9 @@ fn execute(
         }
     };
     let mut frontend = Frontend::default();
+    frontend
+        .runtime_mut()
+        .set_session_context(config.command_args, false);
     if let Some(sink) = sink {
         frontend.runtime_mut().set_output_sink(sink);
     }
@@ -359,6 +403,10 @@ mod tests {
                 quiet: true,
                 vanilla: true,
                 no_save: true,
+                command_args: vec!["r_ust_cli", "--vanilla", "-q", "-e", "1 + 1"]
+                    .into_iter()
+                    .map(str::to_string)
+                    .collect(),
             }
         );
     }
@@ -370,6 +418,7 @@ mod tests {
             quiet: true,
             vanilla: true,
             no_save: true,
+            ..CliConfig::default()
         })
         .unwrap();
         assert_eq!(output, "[1] 2\n");

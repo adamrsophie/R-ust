@@ -1,6 +1,114 @@
 use std::process::Command;
 
 #[test]
+fn expression_arguments_preserve_invocation_and_trailing_values() {
+    let code = "writeLines(commandArgs());writeLines(commandArgs(TRUE));interactive()";
+    let args = [
+        "--vanilla",
+        "-e",
+        code,
+        "--args",
+        "α",
+        "two words",
+        "--flag",
+        "",
+        "--args",
+    ];
+    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+        .args(args)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{:?}", output);
+    let expected = format!(
+        "{}\n{}\nα\ntwo words\n--flag\n\n--args\n[1] FALSE\n",
+        env!("CARGO_BIN_EXE_r_ust_cli"),
+        args.join("\n")
+    );
+    assert_eq!(String::from_utf8(output.stdout).unwrap(), expected);
+    assert!(output.stderr.is_empty());
+    let output = run_stdin(
+        "writeLines(commandArgs(TRUE));interactive()\n",
+        &["--args", "stdin-arg"],
+    );
+    assert!(output.status.success());
+    assert_eq!(
+        String::from_utf8(output.stdout).unwrap(),
+        "stdin-arg\n[1] FALSE\n"
+    );
+}
+
+#[test]
+fn repeated_expressions_share_state_and_continue_incomplete_syntax() {
+    for (args, expected) in [
+        (vec!["-e", "x<-2 # comment", "-e", "x+3"], "[1] 5\n"),
+        (vec!["-e", "sum(", "-e", "1,2)"], "[1] 3\n"),
+        (
+            vec!["-e", "print(1)", "-e", "q(\"no\")", "-e", "@"],
+            "[1] 1\n",
+        ),
+    ] {
+        let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+            .args(&args)
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{args:?}: {output:?}");
+        assert_eq!(String::from_utf8(output.stdout).unwrap(), expected);
+        assert!(output.stderr.is_empty());
+    }
+    for args in [
+        vec!["-e", "1", "-f", "script.R"],
+        vec!["-f", "script.R", "-e", "1"],
+        vec!["-e", "1", "-"],
+        vec!["-f", "script.R", "argument"],
+        vec!["--file="],
+        vec!["-e", ""],
+    ] {
+        let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+            .args(&args)
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(2), "{args:?}");
+    }
+}
+
+#[test]
+fn script_arguments_are_not_parsed_as_options_or_other_files() {
+    let path = std::env::temp_dir().join(format!("r-ust-session-{}.R", std::process::id()));
+    std::fs::write(&path, "writeLines(commandArgs(TRUE));interactive()\n").unwrap();
+    for args in [
+        vec![
+            path.to_string_lossy().to_string(),
+            "one".into(),
+            "--help".into(),
+        ],
+        vec![
+            path.to_string_lossy().to_string(),
+            "--args".into(),
+            "one".into(),
+            "--help".into(),
+        ],
+        vec![
+            format!("--file={}", path.display()),
+            "--args".into(),
+            "one".into(),
+            "--help".into(),
+        ],
+    ] {
+        let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+            .args(&args)
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{args:?}: {output:?}");
+        assert_eq!(
+            String::from_utf8(output.stdout).unwrap(),
+            "one\n--help\n[1] FALSE\n"
+        );
+        assert!(output.stderr.is_empty());
+    }
+    std::fs::remove_file(path).unwrap();
+}
+
+#[test]
 fn statements_execute_before_later_parse_errors() {
     for (source, status, stdout) in [
         ("q(\"no\",status=3); @", 3, ""),
