@@ -43,6 +43,8 @@ options(old)
 
 Each runtime owns its option store. `options()` returns a snapshot; named arguments or a single named list set values and return previous values invisibly. Unnamed character arguments query options. Setting a custom option to `NULL` removes it. `getOption(name, default)` evaluates the default only when the option is unset. Core setters validate and coerce values using R's bounds and type rules; earlier changes survive a later invalid setter in the same call. Primary and continuation prompt changes take effect on the next console read, including after an error.
 
+Numeric literal diagnostics follow `warn`, `warning.length`, and `nwarnings`: negative `warn` suppresses them, zero defers them until after evaluation, one reports before evaluation, and two or greater converts them to errors. CLI parsing waits for a complete valid statement before reporting literal warnings. Deferred warnings follow `.Last` during quit cleanup.
+
 Option support remains partial. The store initializes core defaults; package, platform, and startup-file defaults are incomplete. Printing, evaluation-depth limits, source retention, warning conditions, and other option consumers still need work. `.Options` pairlists, locale-sensitive ordering of option names, and missing names in query-result lists are not supported. Setter warnings use direct stderr output, without R condition objects or full diagnostic formatting.
 
 Complete statements run before later input is parsed. Earlier output survives a later syntax error, and an incomplete statement waits for more input without repeating commands already executed.
@@ -140,6 +142,10 @@ Embedded evaluators report `EvalError::Quit(QuitRequest)` without exiting the ho
 
 `CliConfig::startup_stdout` holds raw bytes emitted before the session starts. Struct literals must initialize it or use `..CliConfig::default()`. `run_to_string` captures UTF-8 startup output and returns an error when those bytes are not valid UTF-8; `run` streams the original bytes.
 
+`ParseResult::warnings` and `ParseError::warnings` preserve ordered parser diagnostics. Struct literals must initialize these vectors; `ParseError::new` and `ParseError::incomplete` initialize them automatically. Eager `Frontend` APIs process failure metadata; printed/CLI execution discards diagnostics from failed preflight parses. Errors accompanied by deferred warnings use `EvalError::WithWarnings`; its `source()` exposes the original error.
+
+Hosts executing parsed expressions can call `RuntimeState::record_parse_warnings` before evaluation and `finish_parse_warnings` after visible output. A quit request leaves deferred warnings pending; complete host cleanup before calling `finish_parse_warnings` with its result. The CLI handles this lifecycle automatically.
+
 Hosts can set R-visible arguments and interactive status through `RuntimeState::set_session_context`. Embedded runtimes default to an empty argument vector and non-interactive status; they do not expose the host process's arguments automatically.
 
 `RuntimeState::get_option` reads the host's option store without changing visibility. `RuntimeState::set_option` applies the same validation as R-visible setters and returns the previous value. Setting session context initializes the `echo` and `keep.source` options for that session mode; CLI startup also records its `quiet` setting.
@@ -214,6 +220,7 @@ python3 scripts/check-cli-session.py
 python3 scripts/check-rscript.py
 python3 scripts/check-cli-readline.py
 python3 scripts/check-hex-numbers.py
+python3 scripts/check-numeric-warnings.py
 ```
 
 `scripts/check-c-abi.sh` builds the static library and links a C program against it to exercise the exported Rmath ABI. It requires a C compiler.
@@ -226,7 +233,9 @@ python3 scripts/check-hex-numbers.py
 
 `scripts/check-cli-readline.py` requires Unix PTYs, independent R/Rscript 4.6.0 references, and both built executables. It snapshots the executables and checks batch output, live prompt readiness, buffered answers, EOF, save cancellation, and input inside `.Last`. Results and lossless stream captures are recorded in `target/cli-readline-parity.json`; known coercion and encoding limits are excluded from passing coverage. Diagnostic wording is not compared.
 
-`scripts/check-hex-numbers.py` requires Python 3.11+, Rust, independent R/Rscript 4.6.0 references, and both built executables. It compares parser numeric bits/types and errors, then checks CLI evaluation separately. Results are recorded in `target/hex-number-parity.json`; the generated parser probe is retained in `target/hex-number-probe`. Current conversion matches R builds with 64-bit `LDOUBLE`; wider accumulators and integer-qualifier warnings remain incomplete. NaNs are compared by class, and error wording is not compared.
+`scripts/check-hex-numbers.py` requires Python 3.11+, Rust, independent R/Rscript 4.6.0 references, and both built executables. It compares parser numeric bits/types and errors, then checks CLI evaluation and qualifier warnings separately. Results are recorded in `target/hex-number-parity.json`; the generated parser probe is retained in `target/hex-number-probe`. Current conversion matches R builds with 64-bit `LDOUBLE`; wider accumulators remain incomplete. NaNs are compared by class, and error wording is not compared.
+
+`scripts/check-numeric-warnings.py` requires Python 3.11+, Unix pipes, R/Rscript 4.6.0, and both built executables. It checks warning text, suppression, promotion, truncation, count limits, stream order, and live continuation input. Results are recorded in `target/numeric-warning-parity.json`; the existing main-CLI argument-error status limit is separate from passing comparisons. Error wording and `Execution halted` are not compared. General `warning()`, `warnings()`, `last.warning`, condition handlers, and `warning.expression` remain incomplete.
 
 ## License
 

@@ -14,6 +14,7 @@ pub enum ParseStatus {
 pub struct ParseError {
     pub status: ParseStatus,
     pub message: String,
+    pub warnings: Vec<String>,
 }
 
 impl ParseError {
@@ -21,6 +22,7 @@ impl ParseError {
         Self {
             status: ParseStatus::Error,
             message: message.into(),
+            warnings: Vec::new(),
         }
     }
 
@@ -28,7 +30,13 @@ impl ParseError {
         Self {
             status: ParseStatus::Incomplete,
             message: message.into(),
+            warnings: Vec::new(),
         }
+    }
+
+    fn with_warnings(mut self, warnings: Vec<String>) -> Self {
+        self.warnings = warnings;
+        self
     }
 }
 
@@ -36,6 +44,7 @@ impl ParseError {
 pub struct ParseResult {
     pub status: ParseStatus,
     pub expressions: Vec<Sexp>,
+    pub warnings: Vec<String>,
 }
 
 #[derive(Default)]
@@ -52,13 +61,18 @@ impl Parser {
     }
 
     pub fn parse_all(&self, source: &str) -> Result<ParseResult, ParseError> {
-        let tokens = Lexer::new(source).tokenize()?;
+        let mut lexer = Lexer::new(source);
+        let tokens = lexer
+            .tokenize()
+            .map_err(|error| error.with_warnings(std::mem::take(&mut lexer.warnings)))?;
         let mut parser = SyntaxParser {
             tokens,
             position: 0,
             block_depth: 0,
         };
-        let expressions = parser.parse_program()?;
+        let expressions = parser
+            .parse_program()
+            .map_err(|error| error.with_warnings(std::mem::take(&mut lexer.warnings)))?;
         Ok(ParseResult {
             status: if expressions.is_empty() {
                 ParseStatus::Null
@@ -66,6 +80,7 @@ impl Parser {
                 ParseStatus::Ok
             },
             expressions,
+            warnings: lexer.warnings,
         })
     }
 }
@@ -97,7 +112,9 @@ impl Iterator for ParseIter<'_> {
                 Ok(chunk) => tokens.extend(chunk),
                 Err(error) => {
                     self.finished = true;
-                    return Some(Err(error));
+                    return Some(Err(
+                        error.with_warnings(std::mem::take(&mut self.lexer.warnings))
+                    ));
                 }
             }
             let mut parser = SyntaxParser {
@@ -115,6 +132,7 @@ impl Iterator for ParseIter<'_> {
                             ParseStatus::Ok
                         },
                         expressions,
+                        warnings: std::mem::take(&mut self.lexer.warnings),
                     }));
                 }
                 Err(error)
@@ -125,7 +143,9 @@ impl Iterator for ParseIter<'_> {
                 }
                 Err(error) => {
                     self.finished = true;
-                    return Some(Err(error));
+                    return Some(Err(
+                        error.with_warnings(std::mem::take(&mut self.lexer.warnings))
+                    ));
                 }
             }
         }
@@ -179,6 +199,7 @@ struct Lexer<'a> {
     source: &'a str,
     chars: Vec<char>,
     position: usize,
+    warnings: Vec<String>,
 }
 
 impl<'a> Lexer<'a> {
@@ -187,10 +208,11 @@ impl<'a> Lexer<'a> {
             source,
             chars: source.chars().collect(),
             position: 0,
+            warnings: Vec::new(),
         }
     }
 
-    fn tokenize(mut self) -> Result<Vec<Token>, ParseError> {
+    fn tokenize(&mut self) -> Result<Vec<Token>, ParseError> {
         self.tokenize_chunk(false)
     }
 
@@ -436,14 +458,32 @@ impl<'a> Lexer<'a> {
     }
 
     fn lex_number(&mut self) -> Result<Token, ParseError> {
-        let value = if self.peek() == Some('0') && matches!(self.peek_next(), Some('x' | 'X')) {
+        let start = self.position;
+        let hexadecimal = self.peek() == Some('0') && matches!(self.peek_next(), Some('x' | 'X'));
+        let value = if hexadecimal {
             self.lex_hex_number()?
         } else {
             self.lex_decimal_number()?
         };
-        // shortcut: invalid L qualifiers use double silently until parser warnings exist.
-        if self.consume('L') && value.fract() == 0.0 && value <= i32::MAX as f64 {
-            return Ok(Token::Integer(value as i32));
+        if self.consume('L') {
+            let literal: String = self.chars[start..self.position].iter().collect();
+            let integer = value.fract() == 0.0 && value <= i32::MAX as f64;
+            let decimal = literal.contains('.')
+                && !literal.contains(if hexadecimal { ['p', 'P'] } else { ['e', 'E'] });
+            if !integer {
+                self.warnings.push(if decimal {
+                    format!("integer literal {literal} contains decimal; using numeric value")
+                } else {
+                    format!("non-integer value {literal} qualified with L; using numeric value")
+                });
+            } else {
+                if decimal {
+                    self.warnings.push(format!(
+                        "integer literal {literal} contains unnecessary decimal point"
+                    ));
+                }
+                return Ok(Token::Integer(value as i32));
+            }
         }
         Ok(Token::Number(value))
     }

@@ -300,22 +300,26 @@ fn run_session(
             while let Some(parsed) = statements.next() {
                 match parsed {
                     Ok(parsed) => {
-                        if let Err(error) = parsed
-                            .expressions
-                            .iter()
-                            .try_for_each(|expr| frontend.eval_printed(expr))
-                        {
+                        let warnings = frontend
+                            .runtime_mut()
+                            .record_parse_warnings(&parsed.warnings);
+                        if let Err(error) = warnings.and_then(|_| {
+                            parsed
+                                .expressions
+                                .iter()
+                                .try_for_each(|expr| frontend.eval_printed(expr))
+                        }) {
                             result = Err(error);
                             break;
                         }
                     }
-                    Err(error) if error.status == ParseStatus::Incomplete => {
-                        let consumed = statements.consumed_bytes();
-                        drop(statements);
-                        source.drain(..consumed);
-                        continue 'session;
-                    }
                     Err(error) => {
+                        if error.status == ParseStatus::Incomplete {
+                            let consumed = statements.consumed_bytes();
+                            drop(statements);
+                            source.drain(..consumed);
+                            continue 'session;
+                        }
                         result = Err(EvalError::Parse(error.message));
                         break;
                     }
@@ -325,7 +329,9 @@ fn run_session(
         };
         let result = match result {
             Err(EvalError::Quit(request)) => {
-                match complete_quit(frontend, request, interactive, no_save, read_console_line) {
+                let cleanup =
+                    complete_quit(frontend, request, interactive, no_save, read_console_line);
+                match frontend.runtime_mut().finish_parse_warnings(cleanup) {
                     Ok(Some(status)) => return Ok(status),
                     Ok(None) => Ok(()),
                     Err(error) => Err(error),

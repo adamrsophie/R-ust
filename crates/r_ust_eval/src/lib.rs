@@ -2,9 +2,10 @@ use std::collections::HashMap;
 use std::fmt;
 
 mod options;
+mod parse_warnings;
 
 use r_ust_gc::{Gc, GcConfig};
-use r_ust_parse::Parser;
+use r_ust_parse::{ParseError, ParseResult, Parser};
 use r_ust_sexp::{
     is_na_real, BinaryOp, CallArgument, FunctionParameter, ListElement, Sexp, UnaryOp, NA_REAL,
 };
@@ -22,6 +23,10 @@ pub enum EvalError {
     Input(String),
     Quit(QuitRequest),
     NotImplemented(&'static str),
+    WithWarnings {
+        error: Box<EvalError>,
+        warnings: String,
+    },
 }
 
 impl fmt::Display for EvalError {
@@ -42,11 +47,25 @@ impl fmt::Display for EvalError {
                 write!(f, "session exit requested with status {}", request.status)
             }
             Self::NotImplemented(feature) => write!(f, "{feature} is not implemented yet"),
+            Self::WithWarnings { error, warnings } => {
+                write!(
+                    f,
+                    "{error}\nIn addition: {}",
+                    warnings.trim_end_matches('\n')
+                )
+            }
         }
     }
 }
 
-impl std::error::Error for EvalError {}
+impl std::error::Error for EvalError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::WithWarnings { error, .. } => Some(error.as_ref()),
+            _ => None,
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SaveAction {
@@ -103,6 +122,7 @@ pub struct RuntimeState {
     console_prompt: String,
     options: std::collections::BTreeMap<String, Sexp>,
     warned_strings_as_factors: bool,
+    pending_parse_warnings: Vec<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -125,6 +145,7 @@ impl RuntimeState {
             console_prompt: String::new(),
             options: options::defaults(),
             warned_strings_as_factors: false,
+            pending_parse_warnings: Vec::new(),
         }
     }
 
@@ -1560,37 +1581,34 @@ pub struct Frontend {
 
 impl Frontend {
     pub fn eval_source(&mut self, source: &str) -> Result<Vec<Sexp>, EvalError> {
-        let parsed = self
-            .parser
-            .parse_all(source)
-            .map_err(|error| EvalError::Parse(error.message))?;
-        parsed
+        let parsed = self.accept_parse(self.parser.parse_all(source))?;
+        let result = parsed
             .expressions
             .iter()
             .map(|expr| self.runtime.eval(expr))
-            .collect()
+            .collect();
+        self.runtime.finish_parse_warnings(result)
     }
 
     /// Evaluates `source` and returns values whose evaluation is visible.
     pub fn eval_source_visible(&mut self, source: &str) -> Result<Vec<Sexp>, EvalError> {
-        let parsed = self
-            .parser
-            .parse_all(source)
-            .map_err(|error| EvalError::Parse(error.message))?;
-        parsed
+        let parsed = self.accept_parse(self.parser.parse_all(source))?;
+        let result = parsed
             .expressions
             .iter()
             .filter_map(|expr| match self.runtime.eval(expr) {
                 Ok(_) if !self.runtime.is_visible() => None,
                 result => Some(result),
             })
-            .collect()
+            .collect();
+        self.runtime.finish_parse_warnings(result)
     }
 
     /// Parses and evaluates statements in order, emitting effects and visible values immediately.
     pub fn eval_source_printed(&mut self, source: &str) -> Result<(), EvalError> {
         for parsed in self.parser.parse_iter(source) {
             let parsed = parsed.map_err(|error| EvalError::Parse(error.message))?;
+            self.runtime.record_parse_warnings(&parsed.warnings)?;
             for expr in &parsed.expressions {
                 self.eval_printed(expr)?;
             }
@@ -1600,12 +1618,32 @@ impl Frontend {
 
     /// Evaluates one parsed expression and emits its visible result.
     pub fn eval_printed(&mut self, expr: &Sexp) -> Result<(), EvalError> {
-        let value = self.runtime.eval(expr)?;
-        if self.runtime.is_visible() {
-            self.runtime
-                .emit(OutputEvent::Stdout(format!("{}\n", format_sexp(&value))))?;
+        let result = (|| {
+            let value = self.runtime.eval(expr)?;
+            if self.runtime.is_visible() {
+                self.runtime
+                    .emit(OutputEvent::Stdout(format!("{}\n", format_sexp(&value))))?;
+            }
+            Ok(())
+        })();
+        self.runtime.finish_parse_warnings(result)
+    }
+
+    fn accept_parse(
+        &mut self,
+        result: Result<ParseResult, ParseError>,
+    ) -> Result<ParseResult, EvalError> {
+        match result {
+            Ok(parsed) => {
+                self.runtime.record_parse_warnings(&parsed.warnings)?;
+                Ok(parsed)
+            }
+            Err(error) => {
+                self.runtime.record_parse_warnings(&error.warnings)?;
+                self.runtime
+                    .finish_parse_warnings(Err(EvalError::Parse(error.message)))
+            }
         }
-        Ok(())
     }
 
     pub fn runtime(&self) -> &RuntimeState {

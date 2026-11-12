@@ -411,7 +411,7 @@ fn atomic_data(value: &Sexp) -> &Sexp {
     }
 }
 
-fn option_integer(value: &Sexp) -> Option<i32> {
+pub(super) fn option_integer(value: &Sexp) -> Option<i32> {
     coerce_integer_values(value)
         .ok()?
         .first()

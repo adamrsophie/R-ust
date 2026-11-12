@@ -17,7 +17,7 @@ class Program(TypedDict):
     source: str
     expected: str
     status: int
-    warning_limit: NotRequired[bool]
+    warning: NotRequired[bool]
 
 
 root = Path(__file__).resolve().parent.parent
@@ -106,7 +106,7 @@ programs: list[Program] = [
 ]
 programs += [Program(label=f"invalid-{i}", source=f'cat("BEFORE\\n")\n{source}\ncat("AFTER")\n', expected="BEFORE\n", status=1)
              for i, source in enumerate(invalid)]
-programs += [Program(label=f"warning-{i}", source=f'cat({source})\n', expected=value, status=0, warning_limit=True)
+programs += [Program(label=f"warning-{i}", source=f'cat({source})\n', expected=value, status=0, warning=True)
              for i, (source, value) in enumerate([("0x1.0L", "1"), ("0x1.8L", "1.5"), ("0x80000000L", "2147483648")])]
 
 
@@ -173,9 +173,9 @@ with tempfile.TemporaryDirectory(prefix="r-ust-hex-") as directory:
             r, r_record = run(reference_command, data)
             u, u_record = run(native_command, data)
             values_match = r.returncode == u.returncode == case["status"] and r.stdout == u.stdout == case["expected"].encode()
-            passed = values_match and (bool(r.stderr) and bool(u.stderr) if case["status"] == 1 else not r.stderr and not u.stderr)
-            warning_limit = case.get("warning_limit", False) and values_match and bool(r.stderr) and not u.stderr
-            results.append(dict(mode=mode, case=case, r=r_record, rust=u_record, passed=passed, warning_limit=warning_limit))
+            passed = values_match and (bool(r.stderr) and bool(u.stderr) if case["status"] == 1
+                                       else r.stderr == u.stderr and bool(r.stderr) == case.get("warning", False))
+            results.append(dict(mode=mode, case=case, r=r_record, rust=u_record, passed=passed))
         print(f"Checked {mode}: {len(programs)} programs", flush=True)
 
 Path("target/hex-number-parity.json").write_text(json.dumps(dict(
@@ -183,11 +183,11 @@ Path("target/hex-number-parity.json").write_text(json.dumps(dict(
     binary_sha256=hashes, probe_source=probe_source, reference_source=reference_source,
     parser_streams=dict(r=rr, rust=uu), parser_cases=parser_results, cli_cases=results), indent=2) + "\n")
 failed = [row for row in parser_results if not row["passed"]]
-cli_failed = [row for row in results if not row["passed"] and not row["warning_limit"]]
+cli_failed = [row for row in results if not row["passed"]]
 for row in failed[:12] + cli_failed[:12]:
     print(json.dumps(row))
 print(f"{len(parser_results) - len(failed)} parser bit/type comparisons pass; {len(failed)} differences")
 print(f"{sum(row['passed'] for row in results)} CLI comparisons pass; "
-      f"{sum(row['warning_limit'] for row in results)} warning limits; {len(cli_failed)} unexpected differences")
+      f"{len(cli_failed)} unexpected differences")
 if failed or cli_failed:
     raise SystemExit(1)
