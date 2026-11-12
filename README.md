@@ -18,7 +18,9 @@ Start the interactive console:
 cargo run -q -p r_ust_cli
 ```
 
-The console keeps variables and functions between commands. Use multiple lines for unfinished expressions; `+ ` marks continuation input. Errors return to the prompt. Press Ctrl-D to exit. Add `-- --quiet` to suppress the startup banner.
+The console keeps variables and functions between commands. Use multiple lines for unfinished expressions; `+ ` marks continuation input. Errors return to the prompt. Use `q()` or Ctrl-D to exit, then choose `n` to discard the workspace or `c` to cancel. Workspace saving is not implemented; choosing `y` reports an error and keeps the console open. Add `-- --quiet --no-save` to suppress the startup banner and default save prompt.
+
+`q("no", status = 3)` exits with the requested process status. A global `.Last` function runs on normal exit unless `runLast = FALSE`. Expressions, scripts, and piped input default to exiting without saving.
 
 Evaluate an expression:
 
@@ -71,6 +73,8 @@ Use `-` or `-f -` to request stdin explicitly, and `--help` for available option
 | `r_ust_runtime` | Runtime assembly of the components above |
 | `r_ust_cli` | Command line interface |
 
+Embedded evaluators report `EvalError::Quit(QuitRequest)` without exiting the host process. The CLI handles shutdown and returns the requested integer process status from `r_ust_cli::run`.
+
 ## Supported language features
 
 **Syntax and evaluation**
@@ -108,7 +112,7 @@ Use `-` or `-f -` to request stdin explicitly, and `--help` for available option
 
 R-ust does not yet provide reference semantics for environments, general replacement functions, full attribute support (including row names and arrays), formulas, S3 and S4 dispatch, namespaces and package loading, condition handling, connections, graphics, serialization, or the base and recommended packages.
 
-The console uses basic terminal input. Command history, advanced line editing, interrupt recovery, `q()`/`quit()`, workspace saving, and full R command line compatibility remain missing.
+The console uses basic terminal input. Command history, advanced line editing, interrupt recovery, workspace saving, `.Last.sys`, exit finalizers, and full R command line compatibility remain missing. Quit warnings print directly to stderr without R condition objects or full diagnostic formatting.
 
 Output formatting differs from R in places: numbers generally use 12 decimal places with trailing zeros trimmed, while tiny values use 12 significant digits. R defaults to 7 significant digits. Names are not yet shown when printing named vectors, and character vectors are not column aligned.
 
@@ -127,9 +131,12 @@ Several Rmath families use different algorithms from R, and their agreement with
 ```bash
 cargo test
 scripts/check-c-abi.sh
+python3 scripts/check-cli-quit.py
 ```
 
 `scripts/check-c-abi.sh` builds the static library and links a C program against it to exercise the exported Rmath ABI. It requires a C compiler.
+
+`scripts/check-cli-quit.py` compares exit behavior with installed R using isolated processes. It requires `Rscript` and a built CLI, records results in `target/cli-quit-parity.json`, and reports unsupported workspace saving separately. Error wording and full warning layout are not compared.
 
 ## License
 

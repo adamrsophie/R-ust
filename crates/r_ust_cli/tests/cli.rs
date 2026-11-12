@@ -1,5 +1,67 @@
 use std::process::Command;
 
+#[test]
+fn quit_unwinds_nested_calls_and_preserves_exit_status() {
+    for (source, status, stdout) in [
+        ("print(1); q(); print(2)", 0, "[1] 1\n"),
+        ("quit(\"no\", 7); print(2)", 7, ""),
+        (
+            "f<-function(){for(i in 1:3)q(\"no\",status=3);99}; f();99",
+            3,
+            "",
+        ),
+        ("lapply(\"no\",quit);99", 0, ""),
+        ("(function(x)x)(quit(\"no\",status=5));99", 5, ""),
+        ("quit(\"no\",st=6,run=FALSE)", 6, ""),
+        ("quit(status=4,\"no\")", 4, ""),
+        ("quit(save=\"no\",s=2)", 2, ""),
+        ("quit(\"no\",status=257)", 1, ""),
+        ("quit(\"no\",status=-1)", 255, ""),
+        (".Last<-function()print(8);q(\"no\")", 0, "[1] 8\n"),
+        (".Last<-function()print(8);q(\"no\",runLast=FALSE)", 0, ""),
+        (".Last<-function()q(\"no\",4,FALSE);q(\"no\",3)", 4, ""),
+        (".Last<-1;q(\"no\")", 0, ""),
+    ] {
+        let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+            .args(["-e", source])
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(status), "{source}: {:?}", output);
+        assert_eq!(
+            String::from_utf8(output.stdout).unwrap(),
+            stdout,
+            "{source}"
+        );
+        assert!(output.stderr.is_empty(), "{source}: {:?}", output.stderr);
+    }
+}
+
+#[test]
+fn quit_validates_arguments_before_forcing_and_rejects_workspace_saving() {
+    for source in [
+        "q(bogus=print(9))",
+        "q(\"no\",0,FALSE,print(9))",
+        "q(s=\"no\")",
+        "q(save=\"no\",sa=print(9))",
+        "q(save=\"no\",save=\"no\")",
+        "q(\"bad\")",
+        "q(1)",
+        "q(\"yes\")",
+    ] {
+        let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+            .args(["-e", source])
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(1), "{source}");
+        assert!(output.stdout.is_empty(), "{source}: {:?}", output.stdout);
+        assert!(!output.stderr.is_empty(), "{source}");
+    }
+    let output = run_stdin(".Last<-function()print(8)\n", &[]);
+    assert!(output.status.success());
+    assert_eq!(String::from_utf8(output.stdout).unwrap(), "[1] 8\n");
+    assert!(output.stderr.is_empty());
+}
+
 fn run_stdin(source: &str, args: &[&str]) -> std::process::Output {
     use std::io::Write;
     use std::process::Stdio;
@@ -70,6 +132,17 @@ fn help_mode_explains_console_and_script_usage() {
         assert!(text.contains(expected), "missing {expected}: {text}");
     }
     assert!(output.stderr.is_empty());
+}
+
+#[test]
+fn option_errors_use_status_two() {
+    let output = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
+        .arg("--bad-option")
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
+    assert!(!output.stderr.is_empty());
 }
 
 #[test]

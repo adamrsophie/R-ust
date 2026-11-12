@@ -17,6 +17,7 @@ pub enum EvalError {
     Control(String),
     MissingArgument(String),
     Output(String),
+    Quit(QuitRequest),
     NotImplemented(&'static str),
 }
 
@@ -33,12 +34,31 @@ impl fmt::Display for EvalError {
                 write!(f, "argument '{name}' is missing, with no default")
             }
             Self::Output(message) => write!(f, "output error: {message}"),
+            Self::Quit(request) => {
+                write!(f, "session exit requested with status {}", request.status)
+            }
             Self::NotImplemented(feature) => write!(f, "{feature} is not implemented yet"),
         }
     }
 }
 
 impl std::error::Error for EvalError {}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SaveAction {
+    Default,
+    No,
+    Yes,
+    Ask,
+}
+
+/// Host request carried through the evaluator's unwind path, not an R error.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct QuitRequest {
+    pub save: SaveAction,
+    pub status: i32,
+    pub run_last: bool,
+}
 
 #[derive(Clone, Debug, PartialEq)]
 struct EvaluatedArgument {
@@ -489,6 +509,14 @@ impl RuntimeState {
         self.output_sink = Some(sink);
     }
 
+    pub fn run_last(&mut self) -> Result<(), EvalError> {
+        let last = self.scopes[0].get(".Last").cloned();
+        if let Some(last @ Sexp::Closure { .. }) = last {
+            self.call_value(last, &[])?;
+        }
+        Ok(())
+    }
+
     fn emit(&mut self, event: OutputEvent) -> Result<(), EvalError> {
         if let Some(sink) = self.output_sink {
             sink(event).map_err(|error| EvalError::Output(error.to_string()))
@@ -529,6 +557,9 @@ impl RuntimeState {
                 return self.call_value(value, arguments);
             }
             if is_builtin(name) {
+                if matches!(name.as_str(), "q" | "quit") {
+                    return self.eval_quit_call(arguments);
+                }
                 if matches!(name.as_str(), "invisible" | "withVisible") {
                     return self.eval_visibility_call(name, arguments);
                 }
@@ -615,9 +646,75 @@ impl RuntimeState {
         }
     }
 
+    fn eval_quit_call(&mut self, arguments: &[CallArgument]) -> Result<EvalFlow, EvalError> {
+        let arguments = expand_dots_call_arguments(arguments, &self.visible_environment())?;
+        let bound = bind_quit_arguments(&arguments)?;
+        let mut values = [
+            Sexp::String(vec![Some("default".to_string())]),
+            Sexp::Integer(vec![Some(0)]),
+            Sexp::Logical(vec![Some(true)]),
+        ];
+        for (index, argument) in bound.into_iter().enumerate() {
+            if let Some(argument) = argument {
+                values[index] = match self.eval_flow(&argument.value)? {
+                    EvalFlow::Value(value) => value,
+                    flow => return Ok(flow),
+                };
+            }
+        }
+        let save = match string_scalar(&values[0], "save")?.as_str() {
+            "default" => SaveAction::Default,
+            "no" => SaveAction::No,
+            "yes" => SaveAction::Yes,
+            "ask" => SaveAction::Ask,
+            _ => {
+                return Err(EvalError::Domain(
+                    "unrecognized value of 'save'".to_string(),
+                ))
+            }
+        };
+        let status = coerce_integer_values(&values[1])?
+            .first()
+            .copied()
+            .flatten();
+        let run_last = coerce_logical_values(&values[2])?
+            .first()
+            .copied()
+            .flatten();
+        for (valid, message) in [
+            (status.is_some(), "invalid 'status', 0 assumed"),
+            (run_last.is_some(), "invalid 'runLast', FALSE assumed"),
+        ] {
+            if !valid {
+                // shortcut: console warning only until the condition system exists.
+                self.emit(OutputEvent::Stderr(format!("Warning: {message}\n")))?;
+            }
+        }
+        Err(EvalError::Quit(QuitRequest {
+            save,
+            status: status.unwrap_or(0),
+            run_last: run_last.unwrap_or(false),
+        }))
+    }
+
     fn call_builtin(&mut self, name: &str, args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
         self.visible = true;
         let result = match name {
+            "q" | "quit" => {
+                let arguments = args
+                    .iter()
+                    .map(|arg| CallArgument {
+                        name: arg.name.clone(),
+                        value: arg.value.clone(),
+                    })
+                    .collect::<Vec<_>>();
+                return match self.eval_quit_call(&arguments)? {
+                    EvalFlow::Value(value) | EvalFlow::Return(value) => Ok(value),
+                    _ => Err(EvalError::Control(
+                        "loop control used in quit arguments".to_string(),
+                    )),
+                };
+            }
             "print" => {
                 let value = positional(args, 0, "x")?.clone();
                 let quote = named_bool_arg(args, &["quote"], true)?;
@@ -1375,6 +1472,67 @@ fn visibility_result(value: Sexp, visible: bool) -> Sexp {
     ])
 }
 
+fn bind_quit_arguments(
+    arguments: &[CallArgument],
+) -> Result<[Option<&CallArgument>; 3], EvalError> {
+    let formals = ["save", "status", "runLast"];
+    let mut bound = [None; 3];
+    let mut exact = [false; 3];
+    for argument in arguments {
+        if let Some(index) = argument
+            .name
+            .as_deref()
+            .and_then(|name| formals.iter().position(|formal| *formal == name))
+        {
+            if bound[index].replace(argument).is_some() {
+                return Err(EvalError::Arity(format!(
+                    "argument {} matched twice",
+                    formals[index]
+                )));
+            }
+            exact[index] = true;
+        }
+    }
+    for argument in arguments {
+        if let Some(name) = argument
+            .name
+            .as_deref()
+            .filter(|name| !formals.contains(name))
+        {
+            let matches = formals
+                .iter()
+                .enumerate()
+                .filter(|(index, formal)| !exact[*index] && formal.starts_with(name))
+                .map(|(index, _)| index)
+                .collect::<Vec<_>>();
+            let index = match matches.as_slice() {
+                [index] => *index,
+                [] => return Err(EvalError::Arity(format!("unused argument {name}"))),
+                _ => {
+                    return Err(EvalError::Arity(format!(
+                        "argument {name} matches multiple formal arguments"
+                    )))
+                }
+            };
+            if bound[index].replace(argument).is_some() {
+                return Err(EvalError::Arity(format!(
+                    "argument {} matched twice",
+                    formals[index]
+                )));
+            }
+        }
+    }
+    for argument in arguments.iter().filter(|arg| arg.name.is_none()) {
+        let Some(slot) = bound.iter_mut().find(|value| value.is_none()) else {
+            return Err(EvalError::Arity(
+                "too many positional arguments".to_string(),
+            ));
+        };
+        *slot = Some(argument);
+    }
+    Ok(bound)
+}
+
 fn output_strings(
     args: &[&EvaluatedArgument],
     factor_codes: bool,
@@ -1927,6 +2085,8 @@ fn is_builtin(name: &str) -> bool {
             | "cat"
             | "writeLines"
             | "message"
+            | "q"
+            | "quit"
     )
 }
 
@@ -9357,8 +9517,34 @@ fn format_number(value: f64) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{format_sexp, EvalError, Frontend, OutputEvent};
+    use super::{format_sexp, EvalError, Frontend, OutputEvent, QuitRequest, SaveAction};
     use r_ust_sexp::Sexp;
+
+    #[test]
+    fn quit_is_host_control_and_unwinds_local_scopes() {
+        let mut frontend = Frontend::default();
+        assert_eq!(
+            frontend.eval_source_printed(
+                "f<-function(){local_value<-9;print(1);q(\"no\",7,FALSE)};f();print(2)"
+            ),
+            Err(EvalError::Quit(QuitRequest {
+                save: SaveAction::No,
+                status: 7,
+                run_last: false
+            }))
+        );
+        assert!(frontend.runtime().get("local_value").is_none());
+        assert!(frontend.runtime().get("f").is_some());
+        assert_eq!(
+            frontend.runtime_mut().take_output(),
+            vec![OutputEvent::Stdout("[1] 1\n".to_string())]
+        );
+        frontend.eval_source_printed("3").unwrap();
+        assert_eq!(
+            frontend.runtime_mut().take_output(),
+            vec![OutputEvent::Stdout("[1] 3\n".to_string())]
+        );
+    }
 
     #[test]
     fn captures_console_order_and_retains_output_on_error() {

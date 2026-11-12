@@ -2,18 +2,22 @@ use std::fs;
 use std::io::{self, BufRead, IsTerminal, Write};
 use std::path::PathBuf;
 
-use r_ust_runtime::{EvalError, Frontend, OutputEvent, ParseStatus, Parser, PORT_TARGET};
+use r_ust_runtime::{
+    EvalError, Frontend, OutputEvent, ParseStatus, Parser, QuitRequest, SaveAction, PORT_TARGET,
+};
 
 const HELP: &str = "Usage: r_ust_cli [options] [script.R]
 
 With no script or expression, start a console on a terminal or read piped stdin.
-Console input supports multiple lines. Press Ctrl-D to exit.
+Console input supports multiple lines. Use q() or Ctrl-D to exit.
+Workspace saving is not implemented; choose n or c at the save prompt.
 
   -e EXPR          Evaluate an expression
   -f, --file FILE  Run a script; use - for stdin
   -                Read stdin without prompts
   -q, --quiet      Suppress the console startup banner
-  --vanilla        Accepted for compatibility; startup files are not loaded
+  --no-save        Exit without prompting to save the workspace
+  --vanilla        Implies --no-save; startup files are not loaded
   --version        Show version and R compatibility target
   -h, --help       Show this help
 ";
@@ -33,6 +37,7 @@ pub struct CliConfig {
     pub mode: CliMode,
     pub quiet: bool,
     pub vanilla: bool,
+    pub no_save: bool,
 }
 
 impl CliConfig {
@@ -43,13 +48,18 @@ impl CliConfig {
     {
         let mut quiet = false;
         let mut vanilla = false;
+        let mut no_save = false;
         let mut mode = CliMode::Interactive;
         let mut args = args.into_iter().map(Into::into).peekable();
 
         while let Some(arg) = args.next() {
             match arg.as_str() {
                 "--quiet" | "-q" => quiet = true,
-                "--vanilla" => vanilla = true,
+                "--vanilla" => {
+                    vanilla = true;
+                    no_save = true;
+                }
+                "--no-save" => no_save = true,
                 "--version" | "version" => mode = CliMode::Version,
                 "--help" | "-h" => mode = CliMode::Help,
                 "-" => mode = CliMode::Stdin,
@@ -83,6 +93,7 @@ impl CliConfig {
             mode,
             quiet,
             vanilla,
+            no_save,
         })
     }
 }
@@ -93,18 +104,19 @@ impl Default for CliConfig {
             mode: CliMode::Interactive,
             quiet: false,
             vanilla: false,
+            no_save: false,
         }
     }
 }
 
-pub fn run(config: CliConfig) -> Result<(), String> {
+pub fn run(config: CliConfig) -> Result<i32, String> {
     if matches!(config.mode, CliMode::Interactive | CliMode::Stdin) {
         return run_input(config);
     }
-    execute(config, Some(write_console)).map(|_| ())
+    execute(config, Some(write_console)).map(|(_, status)| status)
 }
 
-fn run_input(config: CliConfig) -> Result<(), String> {
+fn run_input(config: CliConfig) -> Result<i32, String> {
     // shortcut: canonical terminal input; add a line editor for history and interrupt recovery.
     let input = io::stdin();
     let interactive = input.is_terminal() && config.mode == CliMode::Interactive;
@@ -113,7 +125,7 @@ fn run_input(config: CliConfig) -> Result<(), String> {
     frontend.runtime_mut().set_output_sink(write_console);
     if interactive && !config.quiet {
         write_console(OutputEvent::Stdout(format!(
-            "R-ust 0.1.0\n{PORT_TARGET}\nPress Ctrl-D to exit.\n"
+            "R-ust 0.1.0\n{PORT_TARGET}\nUse q() or Ctrl-D to exit.\n"
         )))
         .map_err(|error| error.to_string())?;
     }
@@ -125,28 +137,43 @@ fn run_input(config: CliConfig) -> Result<(), String> {
             ))
             .map_err(|error| error.to_string())?;
         }
-        if input
+        let result = if input
             .read_line(&mut source)
             .map_err(|error| error.to_string())?
             == 0
         {
-            return if source.is_empty() {
-                Ok(())
-            } else {
-                Err("parse error: unexpected end of input".to_string())
-            };
-        }
-        let result = match Parser.parse_all(&source) {
-            Ok(_) => match frontend.eval_source_printed(&source) {
-                Err(error @ EvalError::Output(_)) => return Err(error.to_string()),
-                result => result.map_err(|error| error.to_string()),
+            if !source.is_empty() {
+                return Err("parse error: unexpected end of input".to_string());
+            }
+            Err(EvalError::Quit(QuitRequest {
+                save: SaveAction::Default,
+                status: 0,
+                run_last: true,
+            }))
+        } else {
+            match Parser.parse_all(&source) {
+                Ok(_) => frontend.eval_source_printed(&source),
+                Err(error) if error.status == ParseStatus::Incomplete => continue,
+                Err(error) => Err(EvalError::Parse(error.message)),
+            }
+        };
+        let result = match result {
+            Err(EvalError::Quit(request)) => match complete_quit(
+                &mut frontend,
+                request,
+                interactive,
+                config.no_save || config.vanilla,
+                &mut input,
+            ) {
+                Ok(Some(status)) => return Ok(status),
+                Ok(None) => Ok(()),
+                Err(error) => Err(error),
             },
-            Err(error) if error.status == ParseStatus::Incomplete => continue,
-            Err(error) => Err(format!("parse error: {}", error.message)),
+            other => other,
         };
         if let Err(error) = result {
-            if !interactive {
-                return Err(error);
+            if !interactive || matches!(error, EvalError::Output(_)) {
+                return Err(error.to_string());
             }
             write_console(OutputEvent::Stderr(format!("Error: {error}\n")))
                 .map_err(|error| error.to_string())?;
@@ -155,9 +182,70 @@ fn run_input(config: CliConfig) -> Result<(), String> {
     }
 }
 
-/// Captures stdout. Console messages on stderr are available through runtime output events.
+fn complete_quit(
+    frontend: &mut Frontend,
+    mut request: QuitRequest,
+    interactive: bool,
+    no_save: bool,
+    input: &mut dyn BufRead,
+) -> Result<Option<i32>, EvalError> {
+    let output_error = |error: io::Error| EvalError::Output(error.to_string());
+    loop {
+        let mut save = match request.save {
+            SaveAction::Default if interactive && !no_save => SaveAction::Ask,
+            SaveAction::Default => SaveAction::No,
+            action => action,
+        };
+        if save == SaveAction::Ask {
+            if interactive {
+                loop {
+                    write_console(OutputEvent::Stdout(
+                        "Save workspace image? [y/n/c]: ".to_string(),
+                    ))
+                    .map_err(output_error)?;
+                    let mut answer = String::new();
+                    let read = input.read_line(&mut answer).map_err(output_error)?;
+                    match answer.chars().next() {
+                        Some('y' | 'Y') => {
+                            save = SaveAction::Yes;
+                            break;
+                        }
+                        Some('n' | 'N') => {
+                            save = SaveAction::No;
+                            break;
+                        }
+                        Some('c' | 'C') => return Ok(None),
+                        _ if read == 0 => {
+                            save = SaveAction::No;
+                            break;
+                        }
+                        _ => {}
+                    }
+                }
+            } else {
+                write_console(OutputEvent::Stderr("Warning: save=\"ask\" in non-interactive use: command-line default will be used\n".to_string())).map_err(output_error)?;
+                save = SaveAction::No;
+            }
+        }
+        if save == SaveAction::Yes {
+            return Err(EvalError::NotImplemented("workspace saving"));
+        }
+        if request.run_last {
+            match frontend.runtime_mut().run_last() {
+                Err(EvalError::Quit(next)) => {
+                    request = next;
+                    continue;
+                }
+                result => result?,
+            }
+        }
+        return Ok(Some(request.status));
+    }
+}
+
+/// Captures stdout, including explicit quit requests. Use `run` for process exit status.
 pub fn run_to_string(config: CliConfig) -> Result<String, String> {
-    let output = execute(config, None)?;
+    let (output, _) = execute(config, None)?;
     Ok(output
         .into_iter()
         .filter_map(|event| match event {
@@ -170,7 +258,7 @@ pub fn run_to_string(config: CliConfig) -> Result<String, String> {
 fn execute(
     config: CliConfig,
     sink: Option<fn(OutputEvent) -> io::Result<()>>,
-) -> Result<Vec<OutputEvent>, String> {
+) -> Result<(Vec<OutputEvent>, i32), String> {
     let source = match config.mode {
         CliMode::Version | CliMode::Help => {
             let text = if config.mode == CliMode::Help {
@@ -181,9 +269,9 @@ fn execute(
             let event = OutputEvent::Stdout(text);
             if let Some(sink) = sink {
                 sink(event).map_err(|error| error.to_string())?;
-                return Ok(Vec::new());
+                return Ok((Vec::new(), 0));
             }
-            return Ok(vec![event]);
+            return Ok((vec![event], 0));
         }
         CliMode::Expression(source) => source,
         CliMode::File(path) => fs::read_to_string(&path)
@@ -198,10 +286,26 @@ fn execute(
     if let Some(sink) = sink {
         frontend.runtime_mut().set_output_sink(sink);
     }
-    frontend
-        .eval_source_printed(&source)
-        .map_err(|error| error.to_string())?;
-    Ok(frontend.runtime_mut().take_output())
+    let status = match frontend.eval_source_printed(&source) {
+        Ok(()) => complete_quit(
+            &mut frontend,
+            QuitRequest {
+                save: SaveAction::No,
+                status: 0,
+                run_last: true,
+            },
+            false,
+            true,
+            &mut io::empty(),
+        ),
+        Err(EvalError::Quit(request)) => {
+            complete_quit(&mut frontend, request, false, true, &mut io::empty())
+        }
+        Err(error) => return Err(error.to_string()),
+    }
+    .map_err(|error| error.to_string())?
+    .unwrap_or(0);
+    Ok((frontend.runtime_mut().take_output(), status))
 }
 
 fn write_console(event: OutputEvent) -> io::Result<()> {
@@ -232,6 +336,7 @@ mod tests {
                 mode: CliMode::Expression("1 + 1".to_string()),
                 quiet: true,
                 vanilla: true,
+                no_save: true,
             }
         );
     }
@@ -242,6 +347,7 @@ mod tests {
             mode: CliMode::Expression("x <- 1 + 1; x".to_string()),
             quiet: true,
             vanilla: true,
+            no_save: true,
         })
         .unwrap();
         assert_eq!(output, "[1] 2\n");

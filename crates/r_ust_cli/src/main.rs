@@ -4,8 +4,12 @@ fn main() {
             eprintln!("{message}");
             std::process::exit(2);
         });
-    if let Err(message) = r_ust_cli::run(config) {
-        eprintln!("{message}");
-        std::process::exit(2);
+    match r_ust_cli::run(config) {
+        Ok(0) => {}
+        Ok(status) => std::process::exit(status),
+        Err(message) => {
+            eprintln!("{message}");
+            std::process::exit(1);
+        }
     }
 }
