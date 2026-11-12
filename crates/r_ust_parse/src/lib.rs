@@ -60,6 +60,13 @@ impl Parser {
         }
     }
 
+    /// Parses arriving input; a final statement without a separator remains incomplete.
+    pub fn parse_iter_open<'a>(&self, source: &'a str) -> ParseIter<'a> {
+        let mut statements = self.parse_iter(source);
+        statements.lexer.open_input = true;
+        statements
+    }
+
     pub fn parse_all(&self, source: &str) -> Result<ParseResult, ParseError> {
         let mut lexer = Lexer::new(source);
         let tokens = lexer
@@ -117,6 +124,10 @@ impl Iterator for ParseIter<'_> {
                     ));
                 }
             }
+            let terminated = matches!(
+                tokens.iter().rev().nth(1),
+                Some(Token::Newline | Token::Semicolon)
+            );
             let mut parser = SyntaxParser {
                 tokens,
                 position: 0,
@@ -124,6 +135,15 @@ impl Iterator for ParseIter<'_> {
             };
             match parser.parse_program() {
                 Ok(expressions) => {
+                    if self.lexer.open_input
+                        && self.lexer.peek().is_none()
+                        && !terminated
+                        && (!expressions.is_empty() || self.lexer.unterminated_comment)
+                    {
+                        self.finished = true;
+                        return Some(Err(ParseError::incomplete("statement needs more input")
+                            .with_warnings(std::mem::take(&mut self.lexer.warnings))));
+                    }
                     self.consumed_bytes = self.lexer.byte_position();
                     return Some(Ok(ParseResult {
                         status: if expressions.is_empty() {
@@ -200,6 +220,8 @@ struct Lexer<'a> {
     chars: Vec<char>,
     position: usize,
     warnings: Vec<String>,
+    open_input: bool,
+    unterminated_comment: bool,
 }
 
 impl<'a> Lexer<'a> {
@@ -209,11 +231,21 @@ impl<'a> Lexer<'a> {
             chars: source.chars().collect(),
             position: 0,
             warnings: Vec::new(),
+            open_input: false,
+            unterminated_comment: false,
         }
     }
 
     fn tokenize(&mut self) -> Result<Vec<Token>, ParseError> {
         self.tokenize_chunk(false)
+    }
+
+    fn missing_token(&self, message: impl Into<String>) -> ParseError {
+        if self.open_input && self.peek().is_none() {
+            ParseError::incomplete(message)
+        } else {
+            ParseError::new(message)
+        }
     }
 
     fn tokenize_chunk(&mut self, stop_at_statement: bool) -> Result<Vec<Token>, ParseError> {
@@ -338,7 +370,7 @@ impl<'a> Lexer<'a> {
                         if self.consume('-') {
                             tokens.push(Token::AssignLeftSuper);
                         } else {
-                            return Err(ParseError::new(format!(
+                            return Err(self.missing_token(format!(
                                 "unexpected operator << at byte {}",
                                 self.byte_position()
                             )));
@@ -447,6 +479,7 @@ impl<'a> Lexer<'a> {
             }
             self.advance();
         }
+        self.unterminated_comment = self.peek().is_none();
     }
 
     fn starts_number(&self) -> bool {
@@ -509,7 +542,7 @@ impl<'a> Lexer<'a> {
                 self.advance();
             }
             if exp_start == self.position {
-                return Err(ParseError::new("invalid numeric exponent"));
+                return Err(self.missing_token("invalid numeric exponent"));
             }
         }
         let text: String = self.chars[start..self.position].iter().collect();
@@ -541,7 +574,7 @@ impl<'a> Lexer<'a> {
             self.advance();
         }
         if self.position == start {
-            return Err(ParseError::new("invalid hexadecimal literal"));
+            return Err(self.missing_token("invalid hexadecimal literal"));
         }
         let mut exponent = 0_i64;
         if matches!(self.peek(), Some('p' | 'P')) {
@@ -558,7 +591,7 @@ impl<'a> Lexer<'a> {
                 self.advance();
             }
             if self.position == start {
-                return Err(ParseError::new("invalid hexadecimal exponent"));
+                return Err(self.missing_token("invalid hexadecimal exponent"));
             }
             if negative {
                 exponent = -exponent;
@@ -830,7 +863,9 @@ struct SyntaxParser {
 impl SyntaxParser {
     fn parse_program(&mut self) -> Result<Vec<Sexp>, ParseError> {
         let mut expressions = Vec::new();
-        self.consume_separators();
+        while matches!(self.peek(), Token::Newline) {
+            self.advance();
+        }
         while !matches!(self.peek(), Token::Eof) {
             expressions.push(self.parse_expression()?);
             if matches!(self.peek(), Token::Eof) {
@@ -1284,7 +1319,7 @@ impl SyntaxParser {
         self.consume_separators();
         while !matches!(self.peek(), Token::RBrace | Token::Eof) {
             expressions.push(self.parse_expression()?);
-            if matches!(self.peek(), Token::RBrace) {
+            if matches!(self.peek(), Token::RBrace | Token::Eof) {
                 break;
             }
             if !self.consume_separators() {
@@ -1298,7 +1333,13 @@ impl SyntaxParser {
 
     fn consume_separators(&mut self) -> bool {
         let mut consumed = false;
-        while matches!(self.peek(), Token::Semicolon | Token::Newline) {
+        if matches!(self.peek(), Token::Semicolon) {
+            self.advance();
+            consumed = true;
+        }
+        while matches!(self.peek(), Token::Newline)
+            || (self.block_depth > 0 && matches!(self.peek(), Token::Semicolon))
+        {
             self.advance();
             consumed = true;
         }
@@ -1398,13 +1439,73 @@ mod tests {
     }
 
     #[test]
+    fn open_input_waits_for_separators_and_partial_tokens() {
+        for source in ["1", "# comment", "1e", "0x", "0x1p+", "x<<", "{1"] {
+            let mut statements = Parser.parse_iter_open(source);
+            assert_eq!(
+                statements.next().unwrap().unwrap_err().status,
+                ParseStatus::Incomplete,
+                "{source:?}"
+            );
+            assert_eq!(statements.consumed_bytes(), 0);
+        }
+        for source in ["1e2\n", "0x10;", "0x1p+2\n", "x<<-1\n", "r\"--(v)--\"\n"] {
+            let actual = Parser.parse_iter_open(source).next().unwrap().unwrap();
+            assert_eq!(
+                actual.expressions,
+                Parser.parse_all(source).unwrap().expressions
+            );
+        }
+        assert!(Parser.parse_all("1").is_ok());
+        assert_eq!(
+            Parser.parse_iter_open(" ").next().unwrap().unwrap().status,
+            ParseStatus::Null
+        );
+        assert_eq!(
+            Parser
+                .parse_iter_open("r\"--")
+                .next()
+                .unwrap()
+                .unwrap_err()
+                .status,
+            ParseStatus::Error
+        );
+        assert_eq!(
+            Parser.parse_all("1e").unwrap_err().status,
+            ParseStatus::Error
+        );
+        assert_eq!(
+            Parser
+                .parse_iter_open("@")
+                .next()
+                .unwrap()
+                .unwrap_err()
+                .status,
+            ParseStatus::Error
+        );
+    }
+
+    #[test]
+    fn open_input_commits_only_terminated_statements_and_their_warnings() {
+        let mut statements = Parser.parse_iter_open("1.5L;0x");
+        assert_eq!(statements.next().unwrap().unwrap().warnings.len(), 1);
+        assert_eq!(statements.consumed_bytes(), "1.5L;".len());
+        assert_eq!(
+            statements.next().unwrap().unwrap_err().status,
+            ParseStatus::Incomplete
+        );
+        assert_eq!(statements.consumed_bytes(), "1.5L;".len());
+    }
+
+    #[test]
     fn statement_iterator_preserves_grouped_and_multiline_syntax() {
         for source in [
             "1 +\n2;3",
             "sum({\nx<-1\nx+2\n},4);5",
             "f<-function(x)\n{x+1};f(2)",
             "cat(\"; # \\\"\"); # comment\n2",
-            " ; # blank input\n",
+            " # blank input\n",
+            "{;;1;;2;}",
             "{if(TRUE)1\nelse 2};3",
         ] {
             let expected = Parser.parse_all(source).unwrap().expressions;
@@ -1421,6 +1522,9 @@ mod tests {
     #[test]
     fn else_obeys_newline_and_semicolon_boundaries() {
         for source in [
+            ";1",
+            "1;;2",
+            "1\n;2",
             "if(TRUE)1\nelse 2",
             "if(TRUE)1;else 2",
             "f<-function(x)if(x)1\nelse 2",

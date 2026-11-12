@@ -108,9 +108,9 @@ Malformed `-e` and `-f` arguments return status 1 on stderr. File-open failures 
 
 `run_main` accepts a complete invocation and performs these startup actions. `CliConfig::from_args` builds configuration without file I/O and keeps its `Result<Self, String>` API. `run` executes a prepared configuration; `run_to_string` captures output and returns file-read errors to its caller. Use `run_main` when the full invocation's file-open order matters.
 
-Files execute as lines arrive, so complete commands can produce output before EOF. Quit, parse errors and evaluation errors stop requests for further source lines. File reads validate UTF-8 one line at a time; quitting on an earlier line skips later invalid bytes. `run_to_string` uses the same reader and captures successful output.
+Source reads stop at a newline or 4095 bytes, matching R's console buffer. Complete statements execute before line completion or EOF; unfinished tokens and UTF-8 characters wait for the next chunk. Echo preserves each chunk's raw bytes and inserts continuation prompts between chunks, even inside a UTF-8 character. Quit, parse errors and evaluation errors stop further source reads. Quitting before an invalid byte skips it, including after a semicolon on the same line. `run_to_string` uses the same reader and captures successful output.
 
-Remaining input boundaries: lines longer than R's console buffer echo as one line rather than separate buffer chunks. UTF-8 validation covers a whole line before evaluation, unlike R's byte-based lexer; invalid bytes after a quit on the same line and truncated multibyte sequences at EOF can differ. Stdin encoding translation and byte cuts inside UTF-8 characters are not implemented. `scripts/check-cli-echo.py` records long-line differences separately from passing comparisons. Shell field splitting, filename transformation and escape-validation ordering still have gaps. Unsupported main-CLI options fail with status 2 rather than R's warning-and-continue behavior.
+Remaining input boundaries: truncated multibyte sequences at EOF can differ from R's byte-based lexer. Stdin encoding translation and non-UTF-8 strings remain incomplete. Shell field splitting, filename transformation and escape-validation ordering still have gaps. Unsupported main-CLI options fail with status 2 rather than R's warning-and-continue behavior.
 
 ## Native Rscript frontend
 
@@ -125,7 +125,7 @@ cargo run -q -p r_ust_cli --bin Rscript -- example.R first "two words"
 
 Rscript runs files, repeated `-e` expressions, and stdin via `-`. It is non-interactive even when stdin is a terminal. After a file, every remaining token is a user argument. After expressions, only consecutive `-e` options add code; the first other token starts user arguments. Put frontend options before the file or first expression. A literal `--args` after code is itself a user argument, matching Rscript.
 
-Script files preserve their trailing blank lines and EOF behavior. Rscript uses a buffered line reader and evaluates complete commands without waiting for file EOF or adding the extra newline used for `-e` arguments. File-open failures retain startup status 2; failures while reading source return session status 1 and preserve already streamed output. `scripts/check-file-input.py` compares files and piped input with R, including LF/CRLF, comments, errors, quit handling, and whitespace rules. `scripts/check-file-stream.py` checks live FIFO execution in both frontends.
+Script files preserve their trailing blank lines and EOF behavior. Rscript uses the shared buffered chunk reader and evaluates complete commands without waiting for file EOF or adding the extra newline used for `-e` arguments. File-open failures retain startup status 2; failures while reading source return session status 1 and preserve already streamed output. `scripts/check-file-input.py` compares files and piped input with R, including LF/CRLF, comments, errors, quit handling, and whitespace rules. `scripts/check-file-stream.py` checks live FIFO execution in both frontends.
 
 `commandArgs()` includes the native executable name, the default `--no-echo` and `--no-restore` options, and the normalized invocation. Expression whitespace and file-path spaces use the Unix R launcher's encoding. `commandArgs(TRUE)` preserves user arguments, including empty strings. Source-file open failures return status 2; parse and evaluation errors return status 1; `q()` preserves its requested status.
 
@@ -147,6 +147,10 @@ For executable scripts, put the directory containing R-ust's `Rscript` on `PATH`
 Embedded evaluators report `EvalError::Quit(QuitRequest)` without exiting the host process. The CLI handles shutdown and returns the requested integer process status from `r_ust_cli::run`.
 
 `CliConfig::startup_stdout` holds raw bytes emitted before the session starts. Struct literals must initialize it or use `..CliConfig::default()`. `run_to_string` captures UTF-8 startup output and returns an error when those bytes are not valid UTF-8; `run` streams the original bytes.
+
+`OutputEvent::StdoutBytes(Vec<u8>)` carries console echo chunks that are not valid UTF-8 individually. Output consumers must handle this variant alongside `Stdout(String)` and `Stderr(String)` and preserve byte order. `run_to_string` decodes the combined output and returns an error if continuation prompts split a UTF-8 sequence; use `run` to stream those bytes unchanged.
+
+`Parser::parse_iter_open` parses arriving source. It commits terminated statements while leaving a final nonblank statement without a newline or semicolon incomplete, including unfinished numeric tokens. Raw string openers must finish within a chunk, matching R's lexical error behavior. `parse_iter` and `parse_all` continue to treat their input as complete source.
 
 `ParseResult::warnings` and `ParseError::warnings` preserve ordered parser diagnostics. Struct literals must initialize these vectors; `ParseError::new` and `ParseError::incomplete` initialize them automatically. Eager `Frontend` APIs process failure metadata; printed/CLI execution discards diagnostics from failed preflight parses. Errors accompanied by deferred warnings use `EvalError::WithWarnings`; its `source()` exposes the original error.
 
@@ -229,6 +233,7 @@ python3 scripts/check-hex-numbers.py
 python3 scripts/check-numeric-warnings.py
 python3 scripts/check-cli-startup.py
 python3 scripts/check-file-stream.py
+python3 scripts/check-console-buffer.py
 ```
 
 `scripts/check-c-abi.sh` builds the static library and links a C program against it to exercise the exported Rmath ABI. It requires a C compiler.
@@ -247,7 +252,9 @@ python3 scripts/check-file-stream.py
 
 `scripts/check-cli-startup.py` requires macOS R/Rscript 4.6.0, Python 3.11+, Unix FIFOs, and both built executables. It compares startup statuses and raw streams, including malformed arguments, help/version precedence, repeated files, directory input, stdin selection and conflicts. Live probes check warnings around a blocking file open and verify that earlier and selected streams remain open during evaluation. Help/version wording is excluded. Known shell-validation and unsupported-option differences are recorded separately in `target/cli-startup-parity.json`; they do not count as passing coverage. Executable snapshots and source/binary SHA-256 manifests bind results to the tested implementation; source changes during a run fail the driver.
 
-`scripts/check-file-stream.py` requires Python 3.11+, Unix FIFOs, independent R/Rscript 4.6.0 references, and both built executables. It holds each FIFO writer open while checking output, continuation prompts, split CRLF, warning timing and early exit. It also checks valid output before an invalid byte on a later line and skipping unread bytes after quit. Exact successful streams, statuses, live snapshots, source/binary hashes and reference locale are recorded in `target/file-stream-parity.json`. Error wording and `Execution halted` are excluded. Same-line byte validation and truncated multibyte EOF differences are recorded separately, outside passing coverage.
+`scripts/check-file-stream.py` requires Python 3.11+, Unix FIFOs, independent R/Rscript 4.6.0 references, and both built executables. It holds each FIFO writer open while checking output, continuation prompts, split CRLF, warning timing and early exit. It also checks valid output before an invalid byte and skipping unread bytes after quit on the same or a later line. Exact successful streams, statuses, live snapshots, source/binary hashes and reference locale are recorded in `target/file-stream-parity.json`. Error wording and `Execution halted` are excluded. Truncated multibyte EOF differences are recorded separately, outside passing coverage.
+
+`scripts/check-console-buffer.py` checks 4095-byte source boundaries against independent R/Rscript 4.6.0, including split numbers, operators, raw strings, escapes, UTF-8, CRLF and EOF. File, stdin and admitted expression cases compare raw successful streams and status; error wording is excluded. Live FIFO probes require output before a newline or EOF while the writer stays open. Results, byte-preserving captures and source/binary hashes are recorded in `target/console-buffer-parity.json`. Expression cases exceeding the launcher's admission limit are listed separately.
 
 ## License
 

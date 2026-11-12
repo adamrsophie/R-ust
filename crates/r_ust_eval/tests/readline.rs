@@ -6,15 +6,17 @@ fn string(value: &str) -> Sexp {
 }
 
 fn output(frontend: &mut Frontend) -> String {
-    frontend
+    let bytes = frontend
         .runtime_mut()
         .take_output()
         .into_iter()
-        .map(|event| match event {
-            OutputEvent::Stdout(text) => text,
+        .flat_map(|event| match event {
+            OutputEvent::Stdout(text) => text.into_bytes(),
+            OutputEvent::StdoutBytes(bytes) => bytes,
             OutputEvent::Stderr(text) => panic!("unexpected stderr: {text}"),
         })
-        .collect()
+        .collect();
+    String::from_utf8(bytes).unwrap()
 }
 
 fn forbidden_reader() -> std::io::Result<String> {

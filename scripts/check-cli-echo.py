@@ -176,13 +176,8 @@ with tempfile.TemporaryDirectory(prefix="r-ust-echo-") as directory:
         r, u, row = compare(["R", "--vanilla", "--quiet", *arguments],
                             [str(snapshots[0]), "--quiet", "--no-save", *arguments],
                             code, mode, False, directory)
-        row.update(kind="console-buffer", passed=False,
-                   limit_observed=(r.returncode == u.returncode == 0
-                                   and len(r.stdout) == len(u.stdout) + 2
-                                   and r.stdout.replace(b"+ ", b"") == u.stdout
-                                   and u.stdout.endswith(b"[1] 5000\n> \n")
-                                   and not r.stderr and not u.stderr))
-        limits.append(row)
+        row.update(kind="console-buffer")
+        results.append(row)
     terminals = [console(["R", "--vanilla", "--no-readline", "--no-echo"]),
                  console([str(snapshots[0]), "--no-echo"])]
 

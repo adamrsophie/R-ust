@@ -154,7 +154,7 @@ cases = [
 byte_cases: list[tuple[str, bytes, int, str]] = [
     ("quit-before-invalid-bytes", b"cat('BEFORE')\nq('no')\n\x80\n", 0, "bytes"),
     ("error-after-output", b"cat('BEFORE')\n\x80\n", 1, "bytes"),
-    ("same-line-byte-validation", b"cat('BEFORE')\nq('no');\x80\n", 0, "known"),
+    ("same-line-byte-validation", b"cat('BEFORE')\nq('no');\x80\n", 0, "bytes"),
     ("truncated-multibyte-eof", b"cat('BEFORE')\n\xff\n", 0, "known"),
 ]
 sources = {str(path): hashlib.sha256(path.read_bytes()).hexdigest()

@@ -128,6 +128,7 @@ pub struct RuntimeState {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum OutputEvent {
     Stdout(String),
+    StdoutBytes(Vec<u8>),
     Stderr(String),
 }
 
