@@ -16,6 +16,7 @@ pub enum EvalError {
     Domain(String),
     Control(String),
     MissingArgument(String),
+    Output(String),
     NotImplemented(&'static str),
 }
 
@@ -31,6 +32,7 @@ impl fmt::Display for EvalError {
             Self::MissingArgument(name) => {
                 write!(f, "argument '{name}' is missing, with no default")
             }
+            Self::Output(message) => write!(f, "output error: {message}"),
             Self::NotImplemented(feature) => write!(f, "{feature} is not implemented yet"),
         }
     }
@@ -68,6 +70,15 @@ enum ApplyFunction {
 pub struct RuntimeState {
     gc: Gc,
     scopes: Vec<HashMap<String, Sexp>>,
+    visible: bool,
+    output: Vec<OutputEvent>,
+    output_sink: Option<fn(OutputEvent) -> std::io::Result<()>>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum OutputEvent {
+    Stdout(String),
+    Stderr(String),
 }
 
 impl RuntimeState {
@@ -75,6 +86,9 @@ impl RuntimeState {
         Self {
             gc: Gc::new(gc_config),
             scopes: vec![HashMap::new()],
+            visible: true,
+            output: Vec::new(),
+            output_sink: None,
         }
     }
 
@@ -91,6 +105,7 @@ impl RuntimeState {
     }
 
     fn eval_flow(&mut self, expr: &Sexp) -> Result<EvalFlow, EvalError> {
+        self.visible = true;
         let result = match expr {
             Sexp::Nil
             | Sexp::MissingArg(_)
@@ -135,6 +150,7 @@ impl RuntimeState {
                         if let Some(else_branch) = else_branch {
                             return self.eval_flow(else_branch);
                         }
+                        self.visible = false;
                         EvalFlow::Value(Sexp::Nil)
                     }
                 }
@@ -312,8 +328,8 @@ impl RuntimeState {
                 };
                 let current = self.lookup(target)?.unwrap_or(Sexp::Nil);
                 let updated = subassign_value(&current, index.as_ref(), &replacement)?;
-                self.assign_local(target.clone(), updated.clone());
-                EvalFlow::Value(updated)
+                self.assign_local(target.clone(), updated);
+                EvalFlow::Value(replacement)
             }
             Sexp::MatrixSubassignment {
                 target,
@@ -347,8 +363,8 @@ impl RuntimeState {
                 let current = self.lookup(target)?.unwrap_or(Sexp::Nil);
                 let updated =
                     matrix_subassign_value(&current, row.as_ref(), col.as_ref(), &replacement)?;
-                self.assign_local(target.clone(), updated.clone());
-                EvalFlow::Value(updated)
+                self.assign_local(target.clone(), updated);
+                EvalFlow::Value(replacement)
             }
             Sexp::ExtractAssignment {
                 target,
@@ -367,8 +383,8 @@ impl RuntimeState {
                 };
                 let current = self.lookup(target)?.unwrap_or(Sexp::Nil);
                 let updated = extract_assign_value(&current, &index, &replacement)?;
-                self.assign_local(target.clone(), updated.clone());
-                EvalFlow::Value(updated)
+                self.assign_local(target.clone(), updated);
+                EvalFlow::Value(replacement)
             }
             Sexp::DollarAssignment {
                 target,
@@ -382,8 +398,8 @@ impl RuntimeState {
                 };
                 let current = self.lookup(target)?.unwrap_or(Sexp::Nil);
                 let updated = dollar_assign_value(&current, name, &replacement)?;
-                self.assign_local(target.clone(), updated.clone());
-                EvalFlow::Value(updated)
+                self.assign_local(target.clone(), updated);
+                EvalFlow::Value(replacement)
             }
             Sexp::NamesAssignment { target, value } => {
                 let replacement = match self.eval_flow(value)? {
@@ -393,8 +409,8 @@ impl RuntimeState {
                 };
                 let current = self.lookup(target)?.unwrap_or(Sexp::Nil);
                 let updated = names_assign_value(&current, &replacement)?;
-                self.assign_local(target.clone(), updated.clone());
-                EvalFlow::Value(updated)
+                self.assign_local(target.clone(), updated);
+                EvalFlow::Value(replacement)
             }
             Sexp::Binary { op, left, right } => {
                 let left = match self.eval_flow(left)? {
@@ -405,9 +421,11 @@ impl RuntimeState {
                 if matches!(op, BinaryOp::AndScalar | BinaryOp::OrScalar) {
                     match (*op, logical_scalar(&left, "left side of logical operator")?) {
                         (BinaryOp::AndScalar, Some(false)) => {
+                            self.visible = true;
                             return Ok(EvalFlow::Value(Sexp::Logical(vec![Some(false)])));
                         }
                         (BinaryOp::OrScalar, Some(true)) => {
+                            self.visible = true;
                             return Ok(EvalFlow::Value(Sexp::Logical(vec![Some(true)])));
                         }
                         _ => {}
@@ -432,8 +450,52 @@ impl RuntimeState {
                 function,
                 arguments,
             } => self.eval_call(function, arguments)?,
+            Sexp::Parenthesized(value) => match self.eval_flow(value)? {
+                EvalFlow::Value(value) => EvalFlow::Value(value),
+                flow => return Ok(flow),
+            },
         };
+        if is_assignment(expr)
+            || matches!(
+                expr,
+                Sexp::For { .. } | Sexp::While { .. } | Sexp::Repeat { .. }
+            )
+        {
+            self.visible = false;
+        } else if matches!(
+            expr,
+            Sexp::Parenthesized(_)
+                | Sexp::Binary { .. }
+                | Sexp::Unary { .. }
+                | Sexp::Subset { .. }
+                | Sexp::Subset2D { .. }
+                | Sexp::Extract { .. }
+                | Sexp::Dollar { .. }
+        ) {
+            self.visible = true;
+        }
         Ok(result)
+    }
+
+    pub fn is_visible(&self) -> bool {
+        self.visible
+    }
+
+    pub fn take_output(&mut self) -> Vec<OutputEvent> {
+        std::mem::take(&mut self.output)
+    }
+
+    pub fn set_output_sink(&mut self, sink: fn(OutputEvent) -> std::io::Result<()>) {
+        self.output_sink = Some(sink);
+    }
+
+    fn emit(&mut self, event: OutputEvent) -> Result<(), EvalError> {
+        if let Some(sink) = self.output_sink {
+            sink(event).map_err(|error| EvalError::Output(error.to_string()))
+        } else {
+            self.output.push(event);
+            Ok(())
+        }
     }
 
     pub fn get(&self, name: &str) -> Option<&Sexp> {
@@ -453,6 +515,9 @@ impl RuntimeState {
         function: &Sexp,
         arguments: &[CallArgument],
     ) -> Result<EvalFlow, EvalError> {
+        if let Sexp::Parenthesized(function) = function {
+            return self.eval_call(function, arguments);
+        }
         if let Sexp::Symbol(name) = function {
             if name == "missing" {
                 return self.eval_missing(arguments);
@@ -464,26 +529,37 @@ impl RuntimeState {
                 return self.call_value(value, arguments);
             }
             if is_builtin(name) {
+                if matches!(name.as_str(), "invisible" | "withVisible") {
+                    return self.eval_visibility_call(name, arguments);
+                }
                 if name == "with" {
                     return self.eval_with_call(arguments).map(EvalFlow::Value);
                 }
                 if name == "subset" {
-                    return self.eval_subset_call(arguments).map(EvalFlow::Value);
+                    let value = self.eval_subset_call(arguments)?;
+                    self.visible = true;
+                    return Ok(EvalFlow::Value(value));
                 }
                 if name == "transform" {
-                    return self.eval_transform_call(arguments).map(EvalFlow::Value);
+                    let value = self.eval_transform_call(arguments)?;
+                    self.visible = true;
+                    return Ok(EvalFlow::Value(value));
                 }
                 if name == "apply" {
-                    return self.eval_matrix_apply_call(arguments).map(EvalFlow::Value);
+                    let value = self.eval_matrix_apply_call(arguments)?;
+                    self.visible = true;
+                    return Ok(EvalFlow::Value(value));
                 }
                 if matches!(name.as_str(), "lapply" | "sapply") {
-                    return self.eval_apply_call(name, arguments).map(EvalFlow::Value);
+                    let value = self.eval_apply_call(name, arguments)?;
+                    self.visible = true;
+                    return Ok(EvalFlow::Value(value));
                 }
                 let evaluated = match self.eval_arguments(arguments)? {
                     ArgumentFlow::Value(value) => value,
                     ArgumentFlow::Return(value) => return Ok(EvalFlow::Return(value)),
                 };
-                return dispatch_call(name, &evaluated).map(EvalFlow::Value);
+                return self.call_builtin(name, &evaluated).map(EvalFlow::Value);
             }
             return Err(EvalError::UndefinedSymbol(name.clone()));
         }
@@ -494,6 +570,169 @@ impl RuntimeState {
             flow @ (EvalFlow::Break | EvalFlow::Next) => return Ok(flow),
         };
         self.call_value(value, arguments)
+    }
+
+    fn eval_visibility_call(
+        &mut self,
+        name: &str,
+        arguments: &[CallArgument],
+    ) -> Result<EvalFlow, EvalError> {
+        let arguments = expand_dots_call_arguments(arguments, &self.visible_environment())?;
+        if arguments.len() > 1 || (name == "withVisible" && arguments.is_empty()) {
+            return Err(EvalError::Arity(format!(
+                "{name}() requires {} argument",
+                if name == "invisible" {
+                    "at most one"
+                } else {
+                    "one"
+                }
+            )));
+        }
+        if arguments
+            .first()
+            .and_then(|arg| arg.name.as_deref())
+            .is_some_and(|name| name != "x")
+        {
+            return Err(EvalError::Arity(
+                "supplied argument name does not match 'x'".to_string(),
+            ));
+        }
+        let value = if let Some(argument) = arguments.first() {
+            match self.eval_flow(&argument.value)? {
+                EvalFlow::Value(value) => value,
+                flow => return Ok(flow),
+            }
+        } else {
+            Sexp::Nil
+        };
+        if name == "invisible" {
+            self.visible = false;
+            Ok(EvalFlow::Value(value))
+        } else {
+            let value = visibility_result(value, self.visible);
+            self.visible = true;
+            Ok(EvalFlow::Value(value))
+        }
+    }
+
+    fn call_builtin(&mut self, name: &str, args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
+        self.visible = true;
+        let result = match name {
+            "print" => {
+                let value = positional(args, 0, "x")?.clone();
+                let quote = named_bool_arg(args, &["quote"], true)?;
+                let text = if !quote {
+                    if let Sexp::String(values) = &value {
+                        format_line(
+                            values
+                                .iter()
+                                .map(|value| value.clone().unwrap_or_else(|| "NA".to_string()))
+                                .collect(),
+                        )
+                    } else {
+                        format_sexp(&value)
+                    }
+                } else {
+                    format_sexp(&value)
+                };
+                self.emit(OutputEvent::Stdout(format!("{text}\n")))?;
+                self.visible = false;
+                value
+            }
+            "invisible" | "withVisible" => {
+                if args.len() > 1 || (name == "withVisible" && args.is_empty()) {
+                    return Err(EvalError::Arity(format!(
+                        "invalid number of arguments to {name}()"
+                    )));
+                }
+                let value = args
+                    .first()
+                    .map(|arg| arg.value.clone())
+                    .unwrap_or(Sexp::Nil);
+                if name == "invisible" {
+                    self.visible = false;
+                    value
+                } else {
+                    visibility_result(value, true)
+                }
+            }
+            "cat" => {
+                for unsupported in ["fill", "labels"] {
+                    if let Some(value) = named_arg(args, &[unsupported]) {
+                        if !matches!(value, Sexp::Nil)
+                            && (unsupported == "labels"
+                                || logical_scalar(value, "fill")? != Some(false))
+                        {
+                            return Err(EvalError::NotImplemented("cat fill and labels"));
+                        }
+                    }
+                }
+                let separator = named_arg(args, &["sep"])
+                    .map(|value| {
+                        if value_len(value) != 1 {
+                            return Err(EvalError::NotImplemented("multiple cat separators"));
+                        }
+                        string_scalar(value, "sep")
+                    })
+                    .transpose()?
+                    .unwrap_or_else(|| " ".to_string());
+                let pieces = output_strings(
+                    &data_args(args, &["file", "sep", "fill", "labels", "append"]),
+                    true,
+                )?;
+                let mut text = pieces.join(&separator);
+                if !pieces.is_empty() && separator.contains('\n') && !text.ends_with('\n') {
+                    text.push('\n');
+                }
+                self.emit(console_event(named_arg(args, &["file"]), text)?)?;
+                self.visible = false;
+                Sexp::Nil
+            }
+            "writeLines" => {
+                let _use_bytes = bool_arg(args, 3, &["useBytes"], Some(false))?;
+                if positional(args, 1, "con").is_ok() {
+                    return Err(EvalError::NotImplemented("writeLines connections"));
+                }
+                let value = positional(args, 0, "text")?;
+                let Sexp::String(values) = value else {
+                    return Err(EvalError::Type(
+                        "can only write character objects".to_string(),
+                    ));
+                };
+                let sep = positional(args, 2, "sep")
+                    .ok()
+                    .map(|value| string_scalar(value, "sep"))
+                    .transpose()?
+                    .unwrap_or_else(|| "\n".to_string());
+                let mut text = String::new();
+                for value in values {
+                    text.push_str(value.as_deref().unwrap_or("NA"));
+                    text.push_str(&sep);
+                }
+                self.emit(OutputEvent::Stdout(text))?;
+                self.visible = false;
+                Sexp::Nil
+            }
+            "message" => {
+                if named_arg(args, &["domain"]).is_some_and(|value| !matches!(value, Sexp::Nil)) {
+                    return Err(EvalError::NotImplemented("message translation domains"));
+                }
+                let mut text =
+                    output_strings(&data_args(args, &["domain", "appendLF"]), false)?.concat();
+                if named_bool_arg(args, &["appendLF"], true)? {
+                    text.push('\n');
+                }
+                self.emit(OutputEvent::Stderr(text))?;
+                self.visible = false;
+                Sexp::Nil
+            }
+            _ => {
+                let value = dispatch_call(name, args)?;
+                self.visible = !matches!(name, "set.seed" | "set_seed");
+                value
+            }
+        };
+        Ok(result)
     }
 
     fn eval_missing(&self, arguments: &[CallArgument]) -> Result<EvalFlow, EvalError> {
@@ -640,6 +879,9 @@ impl RuntimeState {
     }
 
     fn resolve_apply_function(&mut self, expr: &Sexp) -> Result<ApplyFunction, EvalError> {
+        if let Sexp::Parenthesized(expr) = expr {
+            return self.resolve_apply_function(expr);
+        }
         if let Sexp::Symbol(name) = expr {
             if self.raw_lookup(name).is_none() && is_builtin(name) {
                 return Ok(ApplyFunction::Builtin(name.clone()));
@@ -681,7 +923,7 @@ impl RuntimeState {
                     value: element.clone(),
                 }];
                 call_args.extend(extra_args.iter().cloned());
-                dispatch_call(name, &call_args)
+                self.call_builtin(name, &call_args)
             }
         }
     }
@@ -1079,7 +1321,7 @@ impl Frontend {
             .collect()
     }
 
-    /// Evaluates `source` like the R top level: assignments run but their values are invisible.
+    /// Evaluates `source` and returns values whose evaluation is visible.
     pub fn eval_source_visible(&mut self, source: &str) -> Result<Vec<Sexp>, EvalError> {
         let parsed = self
             .parser
@@ -1089,10 +1331,26 @@ impl Frontend {
             .expressions
             .iter()
             .filter_map(|expr| match self.runtime.eval(expr) {
-                Ok(_) if is_assignment(expr) => None,
+                Ok(_) if !self.runtime.is_visible() => None,
                 result => Some(result),
             })
             .collect()
+    }
+
+    /// Emits explicit console effects and visible top-level values in evaluation order.
+    pub fn eval_source_printed(&mut self, source: &str) -> Result<(), EvalError> {
+        let parsed = self
+            .parser
+            .parse_all(source)
+            .map_err(|error| EvalError::Parse(error.message))?;
+        for expr in &parsed.expressions {
+            let value = self.runtime.eval(expr)?;
+            if self.runtime.is_visible() {
+                self.runtime
+                    .emit(OutputEvent::Stdout(format!("{}\n", format_sexp(&value))))?;
+            }
+        }
+        Ok(())
     }
 
     pub fn runtime(&self) -> &RuntimeState {
@@ -1101,6 +1359,61 @@ impl Frontend {
 
     pub fn runtime_mut(&mut self) -> &mut RuntimeState {
         &mut self.runtime
+    }
+}
+
+fn visibility_result(value: Sexp, visible: bool) -> Sexp {
+    Sexp::List(vec![
+        ListElement {
+            name: Some("value".to_string()),
+            value,
+        },
+        ListElement {
+            name: Some("visible".to_string()),
+            value: Sexp::Logical(vec![Some(visible)]),
+        },
+    ])
+}
+
+fn output_strings(
+    args: &[&EvaluatedArgument],
+    factor_codes: bool,
+) -> Result<Vec<String>, EvalError> {
+    let mut out = Vec::new();
+    for arg in args {
+        let values = if let (true, Sexp::Factor { codes, .. }) = (factor_codes, &arg.value) {
+            factor_numbers(codes)
+                .into_iter()
+                .map(|value| Some(format_number(value)))
+                .collect()
+        } else {
+            string_values(&arg.value)?
+        };
+        out.extend(
+            values
+                .into_iter()
+                .map(|value| value.unwrap_or_else(|| "NA".to_string())),
+        );
+    }
+    Ok(out)
+}
+
+fn console_event(target: Option<&Sexp>, text: String) -> Result<OutputEvent, EvalError> {
+    match target {
+        None => Ok(OutputEvent::Stdout(text)),
+        Some(Sexp::String(values)) if values.len() == 1 && values[0].as_deref() == Some("") => {
+            Ok(OutputEvent::Stdout(text))
+        }
+        Some(value)
+            if matches!(value, Sexp::Real(_) | Sexp::Integer(_)) && value_len(value) == 1 =>
+        {
+            match numeric_scalar(value, "connection")? {
+                1.0 => Ok(OutputEvent::Stdout(text)),
+                2.0 => Ok(OutputEvent::Stderr(text)),
+                _ => Err(EvalError::NotImplemented("non-console connections")),
+            }
+        }
+        _ => Err(EvalError::NotImplemented("file connections")),
     }
 }
 
@@ -1609,6 +1922,11 @@ fn is_builtin(name: &str) -> bool {
             | "rsignrank"
             | "rwilcox"
             | "print"
+            | "invisible"
+            | "withVisible"
+            | "cat"
+            | "writeLines"
+            | "message"
     )
 }
 
@@ -2591,7 +2909,6 @@ fn dispatch_call(name: &str, args: &[EvaluatedArgument]) -> Result<Sexp, EvalErr
                 (0..nn).map(|_| r_ust_nmath::rwilcox(m, n)).collect(),
             ))
         }
-        "print" => Ok(positional(args, 0, "x")?.clone()),
         _ => Err(EvalError::NotImplemented("requested function")),
     }
 }
@@ -8652,7 +8969,8 @@ fn value_len(value: &Sexp) -> usize {
         | Sexp::DollarAssignment { .. }
         | Sexp::NamesAssignment { .. }
         | Sexp::Binary { .. }
-        | Sexp::Unary { .. } => 1,
+        | Sexp::Unary { .. }
+        | Sexp::Parenthesized(_) => 1,
     }
 }
 
@@ -8810,7 +9128,8 @@ pub fn format_sexp(value: &Sexp) -> String {
         | Sexp::DollarAssignment { .. }
         | Sexp::NamesAssignment { .. }
         | Sexp::Binary { .. }
-        | Sexp::Unary { .. } => "<language>".to_string(),
+        | Sexp::Unary { .. }
+        | Sexp::Parenthesized(_) => "<language>".to_string(),
     }
 }
 
@@ -9038,8 +9357,47 @@ fn format_number(value: f64) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{format_sexp, EvalError, Frontend};
+    use super::{format_sexp, EvalError, Frontend, OutputEvent};
     use r_ust_sexp::Sexp;
+
+    #[test]
+    fn captures_console_order_and_retains_output_on_error() {
+        let mut frontend = Frontend::default();
+        frontend
+            .eval_source_printed("cat(\"a\"); message(\"b\"); 1")
+            .unwrap();
+        assert_eq!(
+            frontend.runtime_mut().take_output(),
+            vec![
+                OutputEvent::Stdout("a".to_string()),
+                OutputEvent::Stderr("b\n".to_string()),
+                OutputEvent::Stdout("[1] 1\n".to_string()),
+            ]
+        );
+        assert!(frontend
+            .eval_source_printed("print(2); missing_value")
+            .is_err());
+        assert_eq!(
+            frontend.runtime_mut().take_output(),
+            vec![OutputEvent::Stdout("[1] 2\n".to_string())]
+        );
+    }
+
+    #[test]
+    fn reports_output_sink_failures() {
+        fn fail_output(_: OutputEvent) -> std::io::Result<()> {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::BrokenPipe,
+                "closed output",
+            ))
+        }
+        let mut frontend = Frontend::default();
+        frontend.runtime_mut().set_output_sink(fail_output);
+        assert!(matches!(
+            frontend.eval_source_printed("print(1)"),
+            Err(EvalError::Output(_))
+        ));
+    }
 
     #[test]
     fn prints_small_doubles_without_losing_precision() {

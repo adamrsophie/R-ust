@@ -1,7 +1,8 @@
 use std::fs;
+use std::io::{self, Write};
 use std::path::PathBuf;
 
-use r_ust_runtime::{format_sexp, Frontend, Sexp, PORT_TARGET};
+use r_ust_runtime::{Frontend, OutputEvent, PORT_TARGET};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CliMode {
@@ -75,41 +76,66 @@ impl Default for CliConfig {
 }
 
 pub fn run(config: CliConfig) -> Result<(), String> {
-    let output = run_to_string(config)?;
-    print!("{output}");
-    Ok(())
+    execute(config, Some(write_console)).map(|_| ())
 }
 
+/// Captures stdout. Console messages on stderr are available through runtime output events.
 pub fn run_to_string(config: CliConfig) -> Result<String, String> {
-    match config.mode {
-        CliMode::Version => Ok(format!("R-ust 0.1.0\n{PORT_TARGET}\n")),
-        CliMode::Expression(source) => eval_to_string(&source),
-        CliMode::File(path) => {
-            let source = fs::read_to_string(&path)
-                .map_err(|error| format!("failed to read {}: {error}", path.display()))?;
-            eval_to_string(&source)
+    let output = execute(config, None)?;
+    Ok(output
+        .into_iter()
+        .filter_map(|event| match event {
+            OutputEvent::Stdout(text) => Some(text),
+            OutputEvent::Stderr(_) => None,
+        })
+        .collect())
+}
+
+fn execute(
+    config: CliConfig,
+    sink: Option<fn(OutputEvent) -> io::Result<()>>,
+) -> Result<Vec<OutputEvent>, String> {
+    let source = match config.mode {
+        CliMode::Version => {
+            let event = OutputEvent::Stdout(format!("R-ust 0.1.0\n{PORT_TARGET}\n"));
+            if let Some(sink) = sink {
+                sink(event).map_err(|error| error.to_string())?;
+                return Ok(Vec::new());
+            }
+            return Ok(vec![event]);
         }
+        CliMode::Expression(source) => source,
+        CliMode::File(path) => fs::read_to_string(&path)
+            .map_err(|error| format!("failed to read {}: {error}", path.display()))?,
         CliMode::Interactive => {
-            Err("interactive console is not implemented yet; use -e or a script file".to_string())
+            return Err(
+                "interactive console is not implemented yet; use -e or a script file".to_string(),
+            )
+        }
+    };
+    let mut frontend = Frontend::default();
+    if let Some(sink) = sink {
+        frontend.runtime_mut().set_output_sink(sink);
+    }
+    frontend
+        .eval_source_printed(&source)
+        .map_err(|error| error.to_string())?;
+    Ok(frontend.runtime_mut().take_output())
+}
+
+fn write_console(event: OutputEvent) -> io::Result<()> {
+    match event {
+        OutputEvent::Stdout(text) => {
+            let mut stream = io::stdout().lock();
+            stream.write_all(text.as_bytes())?;
+            stream.flush()
+        }
+        OutputEvent::Stderr(text) => {
+            let mut stream = io::stderr().lock();
+            stream.write_all(text.as_bytes())?;
+            stream.flush()
         }
     }
-}
-
-fn eval_to_string(source: &str) -> Result<String, String> {
-    let mut frontend = Frontend::default();
-    let values = frontend
-        .eval_source_visible(source)
-        .map_err(|error| error.to_string())?;
-    Ok(format_values(&values))
-}
-
-fn format_values(values: &[Sexp]) -> String {
-    values
-        .iter()
-        .filter(|value| !matches!(value, Sexp::Nil))
-        .map(format_sexp)
-        .map(|line| format!("{line}\n"))
-        .collect()
 }
 
 #[cfg(test)]

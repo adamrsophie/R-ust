@@ -64,6 +64,7 @@ cargo run -q -p r_ust_cli -- example.R
 - Control flow: `if`/`else`, `for`, `while`, `repeat`, `break`, `next`, and `return()`
 - Closures with lazily evaluated arguments and defaults, `missing()`, `...` forwarding, and exact named and positional argument matching
 - Operators: arithmetic, comparison, `:`, `&`, `|`, `&&`, `||`, and `%in%`
+- Result visibility through assignments, calls, parentheses, `invisible()`, and `withVisible()`
 
 **Data structures**
 
@@ -81,6 +82,7 @@ cargo run -q -p r_ust_cli -- example.R
 - Mathematics and statistics: `sum()`, `prod()`, `mean()`, `median()`, `var()`, `sd()`, `min()`, `max()`, `range()`, `pmin()`, `pmax()`, logarithms and exponentials, trigonometric and hyperbolic functions, rounding, and the gamma, beta, and polygamma families
 - Probability distributions: density, distribution, quantile, and random generation functions for the normal, uniform, binomial, Poisson, geometric, negative binomial, hypergeometric, exponential, gamma, beta, log-normal, Weibull, logistic, Cauchy, chi-square, t, F, signed rank, and Wilcoxon rank sum distributions, with noncentral variants of the beta, chi-square, t, and F distributions
 - Sampling: `sample()` and `sample.int()`, with and without replacement
+- Console output: `print()`, `cat()`, and default `writeLines()` output on stdout, and `message()` output on stderr, including inside functions and loops
 
 ## Rmath library
 
@@ -91,6 +93,8 @@ cargo run -q -p r_ust_cli -- example.R
 R-ust does not yet provide an interactive console, reference semantics for environments, general replacement functions, full attribute support (including row names and arrays), formulas, S3 and S4 dispatch, namespaces and package loading, condition handling, connections, graphics, serialization, or the base and recommended packages.
 
 Output formatting differs from R in places: numbers generally use 12 decimal places with trailing zeros trimmed, while tiny values use 12 significant digits. R defaults to 7 significant digits. Names are not yet shown when printing named vectors, and character vectors are not column aligned.
+
+Console output flushes during evaluation. Advanced printing options and S3 methods, file connections, `cat()` filling and vector separators, and message conditions and translation domains remain incomplete.
 
 Several Rmath families use different algorithms from R, and their agreement with R has not yet been validated across the full parameter range:
 

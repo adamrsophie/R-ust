@@ -322,6 +322,7 @@ pub enum Sexp {
         op: UnaryOp,
         value: Box<Sexp>,
     },
+    Parenthesized(Box<Sexp>),
 }
 
 impl Sexp {
@@ -364,6 +365,7 @@ impl Sexp {
             | Self::NamesAssignment { .. }
             | Self::Binary { .. }
             | Self::Unary { .. } => SexpType::Language,
+            Self::Parenthesized(_) => SexpType::Language,
         }
     }
 }
