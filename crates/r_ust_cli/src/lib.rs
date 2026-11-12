@@ -1,5 +1,5 @@
 use std::fs;
-use std::io::{self, IsTerminal, Write};
+use std::io::{self, IsTerminal, Read, Write};
 use std::path::{Path, PathBuf};
 
 mod launcher;
@@ -61,14 +61,14 @@ impl CliConfig {
         I: IntoIterator<Item = S>,
         S: Into<String>,
     {
-        Self::parse_args(args).map_err(StartupError::message)
+        Self::parse_args(args, |_| Ok(())).map_err(StartupError::message)
     }
 
-    // shortcut: file opens follow parsing; replay startup actions before claiming full error-order parity.
-    fn parse_args<I, S>(args: I) -> Result<Self, StartupError>
+    fn parse_args<I, S, F>(args: I, mut on_startup: F) -> Result<Self, StartupError>
     where
         I: IntoIterator<Item = S>,
         S: Into<String>,
+        F: FnMut(startup::Event<'_>) -> Result<(), StartupError>,
     {
         let mut quiet = false;
         let mut no_echo = false;
@@ -76,6 +76,7 @@ impl CliConfig {
         let mut no_save = false;
         let mut mode = CliMode::Interactive;
         let mut startup_stdout = Vec::new();
+        let mut expressions = String::new();
         let mut command_args = vec!["r_ust_cli".to_string()];
         command_args.extend(args.into_iter().map(Into::into));
         if let Some(mode) = startup::preflight(&command_args[1..])? {
@@ -103,7 +104,7 @@ impl CliConfig {
                 "--version" | "version" => mode = CliMode::Version,
                 "--help" | "-h" => mode = CliMode::Help,
                 "-" => {
-                    if matches!(&mode, CliMode::Expression(source) if !source.is_empty()) {
+                    if !expressions.is_empty() {
                         return Err(StartupError::Unsupported(
                             "cannot use stdin and -e together".into(),
                         ));
@@ -119,21 +120,13 @@ impl CliConfig {
                         .map_err(StartupError::Expression)?;
                     let index = command_args.len() - args.len() - 1;
                     command_args[index] = encoded.clone();
-                    let mut source = match &mut mode {
-                        CliMode::Expression(source) => std::mem::take(source),
-                        _ => String::new(),
-                    };
-                    launcher::append_expression(&mut source, &mut startup_stdout, &encoded);
-                    match mode {
-                        CliMode::File(_) => {
-                            if !source.is_empty() {
-                                return Err(StartupError::Fatal {
-                                    message: "cannot use -e with -f or --file".into(),
-                                    stdout: startup_stdout,
-                                });
-                            }
-                        }
-                        _ => mode = CliMode::Expression(source),
+                    let previous = startup_stdout.len();
+                    launcher::append_expression(&mut expressions, &mut startup_stdout, &encoded);
+                    if startup_stdout.len() != previous {
+                        on_startup(startup::Event::Stdout(&startup_stdout[previous..]))?;
+                    }
+                    if !matches!(mode, CliMode::File(_)) {
+                        mode = CliMode::Stdin;
                     }
                 }
                 _ if arg == "--file" || arg == "-f" || arg.starts_with("--file=") => {
@@ -148,23 +141,15 @@ impl CliConfig {
                                 StartupError::Unsupported(format!("{arg} requires a file path"))
                             }
                         })?;
-                    let has_expression =
-                        matches!(&mode, CliMode::Expression(source) if !source.is_empty());
-                    mode = if file == "-" {
-                        if has_expression {
-                            mode
-                        } else {
-                            CliMode::Stdin
+                    if file == "-" {
+                        if !matches!(mode, CliMode::File(_)) {
+                            mode = CliMode::Stdin;
                         }
                     } else {
-                        if has_expression {
-                            return Err(StartupError::Fatal {
-                                message: "cannot use -e with -f or --file".into(),
-                                stdout: startup_stdout,
-                            });
-                        }
-                        CliMode::File(PathBuf::from(file))
-                    };
+                        let path = PathBuf::from(file);
+                        on_startup(startup::Event::File(&path))?;
+                        mode = CliMode::File(path);
+                    }
                 }
                 "--args" => break,
                 _ if arg.starts_with('-') => {
@@ -173,7 +158,7 @@ impl CliConfig {
                     )));
                 }
                 _ => {
-                    if matches!(mode, CliMode::Expression(_)) {
+                    if !expressions.is_empty() {
                         return Err(StartupError::Unsupported(
                             "use --args before expression arguments".into(),
                         ));
@@ -183,7 +168,9 @@ impl CliConfig {
                             "use --args before file or stdin arguments".into(),
                         ));
                     }
-                    mode = CliMode::File(PathBuf::from(arg));
+                    let path = PathBuf::from(arg);
+                    on_startup(startup::Event::File(&path))?;
+                    mode = CliMode::File(path);
                     if args.peek().is_some_and(|arg| arg != "--args") {
                         command_args.insert(command_args.len() - args.len(), "--args".to_string());
                     }
@@ -192,14 +179,16 @@ impl CliConfig {
             }
         }
 
-        if let CliMode::Expression(source) = &mut mode {
-            source.pop();
-            if source.is_empty() {
-                mode = CliMode::Stdin;
-            }
-        }
         if matches!(mode, CliMode::Help | CliMode::Version) {
             startup_stdout.clear();
+        } else if !expressions.is_empty() {
+            if matches!(mode, CliMode::File(_)) {
+                return Err(StartupError::Fatal(
+                    "cannot use -e with -f or --file".into(),
+                ));
+            }
+            expressions.pop();
+            mode = CliMode::Expression(expressions);
         }
         Ok(Self {
             mode,
@@ -228,6 +217,10 @@ impl Default for CliConfig {
 }
 
 pub fn run(config: CliConfig) -> Result<i32, String> {
+    run_with_file(config, None)
+}
+
+fn run_with_file(config: CliConfig, opened: Option<fs::File>) -> Result<i32, String> {
     if !config.startup_stdout.is_empty() {
         let mut stdout = io::stdout().lock();
         stdout
@@ -239,17 +232,20 @@ pub fn run(config: CliConfig) -> Result<i32, String> {
         return run_input(config);
     }
     if let CliMode::File(path) = &config.mode {
-        let source = match read_script(path) {
+        let input = opened.map(Ok).unwrap_or_else(|| fs::File::open(path));
+        let source = match input {
+            Ok(ref file) => read_open_script(file),
+            Err(error) => Err(error),
+        };
+        let source = match source {
             Ok(source) => source,
             Err(error) if error.kind() == io::ErrorKind::InvalidData => {
                 return Err(format!("failed to read {}: {error}", path.display()));
             }
             Err(error) => {
-                let message = error.to_string();
-                let message = message.split(" (os error").next().unwrap_or(&message);
                 write_console(OutputEvent::Stdout(format!(
-                    "Fatal error: cannot open file '{}': {message}\n",
-                    path.display()
+                    "Fatal error: {}\n",
+                    startup::file_error(path, &error)
                 )))
                 .map_err(|error| error.to_string())?;
                 return Ok(2);
@@ -261,9 +257,15 @@ pub fn run(config: CliConfig) -> Result<i32, String> {
 }
 
 fn read_script(path: &Path) -> io::Result<String> {
-    match fs::read_to_string(path) {
+    read_open_script(&fs::File::open(path)?)
+}
+
+fn read_open_script(mut file: &fs::File) -> io::Result<String> {
+    let mut source = String::new();
+    match file.read_to_string(&mut source) {
+        Ok(_) => Ok(source),
         Err(error) if error.kind() == io::ErrorKind::IsADirectory => Ok(String::new()),
-        result => result,
+        Err(error) => Err(error),
     }
 }
 

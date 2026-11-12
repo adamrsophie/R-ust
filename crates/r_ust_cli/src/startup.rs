@@ -1,13 +1,20 @@
 use std::io::{self, Write};
+use std::path::Path;
 
-use super::{launcher, run, write_console, CliConfig, CliMode, OutputEvent};
+use super::{launcher, run_with_file, write_console, CliConfig, CliMode, OutputEvent};
+
+pub(super) enum Event<'a> {
+    File(&'a Path),
+    Stdout(&'a [u8]),
+}
 
 #[derive(Debug)]
 pub(super) enum StartupError {
     Argument(&'static str),
     Expression(launcher::ExpressionError),
-    Fatal { message: String, stdout: Vec<u8> },
+    Fatal(String),
     Unsupported(String),
+    Output(io::Error),
 }
 
 impl StartupError {
@@ -15,9 +22,16 @@ impl StartupError {
         match self {
             Self::Argument(option) => argument_message(option),
             Self::Expression(error) => error.to_string(),
-            Self::Fatal { message, .. } | Self::Unsupported(message) => message,
+            Self::Fatal(message) | Self::Unsupported(message) => message,
+            Self::Output(error) => error.to_string(),
         }
     }
+}
+
+pub(super) fn file_error(path: &Path, error: &io::Error) -> String {
+    let message = error.to_string();
+    let message = message.split(" (os error").next().unwrap_or(&message);
+    format!("cannot open file '{}': {message}", path.display())
 }
 
 fn argument_message(option: &str) -> String {
@@ -76,7 +90,25 @@ where
 {
     let mut args = args.into_iter().map(Into::into);
     let program = args.next().unwrap_or_else(|| "r_ust_cli".into());
-    let mut config = match CliConfig::parse_args(args) {
+    let mut opened = Vec::new();
+    let mut config = match CliConfig::parse_args(args, |event| {
+        match event {
+            Event::File(path) => {
+                opened.push(
+                    std::fs::File::open(path)
+                        .map_err(|error| StartupError::Fatal(file_error(path, &error)))?,
+                );
+            }
+            Event::Stdout(bytes) => {
+                let mut stdout = io::stdout().lock();
+                stdout
+                    .write_all(bytes)
+                    .and_then(|_| stdout.flush())
+                    .map_err(StartupError::Output)?;
+            }
+        }
+        Ok(())
+    }) {
         Ok(config) => config,
         Err(error) => {
             let (event, status) = match error {
@@ -91,24 +123,19 @@ where
                     };
                     (OutputEvent::Stderr(format!("{message}\n")), status)
                 }
-                StartupError::Fatal { message, stdout } => {
-                    if !stdout.is_empty() {
-                        let mut output = io::stdout().lock();
-                        output
-                            .write_all(&stdout)
-                            .and_then(|_| output.flush())
-                            .map_err(|error| error.to_string())?;
-                    }
+                StartupError::Fatal(message) => {
                     (OutputEvent::Stdout(format!("Fatal error: {message}\n")), 2)
                 }
                 StartupError::Unsupported(message) => {
                     (OutputEvent::Stderr(format!("{message}\n")), 2)
                 }
+                StartupError::Output(error) => return Err(error.to_string()),
             };
             write_console(event).map_err(|error| error.to_string())?;
             return Ok(status);
         }
     };
     config.command_args[0] = program;
-    run(config)
+    config.startup_stdout.clear();
+    run_with_file(config, opened.pop())
 }

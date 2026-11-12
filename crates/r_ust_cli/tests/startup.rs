@@ -173,3 +173,69 @@ fn unsupported_launcher_escapes_keep_status_two() {
         assert!(output.stderr.starts_with(b"-e launcher "));
     }
 }
+
+#[test]
+fn file_open_errors_and_late_admission_warnings_follow_argument_order() {
+    let path = std::env::temp_dir().join(format!("r-ust-startup-order-{}.R", std::process::id()));
+    let missing = path.with_extension("missing");
+    assert!(!missing.exists());
+    std::fs::write(&path, "cat('FILE')\n").unwrap();
+    let file = path.to_str().unwrap();
+    let absent = missing.to_str().unwrap();
+    let oversized = format!("#{}", "x".repeat(10000));
+    let outputs = [
+        main_cli(&["-f", absent, "-e", "1"]),
+        main_cli(&["-f", absent, "-e", &oversized]),
+        main_cli(&["-e", "1", "-f", file, "-e", &oversized]),
+        main_cli(&["-e", &oversized, "-f", absent]),
+    ];
+    std::fs::remove_file(path).unwrap();
+    for output in &outputs {
+        assert_eq!(output.status.code(), Some(2));
+        assert!(output.stderr.is_empty());
+    }
+    for output in &outputs[..2] {
+        assert!(output
+            .stdout
+            .starts_with(b"Fatal error: cannot open file '"));
+    }
+    assert!(outputs[2].stdout.starts_with(b"WARNING: '-e "));
+    assert!(outputs[2]
+        .stdout
+        .ends_with(b"Fatal error: cannot use -e with -f or --file\n"));
+    assert!(outputs[3].stdout.starts_with(b"WARNING: '-e "));
+    assert!(outputs[3]
+        .stdout
+        .windows(b"Fatal error: cannot open file '".len())
+        .any(|part| part == b"Fatal error: cannot open file '"));
+}
+
+#[test]
+fn repeated_files_open_each_path_and_stdin_does_not_clear_a_file() {
+    let path = std::env::temp_dir().join(format!("r-ust-startup-files-{}.R", std::process::id()));
+    let second = path.with_extension("second.R");
+    let missing = path.with_extension("missing");
+    assert!(!missing.exists());
+    std::fs::write(&path, "cat('FIRST')\n").unwrap();
+    std::fs::write(&second, "cat('SECOND')\n").unwrap();
+    let outputs = [
+        main_cli(&["-f", path.to_str().unwrap(), "-f", second.to_str().unwrap()]),
+        main_cli(&[
+            "-f",
+            missing.to_str().unwrap(),
+            "-f",
+            second.to_str().unwrap(),
+        ]),
+        main_cli(&["-f", path.to_str().unwrap(), "--file=-"]),
+    ];
+    std::fs::remove_file(path).unwrap();
+    std::fs::remove_file(second).unwrap();
+    assert_eq!(outputs[0].status.code(), Some(0));
+    assert_eq!(outputs[0].stdout, b"SECOND");
+    assert_eq!(outputs[1].status.code(), Some(2));
+    assert!(outputs[1]
+        .stdout
+        .starts_with(b"Fatal error: cannot open file '"));
+    assert_eq!(outputs[2].status.code(), Some(0));
+    assert_eq!(outputs[2].stdout, b"FIRST");
+}
