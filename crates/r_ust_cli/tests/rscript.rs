@@ -278,7 +278,6 @@ fn help_version_and_argument_errors_have_script_exit_statuses() {
         vec!["-e", "-1"],
         vec!["-e", " \t\n"],
         vec!["-e", "  -1"],
-        vec!["--bogus", "-e", "print(9)"],
     ] {
         let output = run(&args);
         assert_eq!(output.status.code(), Some(1), "{args:?}");

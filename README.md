@@ -110,7 +110,9 @@ Malformed `-e` and `-f` arguments return status 1 on stderr. File-open failures 
 
 Source reads stop at a newline or 4095 bytes, matching R's console buffer. Complete statements execute before line completion or EOF; unfinished tokens and UTF-8 characters wait for the next chunk. Echo preserves each chunk's raw bytes and inserts continuation prompts between chunks, even inside a UTF-8 character. Quit, parse errors and evaluation errors stop further source reads. Quitting before an invalid byte skips it, including after a semicolon on the same line. `run_to_string` uses the same reader and captures successful output.
 
-Remaining input boundaries: truncated multibyte sequences at EOF can differ from R's byte-based lexer. Stdin encoding translation and non-UTF-8 strings remain incomplete. Shell field splitting, filename transformation and escape-validation ordering still have gaps. Unsupported main-CLI options fail with status 2 rather than R's warning-and-continue behavior.
+Unknown main-CLI options warn on stdout and continue. Warnings follow argument order alongside file opens and omitted expressions; help/version or launcher validation can prevent native startup and suppress them. Arguments after `--args` are left to the program. Warning truncation preserves raw bytes, including cuts inside UTF-8. Recognized R options for unimplemented features still report explicit errors.
+
+Remaining input boundaries: truncated multibyte sequences at EOF can differ from R's byte-based lexer. Stdin encoding translation and non-UTF-8 strings remain incomplete. Shell field splitting, filename transformation and escape-validation ordering still have gaps.
 
 ## Native Rscript frontend
 
@@ -124,6 +126,8 @@ cargo run -q -p r_ust_cli --bin Rscript -- example.R first "two words"
 ```
 
 Rscript runs files, repeated `-e` expressions, and stdin via `-`. It is non-interactive even when stdin is a terminal. After a file, every remaining token is a user argument. After expressions, only consecutive `-e` options add code; the first other token starts user arguments. Put frontend options before the file or first expression. A literal `--args` after code is itself a user argument, matching Rscript.
+
+Unknown long options before code remain in `commandArgs()` and produce the same startup warning as the main frontend. Unknown short forms are treated as filenames. After code, option-like arguments remain user arguments and do not warn. Package selection, save/restore and other recognized features that remain unavailable still report explicit errors.
 
 Script files preserve their trailing blank lines and EOF behavior. Rscript uses the shared buffered chunk reader and evaluates complete commands without waiting for file EOF or adding the extra newline used for `-e` arguments. File-open failures retain startup status 2; failures while reading source return session status 1 and preserve already streamed output. `scripts/check-file-input.py` compares files and piped input with R, including LF/CRLF, comments, errors, quit handling, and whitespace rules. `scripts/check-file-stream.py` checks live FIFO execution in both frontends.
 
@@ -232,6 +236,7 @@ python3 scripts/check-cli-readline.py
 python3 scripts/check-hex-numbers.py
 python3 scripts/check-numeric-warnings.py
 python3 scripts/check-cli-startup.py
+python3 scripts/check-unknown-options.py
 python3 scripts/check-file-stream.py
 python3 scripts/check-console-buffer.py
 ```
@@ -250,7 +255,9 @@ python3 scripts/check-console-buffer.py
 
 `scripts/check-numeric-warnings.py` requires Python 3.11+, Unix pipes, R/Rscript 4.6.0, and both built executables. It checks warning text, suppression, promotion, truncation, count limits, stream order, live continuation input, and empty-expression status. Results are recorded in `target/numeric-warning-parity.json`. Error wording and `Execution halted` are not compared. General `warning()`, `warnings()`, `last.warning`, condition handlers, and `warning.expression` remain incomplete.
 
-`scripts/check-cli-startup.py` requires macOS R/Rscript 4.6.0, Python 3.11+, Unix FIFOs, and both built executables. It compares startup statuses and raw streams, including malformed arguments, help/version precedence, repeated files, directory input, stdin selection and conflicts. Live probes check warnings around a blocking file open and verify that earlier and selected streams remain open during evaluation. Help/version wording is excluded. Known shell-validation and unsupported-option differences are recorded separately in `target/cli-startup-parity.json`; they do not count as passing coverage. Executable snapshots and source/binary SHA-256 manifests bind results to the tested implementation; source changes during a run fail the driver.
+`scripts/check-cli-startup.py` requires macOS R/Rscript 4.6.0, Python 3.11+, Unix FIFOs, and both built executables. It compares startup statuses and raw streams, including malformed arguments, help/version precedence, repeated files, directory input, stdin selection and conflicts. Live probes check unknown-option and expression-admission warnings around a blocking file open and verify that earlier and selected streams remain open during evaluation. Help/version wording is excluded. Known shell-validation differences are recorded separately in `target/cli-startup-parity.json`; they do not count as passing coverage. Executable snapshots and source/binary SHA-256 manifests bind results to the tested implementation; source changes during a run fail the driver.
+
+`scripts/check-unknown-options.py` compares unknown options, argument retention, warning order, truncation and frontend boundaries against R/Rscript 4.6.0. Raw successful streams and statuses compare exactly, including invalid UTF-8 warning output. Help/version wording and Rscript error wording are excluded; main-launcher field-splitting differences are recorded separately. Results and source/binary hashes are written to `target/unknown-option-parity.json`. Run with Python 3.11+ or `uv run scripts/check-unknown-options.py`.
 
 `scripts/check-file-stream.py` requires Python 3.11+, Unix FIFOs, independent R/Rscript 4.6.0 references, and both built executables. It holds each FIFO writer open while checking output, continuation prompts, split CRLF, warning timing and early exit. It also checks valid output before an invalid byte and skipping unread bytes after quit on the same or a later line. Exact successful streams, statuses, live snapshots, source/binary hashes and reference locale are recorded in `target/file-stream-parity.json`. Error wording and `Execution halted` are excluded. Truncated multibyte EOF differences are recorded separately, outside passing coverage.
 

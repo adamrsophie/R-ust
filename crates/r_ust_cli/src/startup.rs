@@ -34,6 +34,68 @@ pub(super) fn file_error(path: &Path, error: &io::Error) -> String {
     format!("cannot open file '{}': {message}", path.display())
 }
 
+pub(super) fn append_unknown_option(stdout: &mut Vec<u8>, option: &str) {
+    let mut warning = format!("WARNING: unknown option '{option}'\n").into_bytes();
+    warning.truncate(1024 + 128 - 1);
+    warning.push(b'\n');
+    stdout.extend(warning);
+}
+
+pub(super) fn is_backend_option(option: &str) -> bool {
+    matches!(
+        option,
+        "--version"
+            | "--args"
+            | "--save"
+            | "--no-save"
+            | "--restore"
+            | "--no-restore"
+            | "--no-restore-data"
+            | "--no-restore-history"
+            | "--silent"
+            | "--quiet"
+            | "-q"
+            | "--vanilla"
+            | "--no-environ"
+            | "--verbose"
+            | "--no-echo"
+            | "--slave"
+            | "-s"
+            | "--no-site-file"
+            | "--no-init-file"
+            | "--no-readline"
+            | "--interactive"
+            | "-f"
+            | "-e"
+            | "--file"
+            | "-save"
+            | "-nosave"
+            | "-restore"
+            | "-norestore"
+            | "-noreadline"
+            | "-quiet"
+            | "-nsize"
+            | "-vsize"
+            | "-V"
+            | "-n"
+            | "-v"
+    ) || [
+        "--encoding",
+        "--min-nsize",
+        "--min-vsize",
+        "--max-nsize",
+        "--max-vsize",
+        "--max-ppsize",
+        "--max-connections",
+        "--file=",
+        "--gui",
+        "-g",
+        "-psn",
+    ]
+    .iter()
+    .any(|prefix| option.starts_with(prefix))
+}
+
 fn argument_message(option: &str) -> String {
     let required = if option == "-e" {
         "a non-empty argument"

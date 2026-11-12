@@ -1,5 +1,5 @@
 use super::launcher::{append_expression, decode_argument, encode_expression};
-use super::{run, write_console, CliConfig, CliMode, OutputEvent, PORT_TARGET};
+use super::{run, startup, write_console, CliConfig, CliMode, OutputEvent, PORT_TARGET};
 
 const HELP: &str = "Usage: Rscript [options] file [args]
    or: Rscript [options] -e expr [-e expr2 ...] [args]
@@ -99,7 +99,10 @@ where
                 _ if option.starts_with("--default-packages=") => {
                     return Err("package selection is not implemented yet".to_string());
                 }
-                _ => return Err(format!("unsupported Rscript option {option}")),
+                _ if startup::is_backend_option(&option) => {
+                    return Err(format!("unsupported Rscript option {option}"));
+                }
+                _ => startup::append_unknown_option(&mut startup_stdout, &option),
             }
             invocation.push(option);
         } else {

@@ -277,14 +277,6 @@ fn help_mode_explains_console_and_script_usage() {
 }
 
 #[test]
-fn option_errors_use_status_two() {
-    let output = batch_command().arg("--bad-option").output().unwrap();
-    assert_eq!(output.status.code(), Some(2));
-    assert!(output.stdout.is_empty());
-    assert!(!output.stderr.is_empty());
-}
-
-#[test]
 fn expression_mode_tracks_visibility_and_console_effects() {
     for (source, expected_stdout, expected_stderr) in [
         ("NULL; {}; if(FALSE) 1", "NULL\nNULL\n", ""),

@@ -211,12 +211,12 @@ with tempfile.TemporaryDirectory(prefix="r-ust-startup-") as directory:
         for tail in [[], ["-e", oversized], ["-e", "1"]]:
             cases.append((f"stdin-after-file-{first.name}-{len(tail)}",
                           ["-f", str(first), "--file=-", *tail], "exact", ""))
-    known = [
+    extra_cases = [
         ("escaped-tab-expression", ["-e", "\\t"], "Unquoted shell validation expands escapes after field splitting; native validation conflates these stages"),
         ("escaped-tab-filename", ["-f", "\\t"], "Empty filenames after shell field splitting are not implemented"),
-        ("unknown-option", ["--bad-option"], "R warns and continues; native rejects unsupported options"),
+        ("unknown-option", ["--bad-option"], ""),
     ]
-    cases.extend((label, args, "known", reason) for label, args, reason in known)
+    cases.extend((label, args, "known" if reason else "exact", reason) for label, args, reason in extra_cases)
     try:
         for label, args, kind, data in cases:
             commands = [[reference, "--vanilla", "--no-echo", *args],
@@ -240,11 +240,11 @@ with tempfile.TemporaryDirectory(prefix="r-ust-startup-") as directory:
                                 r=recorded(r), rust=recorded(u)))
         fifo = root / "startup.fifo"
         os.mkfifo(fifo)
-        args = ["--vanilla", "--no-echo", "-e", oversized, "-f", str(fifo), "-e", "#" + "y" * 10000]
+        args = ["--vanilla", "--no-echo", "--bad-before", "-e", oversized, "-f", str(fifo), "--bad-after", "-e", "#" + "y" * 10000]
         r, u = [fifo_startup([command, *args], fifo) for command in [reference, str(snapshots[0])]]
         passed = r == u and r["waiting"] and r["status"] == 0 and not r["stderr"]
-        passed = passed and base64.b64decode(r["before"]).startswith(b"WARNING: '-e #xxx")
-        passed = passed and base64.b64decode(r["before"]).count(b"WARNING:") == 1
+        passed = passed and base64.b64decode(r["before"]).startswith(b"WARNING: unknown option '--bad-before'")
+        passed = passed and base64.b64decode(r["before"]).count(b"WARNING:") == 2
         passed = passed and base64.b64decode(r["stdout"]).endswith(b"FIFO")
         live_results.append(Comparison(label="warnings-around-blocking-file-open", args=args,
                                        kind="live", passed=passed, r=r, rust=u))
