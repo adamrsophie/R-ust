@@ -2,6 +2,7 @@ use std::fs;
 use std::io::{self, IsTerminal, Write};
 use std::path::PathBuf;
 
+mod launcher;
 mod rscript;
 pub use rscript::run_rscript;
 
@@ -62,7 +63,7 @@ impl CliConfig {
         let mut mode = CliMode::Interactive;
         let mut command_args = vec!["r_ust_cli".to_string()];
         command_args.extend(args.into_iter().map(Into::into));
-        let mut args = command_args[1..].to_vec().into_iter().peekable();
+        let mut args = command_args.clone().into_iter().skip(1).peekable();
 
         while let Some(arg) = args.next() {
             match arg.as_str() {
@@ -90,6 +91,10 @@ impl CliConfig {
                         .next()
                         .filter(|expression| !expression.is_empty())
                         .ok_or_else(|| "-e requires an expression".to_string())?;
+                    let encoded = launcher::encode_expression(&expression)?;
+                    let index = command_args.len() - args.len() - 1;
+                    command_args[index] = encoded.clone();
+                    let expression = launcher::decode_argument(&encoded);
                     match &mut mode {
                         CliMode::Expression(source) => {
                             source.push('\n');
@@ -462,7 +467,7 @@ mod tests {
                 no_echo: false,
                 vanilla: true,
                 no_save: true,
-                command_args: vec!["r_ust_cli", "--vanilla", "-q", "-e", "1 + 1"]
+                command_args: vec!["r_ust_cli", "--vanilla", "-q", "-e", "1~+~+~+~1"]
                     .into_iter()
                     .map(str::to_string)
                     .collect(),

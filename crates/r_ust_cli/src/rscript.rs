@@ -1,3 +1,4 @@
+use super::launcher::{decode_argument, encode_expression};
 use super::{run, write_console, CliConfig, CliMode, OutputEvent, PORT_TARGET};
 
 const HELP: &str = "Usage: Rscript [options] file [args]
@@ -66,17 +67,7 @@ where
         if arg == "-e" {
             let option = args.next().unwrap();
             let expression = args.next().ok_or("-e requires an expression")?;
-            let first_token = expression.trim_start_matches([' ', '\t', '\n']);
-            if first_token.is_empty() || first_token.starts_with('-') {
-                return Err(
-                    "-e requires a non-empty expression that does not start with '-'".to_string(),
-                );
-            }
-            // Preserve the Unix R launcher's observable encoding in commandArgs().
-            let encoded = expression
-                .replace(' ', "~+~")
-                .replace('\n', "~n~")
-                .replace('\t', "~t~");
+            let encoded = encode_expression(&expression)?;
             expressions.push(decode_argument(&encoded));
             invocation.extend([option, encoded]);
         } else if !expressions.is_empty() {
@@ -159,27 +150,4 @@ where
         }
     }
     run(config)
-}
-
-fn decode_argument(encoded: &str) -> String {
-    let mut output = String::with_capacity(encoded.len());
-    let mut chars = encoded.chars();
-    while let Some(ch) = chars.next() {
-        if ch == '~' {
-            let mut lookahead = chars.clone();
-            let decoded = match (lookahead.next(), lookahead.next()) {
-                (Some('+'), Some('~')) => Some(' '),
-                (Some('n'), Some('~')) => Some('\n'),
-                (Some('t'), Some('~')) => Some('\t'),
-                _ => None,
-            };
-            if let Some(decoded) = decoded {
-                output.push(decoded);
-                chars = lookahead;
-                continue;
-            }
-        }
-        output.push(ch);
-    }
-    output
 }

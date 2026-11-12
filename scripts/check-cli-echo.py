@@ -167,12 +167,8 @@ with tempfile.TemporaryDirectory(prefix="r-ust-echo-") as directory:
         ("rscript", ["Rscript", "--vanilla", "-e", code], [str(snapshots[1]), "-e", code]),
     ]:
         r, u, row = compare(reference, native, code, mode, True, directory)
-        row.update(kind="launcher-escape", passed=False,
-                   limit_observed=(r.returncode == u.returncode == 0
-                                   and u.stdout == b"VALUE\n> \n"
-                                   and r.stdout == b'+ ")\n' + u.stdout
-                                   and not r.stderr and not u.stderr))
-        limits.append(row)
+        row.update(kind="launcher-escape")
+        results.append(row)
     code = 'nchar("' + 'x' * 5000 + '")\n'
     path.write_text(code)
     for mode in ["file", "stdin"]:
@@ -200,7 +196,7 @@ failed += [row for row in limits if not row["limit_observed"]]
 for row in failed:
     print(json.dumps(row))
 print(f"{len(results)} batch echo comparisons; {len(terminals)} terminal checks; {len(failed)} failures")
-print(f"{sum(row['limit_observed'] for row in limits)} known launcher/buffer limits observed, not counted as passing")
+print(f"{sum(row['limit_observed'] for row in limits)} known console-buffer limits observed, not counted as passing")
 print("Stdout, statuses and diagnostic presence compared; diagnostic wording and terminal input echo not compared.")
 if failed:
     raise SystemExit(1)

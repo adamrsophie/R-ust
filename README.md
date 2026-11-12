@@ -98,7 +98,9 @@ cargo run -q -p r_ust_cli -- --no-echo example.R first "two words"
 
 Repeat `-e` to evaluate expressions in one session. Each expression gets a terminating newline, so comments and unfinished syntax can continue across `-e` arguments. Combining `-e` with a file option is an error. Echo uses primary or continuation prompts at each input read, includes comments and blank lines, normalizes CRLF endings, and stops reading source on quit or error. Code after a semicolon on an already-read line can therefore appear in echo even when it is never evaluated.
 
-Remaining input boundaries: `-e` does not yet reproduce the Unix R shell launcher's backslash processing. Lines longer than R's console buffer echo as one line rather than separate buffer chunks. Stdin encoding translation and byte cuts inside UTF-8 characters are not implemented. `scripts/check-cli-echo.py` records launcher and long-line differences separately from passing comparisons.
+Both frontends process `-e` backslashes and whitespace markers using the macOS R 4.6.0 launcher's rules, including octal/hex byte escapes, escaped backslashes, and NUL removal. `commandArgs()` exposes the encoded expression; execution receives decoded source. `scripts/check-cli-launcher.py` compares source execution and invocation encoding with R. Other shells' echo rules are unverified. The launcher rejects `\c` truncation and non-UTF-8 escape results explicitly; R string-parser escapes remain incomplete.
+
+Remaining input boundaries: lines longer than R's console buffer echo as one line rather than separate buffer chunks. Stdin encoding translation and byte cuts inside UTF-8 characters are not implemented. `scripts/check-cli-echo.py` records long-line differences separately from passing comparisons. Main CLI argument errors return status 2, including invalid `-e` values; R's launcher uses status 1.
 
 ## Native Rscript frontend
 
