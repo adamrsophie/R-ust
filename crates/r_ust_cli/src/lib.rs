@@ -1,5 +1,5 @@
 use std::fs;
-use std::io::{self, BufRead, IsTerminal, Write};
+use std::io::{self, IsTerminal, Write};
 use std::path::PathBuf;
 
 mod rscript;
@@ -161,12 +161,12 @@ fn run_input(config: CliConfig) -> Result<i32, String> {
     // shortcut: canonical terminal input; add a line editor for history and interrupt recovery.
     let input = io::stdin();
     let interactive = input.is_terminal() && config.mode == CliMode::Interactive;
-    let mut input = input.lock();
     let mut frontend = Frontend::default();
     frontend
         .runtime_mut()
         .set_session_context(config.command_args, interactive);
     frontend.runtime_mut().set_output_sink(write_console);
+    frontend.runtime_mut().set_input_reader(read_console_line);
     if interactive && !config.quiet {
         write_console(OutputEvent::Stdout(format!(
             "R-ust 0.1.0\n{PORT_TARGET}\nUse q() or Ctrl-D to exit.\n"
@@ -181,11 +181,8 @@ fn run_input(config: CliConfig) -> Result<i32, String> {
             ))
             .map_err(|error| error.to_string())?;
         }
-        let result = if input
-            .read_line(&mut source)
-            .map_err(|error| error.to_string())?
-            == 0
-        {
+        let line = read_console_line().map_err(|error| error.to_string())?;
+        let result = if line.is_empty() {
             if !source.is_empty() {
                 return Err("parse error: unexpected end of input".to_string());
             }
@@ -195,6 +192,7 @@ fn run_input(config: CliConfig) -> Result<i32, String> {
                 run_last: true,
             }))
         } else {
+            source.push_str(&line);
             let mut statements = Parser.parse_iter(&source);
             let mut result = Ok(());
             while let Some(parsed) = statements.next() {
@@ -229,7 +227,7 @@ fn run_input(config: CliConfig) -> Result<i32, String> {
                 request,
                 interactive,
                 config.no_save || config.vanilla,
-                &mut input,
+                read_console_line,
             ) {
                 Ok(Some(status)) => return Ok(status),
                 Ok(None) => Ok(()),
@@ -238,7 +236,7 @@ fn run_input(config: CliConfig) -> Result<i32, String> {
             other => other,
         };
         if let Err(error) = result {
-            if !interactive || matches!(error, EvalError::Output(_)) {
+            if !interactive || matches!(error, EvalError::Output(_) | EvalError::Input(_)) {
                 return Err(error.to_string());
             }
             write_console(OutputEvent::Stderr(format!("Error: {error}\n")))
@@ -253,7 +251,7 @@ fn complete_quit(
     mut request: QuitRequest,
     interactive: bool,
     no_save: bool,
-    input: &mut dyn BufRead,
+    read_line: fn() -> io::Result<String>,
 ) -> Result<Option<i32>, EvalError> {
     let output_error = |error: io::Error| EvalError::Output(error.to_string());
     loop {
@@ -269,8 +267,8 @@ fn complete_quit(
                         "Save workspace image? [y/n/c]: ".to_string(),
                     ))
                     .map_err(output_error)?;
-                    let mut answer = String::new();
-                    let read = input.read_line(&mut answer).map_err(output_error)?;
+                    let answer =
+                        read_line().map_err(|error| EvalError::Input(error.to_string()))?;
                     match answer.chars().next() {
                         Some('y' | 'Y') => {
                             save = SaveAction::Yes;
@@ -281,7 +279,7 @@ fn complete_quit(
                             break;
                         }
                         Some('c' | 'C') => return Ok(None),
-                        _ if read == 0 => {
+                        _ if answer.is_empty() => {
                             save = SaveAction::No;
                             break;
                         }
@@ -365,16 +363,22 @@ fn execute(
             },
             false,
             true,
-            &mut io::empty(),
+            read_console_line,
         ),
         Err(EvalError::Quit(request)) => {
-            complete_quit(&mut frontend, request, false, true, &mut io::empty())
+            complete_quit(&mut frontend, request, false, true, read_console_line)
         }
         Err(error) => return Err(error.to_string()),
     }
     .map_err(|error| error.to_string())?
     .unwrap_or(0);
     Ok((frontend.runtime_mut().take_output(), status))
+}
+
+fn read_console_line() -> io::Result<String> {
+    let mut line = String::new();
+    io::stdin().read_line(&mut line)?;
+    Ok(line)
 }
 
 fn write_console(event: OutputEvent) -> io::Result<()> {

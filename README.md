@@ -22,6 +22,15 @@ cargo run -q -p r_ust_cli
 
 The console keeps variables and functions between commands. Use multiple lines for unfinished expressions; `+ ` marks continuation input. Errors return to the prompt. Use `q()` or Ctrl-D to exit, then choose `n` to discard the workspace or `c` to cancel. Workspace saving is not implemented; choosing `y` reports an error and keeps the console open. Add `-- --quiet --no-save` to suppress the startup banner and default save prompt.
 
+Ask for an answer inside the terminal console:
+
+```r
+name <- readline("Name: ")
+cat("Hello,", name, "\n")
+```
+
+`readline()` flushes its prompt before reading an answer, trims leading and trailing spaces and tabs, and returns a visible character scalar. EOF at the question returns `""`. In expressions, scripts, and piped input, it prints the prompt with a newline and returns `""` without consuming stdin. Compound prompt deparsing, byte truncation that would produce invalid UTF-8, and existing number-to-string differences remain limitations.
+
 Complete statements run before later input is parsed. Earlier output survives a later syntax error, and an incomplete statement waits for more input without repeating commands already executed.
 
 `q("no", status = 3)` exits with the requested process status. A global `.Last` function runs on normal exit unless `runLast = FALSE`. Expressions, scripts, and piped input default to exiting without saving.
@@ -109,6 +118,8 @@ Embedded evaluators report `EvalError::Quit(QuitRequest)` without exiting the ho
 
 Hosts can set R-visible arguments and interactive status through `RuntimeState::set_session_context`. Embedded runtimes default to an empty argument vector and non-interactive status; they do not expose the host process's arguments automatically.
 
+Interactive embedded hosts install a console reader through `RuntimeState::set_input_reader`; the callback returns one raw line or an empty string at EOF. The evaluator never reads host stdin automatically. Input failures propagate as `EvalError::Input`, and output failures prevent input from being read.
+
 ## Supported language features
 
 **Syntax and evaluation**
@@ -168,6 +179,7 @@ scripts/check-c-abi.sh
 python3 scripts/check-cli-quit.py
 python3 scripts/check-cli-session.py
 python3 scripts/check-rscript.py
+python3 scripts/check-cli-readline.py
 ```
 
 `scripts/check-c-abi.sh` builds the static library and links a C program against it to exercise the exported Rmath ABI. It requires a C compiler.
@@ -177,6 +189,8 @@ python3 scripts/check-rscript.py
 `scripts/check-cli-session.py` compares argument handling, session metadata, expression sequencing, and condition checks with installed R. It requires `R` and a built CLI and records results in `target/cli-session-parity.json`. Diagnostic wording is not compared.
 
 `scripts/check-rscript.py` compares the native frontend with an independent Rscript 4.6.0 installation on `PATH`. It snapshots the built executable, checks argument normalization, scripts, expressions, stdin, and exit behavior, and records results in `target/rscript-parity.json`. Unsupported package/save/restore options are reported separately. Diagnostic, help, version, and verbose wording are not compared.
+
+`scripts/check-cli-readline.py` requires Unix PTYs, independent R/Rscript 4.6.0 references, and both built executables. It snapshots the executables and checks batch output, live prompt readiness, buffered answers, EOF, save cancellation, and input inside `.Last`. Results and lossless stream captures are recorded in `target/cli-readline-parity.json`; known coercion and encoding limits are excluded from passing coverage. Diagnostic wording is not compared.
 
 ## License
 

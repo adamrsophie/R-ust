@@ -17,6 +17,7 @@ pub enum EvalError {
     Control(String),
     MissingArgument(String),
     Output(String),
+    Input(String),
     Quit(QuitRequest),
     NotImplemented(&'static str),
 }
@@ -34,6 +35,7 @@ impl fmt::Display for EvalError {
                 write!(f, "argument '{name}' is missing, with no default")
             }
             Self::Output(message) => write!(f, "output error: {message}"),
+            Self::Input(message) => write!(f, "input error: {message}"),
             Self::Quit(request) => {
                 write!(f, "session exit requested with status {}", request.status)
             }
@@ -95,6 +97,8 @@ pub struct RuntimeState {
     output_sink: Option<fn(OutputEvent) -> std::io::Result<()>>,
     command_args: Vec<String>,
     interactive: bool,
+    input_reader: Option<fn() -> std::io::Result<String>>,
+    console_prompt: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -113,6 +117,8 @@ impl RuntimeState {
             output_sink: None,
             command_args: Vec::new(),
             interactive: false,
+            input_reader: None,
+            console_prompt: String::new(),
         }
     }
 
@@ -120,6 +126,12 @@ impl RuntimeState {
     pub fn set_session_context(&mut self, command_args: Vec<String>, interactive: bool) {
         self.command_args = command_args;
         self.interactive = interactive;
+    }
+
+    /// Installs host console input. Return one raw line, or an empty string at EOF.
+    /// Non-interactive readline calls never invoke this reader.
+    pub fn set_input_reader(&mut self, reader: fn() -> std::io::Result<String>) {
+        self.input_reader = Some(reader);
     }
 
     pub fn eval(&mut self, expr: &Sexp) -> Result<Sexp, EvalError> {
@@ -573,6 +585,9 @@ impl RuntimeState {
                 if name == "commandArgs" {
                     return self.eval_command_args(arguments);
                 }
+                if name == "readline" {
+                    return self.eval_readline(arguments);
+                }
                 if matches!(name.as_str(), "invisible" | "withVisible") {
                     return self.eval_visibility_call(name, arguments);
                 }
@@ -657,6 +672,59 @@ impl RuntimeState {
             self.visible = true;
             Ok(EvalFlow::Value(value))
         }
+    }
+
+    fn eval_readline(&mut self, arguments: &[CallArgument]) -> Result<EvalFlow, EvalError> {
+        let arguments = expand_dots_call_arguments(arguments, &self.visible_environment())?;
+        let [argument] = bind_named_arguments(&arguments, ["prompt"])?;
+        let value = if let Some(argument) =
+            argument.filter(|arg| !matches!(arg.value, Sexp::MissingArg(_)))
+        {
+            match self.eval_flow(&argument.value)? {
+                EvalFlow::Value(value) => value,
+                flow => return Ok(flow),
+            }
+        } else {
+            Sexp::String(vec![Some(String::new())])
+        };
+        if let Some(prompt) = readline_prompt(&value)? {
+            let prompt = prompt.split('\0').next().unwrap_or_default();
+            // R's scan.c reserves one byte in its 256-byte console prompt buffer.
+            let end = prompt.len().min(255);
+            if !prompt.is_char_boundary(end) {
+                return Err(EvalError::NotImplemented(
+                    "byte-truncated non-UTF-8 console prompts",
+                ));
+            }
+            self.console_prompt = prompt[..end].to_string();
+        }
+        let answer = if self.interactive {
+            let reader = self
+                .input_reader
+                .ok_or(EvalError::NotImplemented("host console input"))?;
+            self.emit(OutputEvent::Stdout(self.console_prompt.clone()))?;
+            let line = reader();
+            self.console_prompt.clear();
+            let line = line.map_err(|error| EvalError::Input(error.to_string()))?;
+            let line = line
+                .split(['\n', '\0'])
+                .next()
+                .unwrap_or_default()
+                .trim_start_matches([' ', '\t']);
+            // R's MAXELTSIZE input buffer reserves two of its 8192 bytes.
+            let end = line.len().min(8190);
+            if !line.is_char_boundary(end) {
+                return Err(EvalError::NotImplemented(
+                    "byte-truncated non-UTF-8 console input",
+                ));
+            }
+            line[..end].trim_end_matches([' ', '\t']).to_string()
+        } else {
+            self.emit(OutputEvent::Stdout(format!("{}\n", self.console_prompt)))?;
+            String::new()
+        };
+        self.visible = true;
+        Ok(EvalFlow::Value(Sexp::String(vec![Some(answer)])))
     }
 
     fn eval_command_args(&mut self, arguments: &[CallArgument]) -> Result<EvalFlow, EvalError> {
@@ -748,7 +816,7 @@ impl RuntimeState {
     fn call_builtin(&mut self, name: &str, args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
         self.visible = true;
         let result = match name {
-            "q" | "quit" | "commandArgs" => {
+            "q" | "quit" | "commandArgs" | "readline" => {
                 let arguments = args
                     .iter()
                     .map(|arg| CallArgument {
@@ -756,10 +824,10 @@ impl RuntimeState {
                         value: arg.value.clone(),
                     })
                     .collect::<Vec<_>>();
-                let result = if name == "commandArgs" {
-                    self.eval_command_args(&arguments)
-                } else {
-                    self.eval_quit_call(&arguments)
+                let result = match name {
+                    "commandArgs" => self.eval_command_args(&arguments),
+                    "readline" => self.eval_readline(&arguments),
+                    _ => self.eval_quit_call(&arguments),
                 };
                 return match result? {
                     EvalFlow::Value(value) | EvalFlow::Return(value) => Ok(value),
@@ -1601,6 +1669,43 @@ fn bind_named_arguments<'a, const N: usize>(
     Ok(bound)
 }
 
+fn readline_prompt(value: &Sexp) -> Result<Option<String>, EvalError> {
+    match value {
+        Sexp::Nil => Ok(Some(String::new())),
+        Sexp::Matrix { data, .. } => readline_prompt(data),
+        Sexp::Factor { codes, .. } => Ok(codes
+            .first()
+            .map(|code| code.map_or_else(|| "NA".to_string(), |code| code.to_string()))),
+        Sexp::List(values)
+        | Sexp::DataFrame {
+            columns: values, ..
+        } => values
+            .first()
+            .map(|element| readline_list_prompt(&element.value))
+            .transpose(),
+        Sexp::Vector(values) => values.first().map(readline_list_prompt).transpose(),
+        _ => Ok(string_values(value)?
+            .first()
+            .map(|value| value.clone().unwrap_or_else(|| "NA".to_string()))),
+    }
+}
+
+fn readline_list_prompt(value: &Sexp) -> Result<String, EvalError> {
+    if matches!(value, Sexp::Nil) {
+        return Ok("NULL".to_string());
+    }
+    if !matches!(
+        value,
+        Sexp::String(_) | Sexp::Integer(_) | Sexp::Logical(_) | Sexp::Real(_)
+    ) || value_len(value) != 1
+    {
+        return Err(EvalError::NotImplemented("compound prompt deparsing"));
+    }
+    Ok(string_values(value)?[0]
+        .clone()
+        .unwrap_or_else(|| "NA".to_string()))
+}
+
 fn output_strings(
     args: &[&EvaluatedArgument],
     factor_codes: bool,
@@ -1899,6 +2004,7 @@ fn is_builtin(name: &str) -> bool {
         "c" | "cbind"
             | "commandArgs"
             | "interactive"
+            | "readline"
             | "rbind"
             | "list"
             | "apply"
