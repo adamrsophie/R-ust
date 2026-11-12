@@ -21,7 +21,6 @@ class Case(TypedDict):
     expected: NotRequired[str]
     order: NotRequired[bool]
     modes: NotRequired[list[str]]
-    known_argument_limit: NotRequired[bool]
 
 
 class Recorded(TypedDict):
@@ -86,7 +85,7 @@ cases += [
     Case(label="quoted-comment", source='cat("1.5L\\n");# 1.5L\n', expected="1.5L\n", status=0),
     Case(label="empty", source="\n", expected="", status=0, modes=["stdin", "rscript-file"]),
     Case(label="empty-rscript-expression", source="\n", expected="", status=1, modes=["rscript-expression"]),
-    Case(label="empty-expression", source="\n", expected="", status=1, modes=["expression"], known_argument_limit=True),
+    Case(label="empty-expression", source="\n", expected="", status=1, modes=["expression"]),
 ]
 
 
@@ -199,9 +198,7 @@ with tempfile.TemporaryDirectory(prefix="r-ust-numeric-warnings-") as directory:
             passed = passed and (expected is None or r.stdout == expected.encode())
             passed = passed and (r.stderr == u.stderr if case["status"] == 0
                                  else bool(r.stderr) and bool(u.stderr) and warning_lines(r.stderr) == warning_lines(u.stderr))
-            known_limit = (case.get("known_argument_limit", False) and r.returncode == 1 and u.returncode == 2
-                           and not r.stdout and not u.stdout and bool(r.stderr) and bool(u.stderr))
-            results.append(dict(mode=mode, case=case, r=rr, rust=uu, passed=passed, known_limit=known_limit))
+            results.append(dict(mode=mode, case=case, r=rr, rust=uu, passed=passed))
             count += 1
             if case.get("order", False):
                 r, rr = run(reference, data, merged=True)
@@ -219,14 +216,14 @@ with tempfile.TemporaryDirectory(prefix="r-ust-numeric-warnings-") as directory:
 Path("target/numeric-warning-parity.json").write_text(json.dumps(dict(
     r_version=version.stdout + version.stderr, reference_lc_ctype=locale, source_sha256=sources,
     binary_sha256=hashes, cases=results, order_cases=orders, live_cases=live_results), indent=2) + "\n")
-failed = [row for row in results if not row["passed"] and not row["known_limit"]]
+failed = [row for row in results if not row["passed"]]
 failed += [row for row in [*orders, *live_results] if not row["passed"]]
 for row in failed[:12]:
     case = row.get("case")
     label = case.get("label") if isinstance(case, dict) else row.get("label", row.get("warn"))
     print(json.dumps(dict(mode=row.get("mode"), label=label, passed=False)))
 print(f"{sum(row['passed'] for row in results)} stream/status, {len(orders)} merged-order, {len(live_results)} live checks; "
-      f"{sum(row['known_limit'] for row in results)} known argument limits; {len(failed)} unexpected differences")
+      f"{len(failed)} unexpected differences")
 print("Successful streams and warning text are exact; error wording and Execution halted are not compared.")
 if failed:
     raise SystemExit(1)

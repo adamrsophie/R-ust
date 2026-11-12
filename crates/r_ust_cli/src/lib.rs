@@ -1,10 +1,13 @@
 use std::fs;
 use std::io::{self, IsTerminal, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 mod launcher;
 mod rscript;
+mod startup;
 pub use rscript::run_rscript;
+pub use startup::run_main;
+use startup::StartupError;
 
 use r_ust_runtime::{
     EvalError, Frontend, OutputEvent, ParseStatus, Parser, QuitRequest, SaveAction, Sexp,
@@ -18,7 +21,7 @@ Console input supports multiple lines. Use q() or Ctrl-D to exit.
 Workspace saving is not implemented; choose n or c at the save prompt.
 
   -e EXPR          Evaluate an expression; may be repeated
-  -f, --file FILE  Run a script; use - for stdin (also --file=FILE)
+  -f, --file FILE  Run a script (also --file=FILE; --file=- reads stdin)
   -                Read stdin; use --no-echo to suppress input and prompts
   -q, --quiet      Suppress the startup banner (also --silent)
   -s, --no-echo    Suppress input echo, banner, and default save prompts (also --slave)
@@ -58,6 +61,15 @@ impl CliConfig {
         I: IntoIterator<Item = S>,
         S: Into<String>,
     {
+        Self::parse_args(args).map_err(StartupError::message)
+    }
+
+    // shortcut: file opens follow parsing; replay startup actions before claiming full error-order parity.
+    fn parse_args<I, S>(args: I) -> Result<Self, StartupError>
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
         let mut quiet = false;
         let mut no_echo = false;
         let mut vanilla = false;
@@ -66,6 +78,13 @@ impl CliConfig {
         let mut startup_stdout = Vec::new();
         let mut command_args = vec!["r_ust_cli".to_string()];
         command_args.extend(args.into_iter().map(Into::into));
+        if let Some(mode) = startup::preflight(&command_args[1..])? {
+            return Ok(Self {
+                mode,
+                command_args,
+                ..Self::default()
+            });
+        }
         let mut args = command_args.clone().into_iter().skip(1).peekable();
 
         while let Some(arg) = args.next() {
@@ -85,7 +104,9 @@ impl CliConfig {
                 "--help" | "-h" => mode = CliMode::Help,
                 "-" => {
                     if matches!(&mode, CliMode::Expression(source) if !source.is_empty()) {
-                        return Err("cannot use stdin and -e together".to_string());
+                        return Err(StartupError::Unsupported(
+                            "cannot use stdin and -e together".into(),
+                        ));
                     }
                     mode = CliMode::Stdin;
                 }
@@ -93,8 +114,9 @@ impl CliConfig {
                     let expression = args
                         .next()
                         .filter(|expression| !expression.is_empty())
-                        .ok_or_else(|| "-e requires an expression".to_string())?;
-                    let encoded = launcher::encode_expression(&expression)?;
+                        .ok_or(StartupError::Argument("-e"))?;
+                    let encoded = launcher::encode_expression(&expression)
+                        .map_err(StartupError::Expression)?;
                     let index = command_args.len() - args.len() - 1;
                     command_args[index] = encoded.clone();
                     let mut source = match &mut mode {
@@ -103,40 +125,63 @@ impl CliConfig {
                     };
                     launcher::append_expression(&mut source, &mut startup_stdout, &encoded);
                     match mode {
-                        CliMode::File(_) | CliMode::Stdin => {
+                        CliMode::File(_) => {
                             if !source.is_empty() {
-                                return Err("cannot use a script file and -e together".to_string());
+                                return Err(StartupError::Fatal {
+                                    message: "cannot use -e with -f or --file".into(),
+                                    stdout: startup_stdout,
+                                });
                             }
                         }
                         _ => mode = CliMode::Expression(source),
                     }
                 }
                 _ if arg == "--file" || arg == "-f" || arg.starts_with("--file=") => {
-                    if matches!(&mode, CliMode::Expression(source) if !source.is_empty()) {
-                        return Err("cannot use a script file and -e together".to_string());
-                    }
                     let file = arg
                         .strip_prefix("--file=")
                         .map(str::to_string)
                         .or_else(|| args.next())
-                        .filter(|file| !file.is_empty())
-                        .ok_or_else(|| format!("{arg} requires a file path"))?;
+                        .ok_or_else(|| {
+                            if arg == "-f" {
+                                StartupError::Argument("-f")
+                            } else {
+                                StartupError::Unsupported(format!("{arg} requires a file path"))
+                            }
+                        })?;
+                    let has_expression =
+                        matches!(&mode, CliMode::Expression(source) if !source.is_empty());
                     mode = if file == "-" {
-                        CliMode::Stdin
+                        if has_expression {
+                            mode
+                        } else {
+                            CliMode::Stdin
+                        }
                     } else {
+                        if has_expression {
+                            return Err(StartupError::Fatal {
+                                message: "cannot use -e with -f or --file".into(),
+                                stdout: startup_stdout,
+                            });
+                        }
                         CliMode::File(PathBuf::from(file))
                     };
                 }
                 "--args" => break,
                 _ if arg.starts_with('-') => {
-                    return Err(format!("unsupported CLI option {arg}"));
+                    return Err(StartupError::Unsupported(format!(
+                        "unsupported CLI option {arg}"
+                    )));
                 }
                 _ => {
                     if matches!(mode, CliMode::Expression(_)) {
-                        return Err("use --args before expression arguments".to_string());
+                        return Err(StartupError::Unsupported(
+                            "use --args before expression arguments".into(),
+                        ));
                     }
                     if matches!(mode, CliMode::File(_) | CliMode::Stdin) {
-                        return Err("use --args before file or stdin arguments".to_string());
+                        return Err(StartupError::Unsupported(
+                            "use --args before file or stdin arguments".into(),
+                        ));
                     }
                     mode = CliMode::File(PathBuf::from(arg));
                     if args.peek().is_some_and(|arg| arg != "--args") {
@@ -193,7 +238,33 @@ pub fn run(config: CliConfig) -> Result<i32, String> {
     if matches!(config.mode, CliMode::Interactive | CliMode::Stdin) {
         return run_input(config);
     }
+    if let CliMode::File(path) = &config.mode {
+        let source = match read_script(path) {
+            Ok(source) => source,
+            Err(error) if error.kind() == io::ErrorKind::InvalidData => {
+                return Err(format!("failed to read {}: {error}", path.display()));
+            }
+            Err(error) => {
+                let message = error.to_string();
+                let message = message.split(" (os error").next().unwrap_or(&message);
+                write_console(OutputEvent::Stdout(format!(
+                    "Fatal error: cannot open file '{}': {message}\n",
+                    path.display()
+                )))
+                .map_err(|error| error.to_string())?;
+                return Ok(2);
+            }
+        };
+        return execute_source(&config, &source, Some(write_console)).map(|(_, status)| status);
+    }
     execute(config, Some(write_console)).map(|(_, status)| status)
+}
+
+fn read_script(path: &Path) -> io::Result<String> {
+    match fs::read_to_string(path) {
+        Err(error) if error.kind() == io::ErrorKind::IsADirectory => Ok(String::new()),
+        result => result,
+    }
 }
 
 fn initialize_frontend(
@@ -446,7 +517,7 @@ fn execute(
             return Ok((vec![event], 0));
         }
         CliMode::Expression(source) => format!("{source}\n"),
-        CliMode::File(path) => fs::read_to_string(path)
+        CliMode::File(path) => read_script(path)
             .map_err(|error| format!("failed to read {}: {error}", path.display()))?,
         CliMode::Interactive | CliMode::Stdin => {
             return Err(

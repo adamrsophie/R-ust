@@ -1,5 +1,5 @@
 use super::launcher::{append_expression, decode_argument, encode_expression};
-use super::{execute_source, run, write_console, CliConfig, CliMode, OutputEvent, PORT_TARGET};
+use super::{run, write_console, CliConfig, CliMode, OutputEvent, PORT_TARGET};
 
 const HELP: &str = "Usage: Rscript [options] file [args]
    or: Rscript [options] -e expr [-e expr2 ...] [args]
@@ -143,23 +143,6 @@ where
             config.command_args
         )))
         .map_err(|error| error.to_string())?;
-    }
-    // Rscript reports startup file failures on stdout with status 2.
-    if let CliMode::File(path) = &config.mode {
-        match std::fs::read_to_string(path) {
-            Ok(source) => {
-                return execute_source(&config, &source, Some(write_console))
-                    .map(|(_, status)| status);
-            }
-            Err(error) => {
-                write_console(OutputEvent::Stdout(format!(
-                    "Fatal error: cannot open file '{}': {error}\n",
-                    path.display()
-                )))
-                .map_err(|error| error.to_string())?;
-                return Ok(2);
-            }
-        }
     }
     run(config)
 }

@@ -62,7 +62,6 @@ fn repeated_expressions_share_state_and_continue_incomplete_syntax() {
         vec!["-e", "1", "-"],
         vec!["-f", "script.R", "argument"],
         vec!["--file="],
-        vec!["-e", ""],
     ] {
         let output = batch_command().args(&args).output().unwrap();
         assert_eq!(output.status.code(), Some(2), "{args:?}");
@@ -237,7 +236,7 @@ fn stdin_mode_preserves_state_and_reads_multiline_expressions() {
         "(1\n+2)\n",
         "cat(\"done\\n\")\n",
     );
-    for args in [&[][..], &["-"][..], &["-f", "-"][..]] {
+    for args in [&[][..], &["-"][..], &["--file=-"][..]] {
         let output = run_stdin(source, args);
         assert!(output.status.success(), "{:?}", output);
         assert_eq!(

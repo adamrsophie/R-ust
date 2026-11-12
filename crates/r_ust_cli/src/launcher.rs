@@ -1,5 +1,28 @@
 // shortcut: match macOS R 4.6.0 launcher rules; port platform rules before claiming other platforms.
-pub(super) fn encode_expression(argument: &str) -> Result<String, String> {
+#[derive(Debug)]
+pub(super) enum ExpressionError {
+    Invalid,
+    TruncatingEscape,
+    NonUtf8,
+}
+
+impl std::fmt::Display for ExpressionError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::Invalid => "-e requires a non-empty expression that does not start with '-'",
+            Self::TruncatingEscape => "-e launcher escape \\c is not supported",
+            Self::NonUtf8 => "-e launcher escapes produced non-UTF-8 source",
+        })
+    }
+}
+
+impl From<ExpressionError> for String {
+    fn from(error: ExpressionError) -> Self {
+        error.to_string()
+    }
+}
+
+pub(super) fn encode_expression(argument: &str) -> Result<String, ExpressionError> {
     let mut bytes = argument.bytes().peekable();
     let mut expanded = Vec::with_capacity(argument.len());
     while let Some(byte) = bytes.next() {
@@ -20,7 +43,7 @@ pub(super) fn encode_expression(argument: &str) -> Result<String, String> {
             b't' => b'\t',
             b'v' => 11,
             b'\\' => b'\\',
-            b'c' => return Err("-e launcher escape \\c is not supported".to_string()),
+            b'c' => return Err(ExpressionError::TruncatingEscape),
             b'0' | b'x' => {
                 let radix = if escape == b'0' { 8 } else { 16 };
                 let mut value = 0u8;
@@ -51,11 +74,10 @@ pub(super) fn encode_expression(argument: &str) -> Result<String, String> {
     }
     // Shell command substitution discards NUL bytes before encoding the expression.
     expanded.retain(|byte| *byte != 0);
-    let expression = String::from_utf8(expanded)
-        .map_err(|_| "-e launcher escapes produced non-UTF-8 source".to_string())?;
+    let expression = String::from_utf8(expanded).map_err(|_| ExpressionError::NonUtf8)?;
     let first_token = expression.trim_start_matches([' ', '\t', '\n']);
     if first_token.is_empty() || first_token.starts_with('-') {
-        return Err("-e requires a non-empty expression that does not start with '-'".to_string());
+        return Err(ExpressionError::Invalid);
     }
     Ok(expression
         .replace(' ', "~+~")

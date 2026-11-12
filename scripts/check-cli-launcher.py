@@ -8,6 +8,18 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from typing import TypedDict
+
+
+class Recorded(TypedDict):
+    text: str
+    base64: str
+
+
+class RunResult(TypedDict):
+    status: int
+    stdout: Recorded
+    stderr: Recorded
 
 
 binary = Path(sys.argv[1] if len(sys.argv) > 1 else "target/debug/r_ust_cli").resolve()
@@ -18,14 +30,14 @@ environment = os.environ.copy()
 environment["R_DEFAULT_PACKAGES"] = "NULL"
 
 
-def recorded(data):
-    return dict(text=data.decode("utf-8", errors="replace"),
+def recorded(data: bytes) -> Recorded:
+    return Recorded(text=data.decode("utf-8", errors="replace"),
                 base64=base64.b64encode(data).decode("ascii"))
 
 
-def run(command):
+def run(command: list[str]) -> RunResult:
     result = subprocess.run(command, capture_output=True, env=environment, timeout=20)
-    return dict(status=result.returncode, stdout=recorded(result.stdout),
+    return RunResult(status=result.returncode, stdout=recorded(result.stdout),
                 stderr=recorded(result.stderr))
 
 
@@ -88,8 +100,8 @@ with tempfile.TemporaryDirectory(prefix="r-ust-launcher-") as directory:
         if name == "R":
             for source in ["", "-1", r"\00551"]:
                 r, u = run(reference + ["-e", source]), run(native + ["-e", source])
-                limits.append(dict(frontend=name, kind="CLI argument error status", source=source,
-                                   r=r, rust=u, limit_observed=(r["status"] == 1 and u["status"] == 2)))
+                results.append(dict(frontend=name, lane="CLI argument errors", source=source,
+                                    r=r, rust=u, passed=(r == u and r["status"] == 1)))
 
 artifact = Path("target/cli-launcher-parity.json")
 artifact.write_text(json.dumps(dict(r_version=version.stdout + version.stderr,
