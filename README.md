@@ -151,6 +151,7 @@ Interactive embedded hosts install a console reader through `RuntimeState::set_i
 **Syntax and evaluation**
 
 - Double, integer (`1L`), logical, character, and `NULL` literals
+- Hexadecimal numbers with `0x`/`0X`, fractions, `p`/`P` binary exponents, and `L` qualifiers, following the reference R conversion arithmetic
 - R's UTF-8 blank class plus form feed, with LF and CRLF line endings. Bare CR, vertical tab, and nonbreaking spaces are not whitespace separators.
 - Single- and double-quoted strings with R control escapes, octal/hex bytes, Unicode escapes (including braced forms and paired surrogates), and escaped newlines; unknown escapes and mixed Unicode/byte escapes are errors
 - Raw string literals with `r` or `R`, either quote, `()`, `[]`, `{}`, or `||` delimiters, and matching dash counts; backslashes remain literal
@@ -212,6 +213,7 @@ python3 scripts/check-cli-quit.py
 python3 scripts/check-cli-session.py
 python3 scripts/check-rscript.py
 python3 scripts/check-cli-readline.py
+python3 scripts/check-hex-numbers.py
 ```
 
 `scripts/check-c-abi.sh` builds the static library and links a C program against it to exercise the exported Rmath ABI. It requires a C compiler.
@@ -223,6 +225,8 @@ python3 scripts/check-cli-readline.py
 `scripts/check-rscript.py` compares the native frontend with an independent Rscript 4.6.0 installation on `PATH`. It snapshots the built executable, checks argument normalization, scripts, expressions, stdin, and exit behavior, and records results in `target/rscript-parity.json`. Unsupported package/save/restore options are reported separately. Diagnostic, help, version, and verbose wording are not compared.
 
 `scripts/check-cli-readline.py` requires Unix PTYs, independent R/Rscript 4.6.0 references, and both built executables. It snapshots the executables and checks batch output, live prompt readiness, buffered answers, EOF, save cancellation, and input inside `.Last`. Results and lossless stream captures are recorded in `target/cli-readline-parity.json`; known coercion and encoding limits are excluded from passing coverage. Diagnostic wording is not compared.
+
+`scripts/check-hex-numbers.py` requires Python 3.11+, Rust, independent R/Rscript 4.6.0 references, and both built executables. It compares parser numeric bits/types and errors, then checks CLI evaluation separately. Results are recorded in `target/hex-number-parity.json`; the generated parser probe is retained in `target/hex-number-probe`. Current conversion matches R builds with 64-bit `LDOUBLE`; wider accumulators and integer-qualifier warnings remain incomplete. NaNs are compared by class, and error wording is not compared.
 
 ## License
 
