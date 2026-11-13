@@ -1,0 +1,20 @@
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BinaryOp {
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+    Power,
+    Less,
+    LessEqual,
+    Greater,
+    GreaterEqual,
+    Equal,
+    NotEqual,
+    And,
+    Or,
+    AndScalar,
+    OrScalar,
+    In,
+    Sequence,
+}

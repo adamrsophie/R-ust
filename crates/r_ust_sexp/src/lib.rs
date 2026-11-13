@@ -1,5 +1,9 @@
 #![allow(non_camel_case_types)]
 
+mod operators;
+
+pub use operators::BinaryOp;
+
 pub const R_VERSION: &str = "4.6.0";
 
 // R's arithmetic.c identifies NA by the low payload word, even after NaN quieting.
@@ -121,27 +125,6 @@ impl SexpHeader {
     pub const fn gp(&self) -> u16 {
         self.gp
     }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum BinaryOp {
-    Add,
-    Subtract,
-    Multiply,
-    Divide,
-    Power,
-    Less,
-    LessEqual,
-    Greater,
-    GreaterEqual,
-    Equal,
-    NotEqual,
-    And,
-    Or,
-    AndScalar,
-    OrScalar,
-    In,
-    Sequence,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
