@@ -10,6 +10,9 @@ pub enum ClosureEnvironment {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum InternalOperation {
+    Utf8ToInt,
+    IntToUtf8,
+    FindInterval,
     Strtoi,
     Pmatch,
     Charmatch,

@@ -3,6 +3,9 @@ use r_ust_sexp::InternalOperation;
 
 pub fn resolve(name: &str) -> Option<InternalOperation> {
     match name {
+        "utf8ToInt" => Some(InternalOperation::Utf8ToInt),
+        "intToUtf8" => Some(InternalOperation::IntToUtf8),
+        "findInterval" => Some(InternalOperation::FindInterval),
         "strtoi" => Some(InternalOperation::Strtoi),
         "pmatch" => Some(InternalOperation::Pmatch),
         "charmatch" => Some(InternalOperation::Charmatch),

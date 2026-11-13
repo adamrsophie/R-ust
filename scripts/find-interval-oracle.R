@@ -1,0 +1,23 @@
+options(warn=1)
+compiler::enableJIT(0)
+cases <- character()
+add <- function(x) cases <<- c(cases,x)
+for (v in c("numeric()", "0", "c(0,0)", "c(-Inf,0,0,1,Inf)", "c(-2,0,2)"))
+ for (closed in c("FALSE","TRUE")) for (inside in c("FALSE","TRUE")) for (left in c("FALSE","TRUE"))
+ add(sprintf("findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),%s,%s,%s,%s)",v,closed,inside,left))
+for (v in c("c(2,1)","c(0,NA,2)","NA_real_", "c(0,NaN)","c('1','2','3')","c(FALSE,TRUE)","1:3", "NULL")) add(sprintf("findInterval(c(-1,0,1,2,3,4,NA),%s)",v))
+for (f in c("rightmost.closed","all.inside","left.open")) for (v in c("NA","NULL","logical()","c(TRUE,FALSE)","1","0","'true'","FALSE","'bad'","list(TRUE)")) add(sprintf("findInterval(c(-1,0,1,2,3),c(0,1,2),%s=%s)",f,v))
+for (f in c("checkNA","checkSorted")) for (v in c("FALSE","TRUE","NA","NULL","c(TRUE,FALSE)","'bad'")) add(sprintf("findInterval(c(0,NA,NaN,2),c(0,1,2),%s=%s)",f,v))
+for (s in c("findInterval(vec=c(0,1,2),x=c(0,1,2),right=TRUE)","findInterval(x=numeric(),vec=c(0,1))","findInterval(c(a=0,b=1),c(0,1))","findInterval()","findInterval(1)","findInterval(1,c(0,1),unused=1)","findInterval(1,c(0,1),x=2)",".Internal(findInterval(1L,1,FALSE,FALSE,FALSE,TRUE))",".Internal(findInterval(1,1L,FALSE,FALSE,FALSE,TRUE))",".Internal(findInterval(1,1))")) add(s)
+for (x in c("1:3", "c(FALSE,TRUE,NA)", "c('0','1','2')", "list(0,1,2)", "matrix(1:4,2)", "factor(c('a','b','a'))", "NULL")) add(sprintf("findInterval(%s,c(0,1,2))",x))
+for (v in c("NULL","numeric()","NA","NA_integer_","NA_real_","NaN","NA_character_","1")) add(sprintf("is.unsorted(%s)",v))
+for (s in c("NULL && FALSE", "'bad' && FALSE", "TRUE && NULL", "TRUE && 'bad'", "NULL || TRUE", "'bad' || TRUE", "FALSE || NULL", "FALSE || 'bad'", "FALSE && NULL", "TRUE || NULL", "numeric() && TRUE", "numeric() || FALSE")) add(s)
+out <- c(paste0("# ",R.version.string," findInterval C locale"), "id\tsource\tkind\tdata")
+Sys.setlocale("LC_ALL","C")
+for (i in seq_along(cases)) {
+ value <- tryCatch(eval(parse(text=cases[i]),envir=new.env()),error=function(e)e)
+ if (inherits(value,"error")) { kind <- "error"; data <- conditionMessage(value) } else { stopifnot(typeof(value) %in% c("integer","logical")); kind <- typeof(value); data <- if(length(value)) paste(value,collapse=",") else "-" }
+ out <- c(out,paste(i,cases[i],kind,data,sep="\t"))
+}
+writeLines(out, "crates/r_ust_eval/tests/fixtures/find-interval-r-4.6.0.tsv")
+cat(length(cases),"oracle cases\n")

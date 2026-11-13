@@ -1,8 +1,11 @@
+mod arity;
 mod character;
 mod dispatch;
+mod find_interval;
 mod logical;
 mod partial_match;
 mod strtoi;
+mod unicode;
 mod vector;
 
 use character::character_values;
@@ -30,43 +33,11 @@ impl RuntimeState {
         operation: InternalOperation,
         args: &[EvaluatedArgument],
     ) -> Result<Sexp, EvalError> {
-        let (name, arity) = match operation {
-            InternalOperation::Strtoi => ("strtoi", 2),
-            InternalOperation::Pmatch => ("pmatch", 4),
-            InternalOperation::Charmatch => ("charmatch", 3),
-            InternalOperation::Vector => ("vector", 2),
-            InternalOperation::Stop => ("stop", 2),
-            InternalOperation::DefaultStop => (".dfltStop", 2),
-            InternalOperation::Inherits => ("inherits", 3),
-            InternalOperation::Gettext => ("gettext", 3),
-            InternalOperation::SignalCondition => (".signalCondition", 3),
-        };
-        let valid_arity = match operation {
-            InternalOperation::Gettext => {
-                if !(2..=3).contains(&args.len()) {
-                    return Err(EvalError::Arity(
-                        "either 2 or 3 arguments are required".into(),
-                    ));
-                }
-                true
-            }
-            InternalOperation::Vector
-            | InternalOperation::Strtoi
-            | InternalOperation::Pmatch
-            | InternalOperation::Charmatch
-            | InternalOperation::Stop
-            | InternalOperation::Inherits
-            | InternalOperation::SignalCondition
-            | InternalOperation::DefaultStop => args.len() == arity,
-        };
-        if !valid_arity {
-            let count = args.len();
-            let suffix = if count == 1 { "" } else { "s" };
-            return Err(EvalError::Arity(format!(
-                "{count} argument{suffix} passed to .Internal({name}) which requires {arity}"
-            )));
-        }
+        arity::check(operation, args.len())?;
         match operation {
+            InternalOperation::Utf8ToInt => self.utf8_to_int(&args[0].value),
+            InternalOperation::IntToUtf8 => self.int_to_utf8(args),
+            InternalOperation::FindInterval => find_interval::find_interval(args),
             InternalOperation::Strtoi => strtoi::convert(&args[0].value, &args[1].value),
             InternalOperation::Pmatch => self.partial_match(args, false),
             InternalOperation::Charmatch => self.partial_match(args, true),

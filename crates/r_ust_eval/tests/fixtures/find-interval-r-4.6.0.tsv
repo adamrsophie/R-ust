@@ -1,0 +1,129 @@
+# R version 4.6.0 (2026-04-24) findInterval C locale
+id	source	kind	data
+1	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),numeric(),FALSE,FALSE,FALSE)	integer	0,0,0,0,0,0,0,0,0,0,NA,NA
+2	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),numeric(),FALSE,FALSE,TRUE)	integer	0,0,0,0,0,0,0,0,0,0,NA,NA
+3	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),numeric(),FALSE,TRUE,FALSE)	integer	0,0,0,0,0,0,0,0,0,0,NA,NA
+4	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),numeric(),FALSE,TRUE,TRUE)	integer	0,0,0,0,0,0,0,0,0,0,NA,NA
+5	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),numeric(),TRUE,FALSE,FALSE)	integer	0,0,0,0,0,0,0,0,0,0,NA,NA
+6	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),numeric(),TRUE,FALSE,TRUE)	integer	0,0,0,0,0,0,0,0,0,0,NA,NA
+7	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),numeric(),TRUE,TRUE,FALSE)	integer	0,0,0,0,0,0,0,0,0,0,NA,NA
+8	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),numeric(),TRUE,TRUE,TRUE)	integer	0,0,0,0,0,0,0,0,0,0,NA,NA
+9	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),0,FALSE,FALSE,FALSE)	integer	0,0,0,0,1,1,1,1,1,1,NA,NA
+10	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),0,FALSE,FALSE,TRUE)	integer	0,0,0,0,0,1,1,1,1,1,NA,NA
+11	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),0,FALSE,TRUE,FALSE)	integer	1,1,1,1,0,0,0,0,0,0,NA,NA
+12	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),0,FALSE,TRUE,TRUE)	integer	1,1,1,1,1,0,0,0,0,0,NA,NA
+13	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),0,TRUE,FALSE,FALSE)	integer	0,0,0,0,0,1,1,1,1,1,NA,NA
+14	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),0,TRUE,FALSE,TRUE)	integer	0,0,0,0,1,1,1,1,1,1,NA,NA
+15	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),0,TRUE,TRUE,FALSE)	integer	1,1,1,1,0,0,0,0,0,0,NA,NA
+16	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),0,TRUE,TRUE,TRUE)	integer	1,1,1,1,1,0,0,0,0,0,NA,NA
+17	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),c(0,0),FALSE,FALSE,FALSE)	integer	0,0,0,0,2,2,2,2,2,2,NA,NA
+18	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),c(0,0),FALSE,FALSE,TRUE)	integer	0,0,0,0,0,2,2,2,2,2,NA,NA
+19	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),c(0,0),FALSE,TRUE,FALSE)	integer	1,1,1,1,1,1,1,1,1,1,NA,NA
+20	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),c(0,0),FALSE,TRUE,TRUE)	integer	1,1,1,1,1,1,1,1,1,1,NA,NA
+21	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),c(0,0),TRUE,FALSE,FALSE)	integer	0,0,0,0,1,2,2,2,2,2,NA,NA
+22	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),c(0,0),TRUE,FALSE,TRUE)	integer	0,0,0,0,1,2,2,2,2,2,NA,NA
+23	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),c(0,0),TRUE,TRUE,FALSE)	integer	1,1,1,1,1,1,1,1,1,1,NA,NA
+24	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),c(0,0),TRUE,TRUE,TRUE)	integer	1,1,1,1,1,1,1,1,1,1,NA,NA
+25	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),c(-Inf,0,0,1,Inf),FALSE,FALSE,FALSE)	integer	1,1,1,1,3,3,4,4,4,5,NA,NA
+26	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),c(-Inf,0,0,1,Inf),FALSE,FALSE,TRUE)	integer	0,1,1,1,1,3,3,4,4,4,NA,NA
+27	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),c(-Inf,0,0,1,Inf),FALSE,TRUE,FALSE)	integer	1,1,1,1,3,3,4,4,4,4,NA,NA
+28	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),c(-Inf,0,0,1,Inf),FALSE,TRUE,TRUE)	integer	1,1,1,1,1,3,3,4,4,4,NA,NA
+29	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),c(-Inf,0,0,1,Inf),TRUE,FALSE,FALSE)	integer	1,1,1,1,3,3,4,4,4,4,NA,NA
+30	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),c(-Inf,0,0,1,Inf),TRUE,FALSE,TRUE)	integer	1,1,1,1,1,3,3,4,4,4,NA,NA
+31	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),c(-Inf,0,0,1,Inf),TRUE,TRUE,FALSE)	integer	1,1,1,1,3,3,4,4,4,4,NA,NA
+32	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),c(-Inf,0,0,1,Inf),TRUE,TRUE,TRUE)	integer	1,1,1,1,1,3,3,4,4,4,NA,NA
+33	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),c(-2,0,2),FALSE,FALSE,FALSE)	integer	0,0,1,1,2,2,2,3,3,3,NA,NA
+34	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),c(-2,0,2),FALSE,FALSE,TRUE)	integer	0,0,0,1,1,2,2,2,3,3,NA,NA
+35	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),c(-2,0,2),FALSE,TRUE,FALSE)	integer	1,1,1,1,2,2,2,2,2,2,NA,NA
+36	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),c(-2,0,2),FALSE,TRUE,TRUE)	integer	1,1,1,1,1,2,2,2,2,2,NA,NA
+37	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),c(-2,0,2),TRUE,FALSE,FALSE)	integer	0,0,1,1,2,2,2,2,3,3,NA,NA
+38	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),c(-2,0,2),TRUE,FALSE,TRUE)	integer	0,0,1,1,1,2,2,2,3,3,NA,NA
+39	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),c(-2,0,2),TRUE,TRUE,FALSE)	integer	1,1,1,1,2,2,2,2,2,2,NA,NA
+40	findInterval(c(-Inf,-3,-2,-1,0,0.5,1,2,3,Inf,NA,NaN),c(-2,0,2),TRUE,TRUE,TRUE)	integer	1,1,1,1,1,2,2,2,2,2,NA,NA
+41	findInterval(c(-1,0,1,2,3,4,NA),c(2,1))	error	'vec' must be sorted non-decreasingly and not contain NAs
+42	findInterval(c(-1,0,1,2,3,4,NA),c(0,NA,2))	error	'vec' must be sorted non-decreasingly and not contain NAs
+43	findInterval(c(-1,0,1,2,3,4,NA),NA_real_)	integer	0,0,0,0,0,0,NA
+44	findInterval(c(-1,0,1,2,3,4,NA),c(0,NaN))	error	'vec' must be sorted non-decreasingly and not contain NAs
+45	findInterval(c(-1,0,1,2,3,4,NA),c('1','2','3'))	integer	0,0,1,2,3,3,NA
+46	findInterval(c(-1,0,1,2,3,4,NA),c(FALSE,TRUE))	integer	0,1,2,2,2,2,NA
+47	findInterval(c(-1,0,1,2,3,4,NA),1:3)	integer	0,0,1,2,3,3,NA
+48	findInterval(c(-1,0,1,2,3,4,NA),NULL)	integer	0,0,0,0,0,0,NA
+49	findInterval(c(-1,0,1,2,3),c(0,1,2),rightmost.closed=NA)	error	NA in coercion to boolean
+50	findInterval(c(-1,0,1,2,3),c(0,1,2),rightmost.closed=NULL)	error	NA in coercion to boolean
+51	findInterval(c(-1,0,1,2,3),c(0,1,2),rightmost.closed=logical())	error	NA in coercion to boolean
+52	findInterval(c(-1,0,1,2,3),c(0,1,2),rightmost.closed=c(TRUE,FALSE))	error	'length = 2' in coercion to 'logical(1)'
+53	findInterval(c(-1,0,1,2,3),c(0,1,2),rightmost.closed=1)	integer	0,1,2,2,3
+54	findInterval(c(-1,0,1,2,3),c(0,1,2),rightmost.closed=0)	integer	0,1,2,3,3
+55	findInterval(c(-1,0,1,2,3),c(0,1,2),rightmost.closed='true')	integer	0,1,2,2,3
+56	findInterval(c(-1,0,1,2,3),c(0,1,2),rightmost.closed=FALSE)	integer	0,1,2,3,3
+57	findInterval(c(-1,0,1,2,3),c(0,1,2),rightmost.closed='bad')	error	NA in coercion to boolean
+58	findInterval(c(-1,0,1,2,3),c(0,1,2),rightmost.closed=list(TRUE))	error	NA in coercion to boolean
+59	findInterval(c(-1,0,1,2,3),c(0,1,2),all.inside=NA)	error	NA in coercion to boolean
+60	findInterval(c(-1,0,1,2,3),c(0,1,2),all.inside=NULL)	error	NA in coercion to boolean
+61	findInterval(c(-1,0,1,2,3),c(0,1,2),all.inside=logical())	error	NA in coercion to boolean
+62	findInterval(c(-1,0,1,2,3),c(0,1,2),all.inside=c(TRUE,FALSE))	error	'length = 2' in coercion to 'logical(1)'
+63	findInterval(c(-1,0,1,2,3),c(0,1,2),all.inside=1)	integer	1,1,2,2,2
+64	findInterval(c(-1,0,1,2,3),c(0,1,2),all.inside=0)	integer	0,1,2,3,3
+65	findInterval(c(-1,0,1,2,3),c(0,1,2),all.inside='true')	integer	1,1,2,2,2
+66	findInterval(c(-1,0,1,2,3),c(0,1,2),all.inside=FALSE)	integer	0,1,2,3,3
+67	findInterval(c(-1,0,1,2,3),c(0,1,2),all.inside='bad')	error	NA in coercion to boolean
+68	findInterval(c(-1,0,1,2,3),c(0,1,2),all.inside=list(TRUE))	error	NA in coercion to boolean
+69	findInterval(c(-1,0,1,2,3),c(0,1,2),left.open=NA)	error	NA in coercion to boolean
+70	findInterval(c(-1,0,1,2,3),c(0,1,2),left.open=NULL)	error	NA in coercion to boolean
+71	findInterval(c(-1,0,1,2,3),c(0,1,2),left.open=logical())	error	NA in coercion to boolean
+72	findInterval(c(-1,0,1,2,3),c(0,1,2),left.open=c(TRUE,FALSE))	error	'length = 2' in coercion to 'logical(1)'
+73	findInterval(c(-1,0,1,2,3),c(0,1,2),left.open=1)	integer	0,0,1,2,3
+74	findInterval(c(-1,0,1,2,3),c(0,1,2),left.open=0)	integer	0,1,2,3,3
+75	findInterval(c(-1,0,1,2,3),c(0,1,2),left.open='true')	integer	0,0,1,2,3
+76	findInterval(c(-1,0,1,2,3),c(0,1,2),left.open=FALSE)	integer	0,1,2,3,3
+77	findInterval(c(-1,0,1,2,3),c(0,1,2),left.open='bad')	error	NA in coercion to boolean
+78	findInterval(c(-1,0,1,2,3),c(0,1,2),left.open=list(TRUE))	error	NA in coercion to boolean
+79	findInterval(c(0,NA,NaN,2),c(0,1,2),checkNA=FALSE)	integer	1,NA,NA,3
+80	findInterval(c(0,NA,NaN,2),c(0,1,2),checkNA=TRUE)	integer	1,NA,NA,3
+81	findInterval(c(0,NA,NaN,2),c(0,1,2),checkNA=NA)	integer	1,NA,NA,3
+82	findInterval(c(0,NA,NaN,2),c(0,1,2),checkNA=NULL)	integer	1,NA,NA,3
+83	findInterval(c(0,NA,NaN,2),c(0,1,2),checkNA=c(TRUE,FALSE))	integer	1,NA,NA,3
+84	findInterval(c(0,NA,NaN,2),c(0,1,2),checkNA='bad')	integer	1,NA,NA,3
+85	findInterval(c(0,NA,NaN,2),c(0,1,2),checkSorted=FALSE)	integer	1,NA,NA,3
+86	findInterval(c(0,NA,NaN,2),c(0,1,2),checkSorted=TRUE)	integer	1,NA,NA,3
+87	findInterval(c(0,NA,NaN,2),c(0,1,2),checkSorted=NA)	integer	1,NA,NA,3
+88	findInterval(c(0,NA,NaN,2),c(0,1,2),checkSorted=NULL)	error	invalid 'x' type in 'x && y'
+89	findInterval(c(0,NA,NaN,2),c(0,1,2),checkSorted=c(TRUE,FALSE))	error	'length = 2' in coercion to 'logical(1)'
+90	findInterval(c(0,NA,NaN,2),c(0,1,2),checkSorted='bad')	error	invalid 'x' type in 'x && y'
+91	findInterval(vec=c(0,1,2),x=c(0,1,2),right=TRUE)	integer	1,2,2
+92	findInterval(x=numeric(),vec=c(0,1))	integer	-
+93	findInterval(c(a=0,b=1),c(0,1))	integer	1,2
+94	findInterval()	error	argument "vec" is missing, with no default
+95	findInterval(1)	error	argument "vec" is missing, with no default
+96	findInterval(1,c(0,1),unused=1)	error	unused argument (unused = 1)
+97	findInterval(1,c(0,1),x=2)	error	'length = 2' in coercion to 'logical(1)'
+98	.Internal(findInterval(1L,1,FALSE,FALSE,FALSE,TRUE))	error	invalid input
+99	.Internal(findInterval(1,1L,FALSE,FALSE,FALSE,TRUE))	error	invalid input
+100	.Internal(findInterval(1,1))	error	2 arguments passed to .Internal(findInterval) which requires 6
+101	findInterval(1:3,c(0,1,2))	integer	2,3,3
+102	findInterval(c(FALSE,TRUE,NA),c(0,1,2))	integer	1,2,NA
+103	findInterval(c('0','1','2'),c(0,1,2))	integer	1,2,3
+104	findInterval(list(0,1,2),c(0,1,2))	integer	1,2,3
+105	findInterval(matrix(1:4,2),c(0,1,2))	integer	2,3,3,3
+106	findInterval(factor(c('a','b','a')),c(0,1,2))	integer	2,3,2
+107	findInterval(NULL,c(0,1,2))	integer	-
+108	is.unsorted(NULL)	logical	FALSE
+109	is.unsorted(numeric())	logical	FALSE
+110	is.unsorted(NA)	logical	FALSE
+111	is.unsorted(NA_integer_)	logical	FALSE
+112	is.unsorted(NA_real_)	logical	FALSE
+113	is.unsorted(NaN)	logical	FALSE
+114	is.unsorted(NA_character_)	logical	FALSE
+115	is.unsorted(1)	logical	FALSE
+116	NULL && FALSE	error	invalid 'x' type in 'x && y'
+117	'bad' && FALSE	error	invalid 'x' type in 'x && y'
+118	TRUE && NULL	error	invalid 'y' type in 'x && y'
+119	TRUE && 'bad'	error	invalid 'y' type in 'x && y'
+120	NULL || TRUE	error	invalid 'x' type in 'x || y'
+121	'bad' || TRUE	error	invalid 'x' type in 'x || y'
+122	FALSE || NULL	error	invalid 'y' type in 'x || y'
+123	FALSE || 'bad'	error	invalid 'y' type in 'x || y'
+124	FALSE && NULL	logical	FALSE
+125	TRUE || NULL	logical	TRUE
+126	numeric() && TRUE	logical	NA
+127	numeric() || FALSE	logical	NA

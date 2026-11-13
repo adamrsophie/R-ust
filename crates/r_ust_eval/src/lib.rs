@@ -16,6 +16,7 @@ mod environment;
 mod formatting;
 mod loops;
 mod options;
+mod ordering;
 mod parse_warnings;
 mod summary;
 mod unused_arguments;
@@ -23,6 +24,7 @@ mod unused_arguments;
 use coercion::coerce_integer_values;
 pub use control::{ControlTransfer, LoopId};
 use formatting::{format_line, format_numeric_line};
+use ordering::call_is_unsorted;
 
 use r_ust_gc::{Gc, GcConfig};
 use r_ust_parse::{ParseError, ParseResult, Parser};
@@ -335,7 +337,10 @@ impl RuntimeState {
             Sexp::Binary { op, left, right } => {
                 let EvalFlow::Value(left) = self.eval_flow(left)?;
                 if matches!(op, BinaryOp::AndScalar | BinaryOp::OrScalar) {
-                    match (*op, binary::logical_operand(&left)?) {
+                    match (
+                        *op,
+                        binary::logical_operand(&left, *op == BinaryOp::AndScalar, "x")?,
+                    ) {
                         (BinaryOp::AndScalar, Some(false)) => {
                             self.visible = true;
                             return Ok(EvalFlow::Value(Sexp::Logical(vec![Some(false)])));
@@ -2810,16 +2815,6 @@ fn colon_sequence(from: f64, to: f64) -> Result<Sexp, EvalError> {
     }
 }
 
-fn eval_scalar_logical(op: BinaryOp, left: &Sexp, right: &Sexp) -> Result<Option<bool>, EvalError> {
-    let left = binary::logical_operand(left)?;
-    let right = binary::logical_operand(right)?;
-    Ok(match op {
-        BinaryOp::AndScalar => logical_and(left, right),
-        BinaryOp::OrScalar => logical_or(left, right),
-        _ => unreachable!(),
-    })
-}
-
 fn logical_scalar(value: &Sexp, label: &str) -> Result<Option<bool>, EvalError> {
     logical_values(value)?
         .first()
@@ -5174,28 +5169,6 @@ fn call_rank(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
     }
 
     Ok(Sexp::Real(ranks.into_iter().flatten().collect()))
-}
-
-fn call_is_unsorted(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
-    let value = positional(args, 0, "x")?;
-    let na_rm = named_bool_arg(args, &["na.rm"], false)?;
-    let strictly = named_bool_arg(args, &["strictly"], false)?;
-    let mut keys = sort_keys(value)?;
-    if na_rm {
-        keys.retain(|key| !matches!(key, SortKey::Missing));
-    } else if keys.iter().any(|key| matches!(key, SortKey::Missing)) {
-        return Ok(Sexp::Logical(vec![None]));
-    }
-
-    for pair in keys.windows(2) {
-        let ordering = compare_sort_keys(&pair[0], &pair[1]);
-        if ordering == std::cmp::Ordering::Greater
-            || (strictly && ordering == std::cmp::Ordering::Equal)
-        {
-            return Ok(Sexp::Logical(vec![Some(true)]));
-        }
-    }
-    Ok(Sexp::Logical(vec![Some(false)]))
 }
 
 fn sort_keys(value: &Sexp) -> Result<Vec<SortKey>, EvalError> {

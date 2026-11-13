@@ -13,6 +13,8 @@ use super::{EvalError, Parser, Sexp};
 // R 4.6.0 src/library/base/R/constants.R: Copyright (C) 1995-2012 The R Core Team
 // R 4.6.0 src/library/base/R/match.R: Copyright (C) 1995-2025 The R Core Team
 // R 4.6.0 src/library/base/R/character.R: Copyright (C) 1995-2025 The R Core Team
+// R 4.6.0 src/library/base/R/raw.R: Copyright (C) 1995-2020 The R Core Team
+// R 4.6.0 src/library/base/R/findInt.R: Copyright (C) 1995-2024 The R Core Team
 // Part of the R package, https://www.R-project.org
 //
 // This program is free software; you can redistribute it and/or modify
@@ -28,6 +30,18 @@ use super::{EvalError, Parser, Sexp};
 // A copy of the GNU General Public License is available at
 // https://www.R-project.org/Licenses/
 const DEFINITIONS: &[(&str, &str)] = &[
+    ("utf8ToInt", "function(x) .Internal(utf8ToInt(x))"),
+    ("intToUtf8", "function(x, multiple = FALSE, allow_surrogate_pairs = FALSE) .Internal(intToUtf8(x, multiple, allow_surrogate_pairs))"),
+    (
+        "findInterval",
+        r#"function(x, vec, rightmost.closed = FALSE, all.inside = FALSE,
+                   left.open = FALSE, checkSorted = TRUE, checkNA = TRUE) {
+    if(checkSorted && !identical(FALSE, is.unsorted(vec)))
+        stop("'vec' must be sorted non-decreasingly and not contain NAs")
+    .Internal(findInterval(as.double(vec), as.double(x),
+                           rightmost.closed, all.inside, left.open, checkNA))
+}"#,
+    ),
     (
         "strtoi",
         "function(x, base = 0L) .Internal(strtoi(as.character(x), as.integer(base)))",
