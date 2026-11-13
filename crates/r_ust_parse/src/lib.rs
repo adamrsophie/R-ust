@@ -2,7 +2,10 @@ use r_ust_sexp::{BinaryOp, CallArgument, FunctionParameter, Sexp, UnaryOp, NA_RE
 
 mod decimal;
 mod hex;
+mod numeric;
 mod operators;
+
+pub use numeric::parse_numeric_prefix;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(i32)]
@@ -223,6 +226,7 @@ struct Lexer<'a> {
     source: &'a str,
     chars: Vec<char>,
     position: usize,
+    byte_offset: usize,
     warnings: Vec<String>,
     open_input: bool,
     unterminated_comment: bool,
@@ -234,6 +238,7 @@ impl<'a> Lexer<'a> {
             source,
             chars: source.chars().collect(),
             position: 0,
+            byte_offset: 0,
             warnings: Vec::new(),
             open_input: false,
             unterminated_comment: false,
@@ -464,12 +469,13 @@ impl<'a> Lexer<'a> {
     fn advance(&mut self) -> Option<char> {
         let ch = self.peek()?;
         self.position += 1;
+        self.byte_offset += ch.len_utf8();
         Some(ch)
     }
 
     fn consume(&mut self, expected: char) -> bool {
         if self.peek() == Some(expected) {
-            self.position += 1;
+            self.advance();
             true
         } else {
             false
@@ -512,10 +518,12 @@ impl<'a> Lexer<'a> {
         while let Some(ch) = self.advance() {
             if ch == close {
                 let checkpoint = self.position;
+                let byte_checkpoint = self.byte_offset;
                 if (0..dashes).all(|_| self.consume('-')) && self.consume(quote) {
                     return Ok(value);
                 }
                 self.position = checkpoint;
+                self.byte_offset = byte_checkpoint;
             }
             Self::validate_literal_character(ch)?;
             value.push(ch);
@@ -717,11 +725,7 @@ impl<'a> Lexer<'a> {
     }
 
     fn byte_position(&self) -> usize {
-        self.source
-            .char_indices()
-            .nth(self.position)
-            .map(|(index, _)| index)
-            .unwrap_or_else(|| self.source.len())
+        self.byte_offset
     }
 }
 
