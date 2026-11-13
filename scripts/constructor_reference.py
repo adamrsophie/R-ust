@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import json
 import re
-import struct
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 from typing import Final, assert_never
 
+from scripts.r_value_literal import literal
 from scripts.stop_capture import Run, digest, stream_matches
 
 ROOT: Final = Path(__file__).resolve().parent.parent
@@ -101,14 +100,6 @@ class Lane(StrEnum):
     FUTURE = "future-type"
 
 
-class Storage(StrEnum):
-    LOGICAL = "logical"
-    INTEGER = "integer"
-    DOUBLE = "double"
-    CHARACTER = "character"
-    LIST = "list"
-
-
 @dataclass(frozen=True, slots=True)
 class Case:
     identifier: int
@@ -126,39 +117,6 @@ def decode_hex(text: str) -> str:
         return ""
     assert re.fullmatch(r"(?:[0-9a-f]{2})+", text), text
     return bytes.fromhex(text).decode()
-
-
-def literal(fingerprint: str) -> str:
-    kind, count_text, payload = fingerprint.split("|", 2)
-    storage = Storage(kind)
-    count = int(count_text)
-    assert count >= 0
-    values = payload.split(",") if payload else []
-    match storage:
-        case Storage.LOGICAL:
-            assert all(value in ("T", "F", "NA") for value in values)
-            values = [{"T": "TRUE", "F": "FALSE", "NA": "NA"}[value] for value in values]
-            empty = "as.logical(NULL)"
-        case Storage.INTEGER:
-            values = [str(int(value)) + "L" for value in values]
-            empty = "as.integer(NULL)"
-        case Storage.DOUBLE:
-            assert all(re.fullmatch(r"[0-9a-f]{16}", value) for value in values)
-            values = [repr(struct.unpack(">d", bytes.fromhex(value))[0]) for value in values]
-            empty = "as.double(NULL)"
-        case Storage.CHARACTER:
-            assert all(value.startswith("x") for value in values)
-            values = [json.dumps(bytes.fromhex(value[1:]).decode()) for value in values]
-            empty = "as.character(NULL)"
-        case Storage.LIST:
-            values = payload.split(";") if payload else []
-            assert all(value == "NULL" for value in values)
-            assert len(values) == count
-            return "list(" + ",".join(values) + ")"
-        case _:
-            assert_never(storage)
-    assert len(values) == count
-    return "c(" + ",".join(values) + ")" if values else empty
 
 
 def read_cases() -> tuple[Case, ...]:

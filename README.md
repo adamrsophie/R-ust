@@ -187,6 +187,7 @@ Interactive embedded hosts install a console reader through `RuntimeState::set_i
 **Data structures**
 
 - Atomic vectors, lists, factors (including ordered factors), matrices, and data frames
+- Base constants: `pi`, `letters`, `LETTERS`, `month.name`, and `month.abb`, with ordinary user bindings able to shadow them
 - Constructors: `logical()`, `integer()`, `double()`, `numeric()`, `character()`, and `vector()` for logical, integer, double, character, and list storage. Complex, raw, expression, and pairlist storage remain incomplete.
 
 **Built-in functions**
@@ -245,11 +246,14 @@ python3 scripts/check-pathname-patterns.py
 python3 scripts/check-file-stream.py
 python3 scripts/check-console-buffer.py
 python3 scripts/check-constructors.py compare
+python3 scripts/check-base-constants.py compare
 ```
 
 `scripts/check-c-abi.sh` builds the static library and links a C program against it to exercise the exported Rmath ABI. It requires a C compiler.
 
 `scripts/check-constructors.py` requires Python 3.11+, independent R/Rscript 4.6.0 references on aarch64 with 8-byte long double, and both built executables. It checks 102 constructor cases across five CLI modes, preserving raw streams in `target/constructor-parity/compare/`. Values, warnings, error messages, exit status, and output order are checked; R call headers and stack layout remain separate. The SDK suite covers all 628 represented fixture cases. Twenty future-type cases remain explicit limits.
+
+`scripts/check-base-constants.py` uses the same reference profile and checks all 78 constant-value, type, indexing, shadowing, alias, and lookup-error cases across five CLI modes. Results and raw streams are recorded in `target/base-constants-parity/compare/`. General pretty-printing remains separate from value and type checks.
 
 `scripts/check-cli-quit.py` compares exit behavior with installed R using isolated processes. It requires `Rscript` and a built CLI, records results in `target/cli-quit-parity.json`, and reports unsupported workspace saving separately. Error wording and full warning layout are not compared.
 

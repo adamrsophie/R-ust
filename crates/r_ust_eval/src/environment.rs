@@ -25,6 +25,7 @@ impl RuntimeState {
             }
         }
         super::base::lookup(name)
+            .map(|value| value.filter(|value| matches!(value, Sexp::Closure { .. })))
     }
 
     pub(super) fn lookup(&mut self, name: &str) -> Result<Option<Sexp>, EvalError> {

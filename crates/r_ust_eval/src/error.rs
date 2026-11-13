@@ -6,6 +6,7 @@ use super::{ControlTransfer, QuitRequest};
 pub enum EvalError {
     Parse(String),
     UndefinedSymbol(String),
+    UndefinedFunction(String),
     Type(String),
     Arity(String),
     Domain(String),
@@ -31,6 +32,7 @@ impl fmt::Display for EvalError {
         match self {
             Self::Parse(message) => write!(f, "parse error: {message}"),
             Self::UndefinedSymbol(name) => write!(f, "object '{name}' not found"),
+            Self::UndefinedFunction(name) => write!(f, "could not find function \"{name}\""),
             Self::Type(message) => write!(f, "type error: {message}"),
             Self::Arity(message) => write!(f, "argument error: {message}"),
             Self::Domain(message) => write!(f, "domain error: {message}"),

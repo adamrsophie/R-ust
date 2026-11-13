@@ -73,7 +73,7 @@ impl RuntimeState {
                 )?;
                 return self.call_builtin(name, &evaluated).map(EvalFlow::Value);
             }
-            return Err(EvalError::UndefinedSymbol(name.clone()));
+            return Err(EvalError::UndefinedFunction(name.clone()));
         }
 
         let EvalFlow::Value(value) = self.eval_flow(function)?;

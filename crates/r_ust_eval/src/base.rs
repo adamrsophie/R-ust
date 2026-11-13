@@ -1,3 +1,5 @@
+mod constants;
+
 use std::sync::OnceLock;
 
 use r_ust_sexp::ClosureEnvironment;
@@ -8,6 +10,7 @@ use super::{EvalError, Parser, Sexp};
 // R 4.6.0 src/library/base/R/message.R: Copyright (C) 1995-2021 The R Core Team
 // R 4.6.0 src/library/base/R/New-Internal.R: Copyright (C) 1995-2023 The R Core Team
 // R 4.6.0 src/library/base/R/vector.R: Copyright (C) 1995-2013 The R Core Team
+// R 4.6.0 src/library/base/R/constants.R: Copyright (C) 1995-2012 The R Core Team
 // Part of the R package, https://www.R-project.org
 //
 // This program is free software; you can redistribute it and/or modify
@@ -84,6 +87,9 @@ const DEFINITIONS: &[(&str, &str)] = &[
 
 pub(super) fn lookup(name: &str) -> Result<Option<Sexp>, EvalError> {
     static BASE: OnceLock<Result<Vec<(String, Sexp)>, EvalError>> = OnceLock::new();
+    if let Some(value) = constants::lookup(name) {
+        return Ok(Some(value));
+    }
     if !DEFINITIONS.iter().any(|(key, _)| *key == name) {
         return Ok(None);
     }

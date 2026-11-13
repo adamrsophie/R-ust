@@ -64,6 +64,7 @@ def source_inputs() -> tuple[Path, ...]:
                 ROOT / "Cargo.lock",
                 Path(__file__),
                 ROOT / "scripts/constructor_reference.py",
+                ROOT / "scripts/r_value_literal.py",
                 ROOT / "scripts/stop_capture.py",
                 ROOT / "scripts/stop_reference.py",
             )
