@@ -71,6 +71,18 @@ def main() -> None:
         _ = (root / "glob-b.R").write_text("cat('SECOND')\n")
         for name in ["--bad-a", "--bad-b"]:
             _ = (root / name).write_text("")
+        patterns = root / "patterns"
+        patterns.mkdir()
+        for name in ["p", "pa", "pb", "p1", "p9", "pA", "p_", "p ", "p[", "p]", "p*", "p\\x", "pα", "p\nx", "p\tX", "p\t", "p\n", "p\v", "p\r", "p~", "p=", "p-", "p\x7f", "p[g]", "p[b]", "p[:]", ".dot"]:
+            _ = (patterns / name).write_text("")
+        for name in ["dir-a", "dir-b"]:
+            (patterns / name).mkdir()
+            _ = (patterns / name / "value.R").write_text("cat('NESTED')\n")
+        (patterns / "link").symlink_to("missing")
+        for name, value in [("chosen-a.R", "A"), ("chosen-b.R", "B")]:
+            _ = (root / name).write_text(f"cat('{value}')\n")
+            _ = (root / f"--file={name}").write_text("")
+        _ = (root / "--version").write_text("")
         for is_main, reference, native, prefix in [
             (True, reference_r, str(snapshots[0]), ["--vanilla", "--no-echo"]),
             (False, reference_script, str(snapshots[1]), ["--vanilla"]),
@@ -111,9 +123,36 @@ def main() -> None:
                     ("common-warning-before-failed-open", ["--bad", "-f", "missing.R", "-quiet"], "exact"),
                     ("raw-help", ["ignored.R", "--help", "-e"], "help"),
                     ("generated-version", ["--bad --version", "-e", "1"], "version"),
-                    ("filename-pathname-expansion", ["-f", "*.R"], "known"),
+                    ("filename-pathname-expansion", ["-f", "*.R"], "exact"),
                 ])
-            cases.append(("option-pathname-expansion", ["--bad-*", "-e", "1"], "known"))
+                for pattern in ["*", "p?", "p??", "p[a-b]", "p[!a]", "p[^a]", "p[]a]", "p[-a]", "p[a-]", "p[z-a]",
+                                "p[[:alpha:]]", "p[[:digit:]]", "p[[:space:]]", "p[[:word:]]", "p[a[:digit:]]",
+                                "p[[.a.]]", "p[", "p*[", "p**?**", r"p\*", r"p\\*", "[.]*", ".*", ".[!.]*",
+                                "dir-?/*", "di*/", "dir-*/../p?", "link*", "missing*", "dir-a/missing*", "dir-*/missing"]:
+                    cases.append(("pathname-pattern", [f"patterns/{pattern}", "-e", "writeLines(commandArgs()[-1])"], "exact"))
+                for class_name in ["alnum", "ascii", "blank", "cntrl", "graph", "lower", "print", "punct", "upper", "xdigit"]:
+                    cases.append(("pathname-character-class", [f"patterns/p[[:{class_name}:]]", "-e", "1"], "exact"))
+                cases.extend([
+                    ("pathname-slashes", ["./patterns//p?", "-e", "1"], "exact"),
+                    ("pathname-quoted-empty-tail", ["--bad-*", "", "--bad-*", "-e", "1"], "exact"),
+                    ("filename-validation-glob", ["-f", "[-][-]bad-?"], "exact"),
+                    ("filename-glob-selection", ["-f", "chosen-*.R"], "exact"),
+                    ("inline-filename-glob-selection", ["--file=chosen-*.R"], "exact"),
+                    ("pathname-equivalence", ["patterns/p[[=a=]]", "-e", "1"], "known"),
+                    ("pathname-invalid-class", ["patterns/p[[:bogus:]]", "-e", "1"], "known"),
+                    ("pathname-invalid-class-prefix", ["patterns/p[a[:bogus:]]", "-e", "1"], "known"),
+                    ("pathname-invalid-class-star", ["patterns/p*[[:bogus:]]", "-e", "1"], "exact"),
+                    ("pathname-invalid-class-suffix", ["patterns/p[[:bogus:]a]", "-e", "1"], "exact"),
+                ])
+            cases.extend([
+                ("option-pathname-expansion", ["--bad-*", "-e", "1"], "exact"),
+                ("option-pathname-bracket", ["--bad-[ab]", "-e", "writeLines(commandArgs()[-1])"], "exact"),
+                ("expression-validation-glob", ["-e", "cat('BEFORE')", "-e", "[-][-]bad-?"], "exact"),
+                ("pathname-generated-version", ["--versio?", "-e", "1"], "version"),
+                ("pathname-quoted-trailing", ["-e", "writeLines(commandArgs(TRUE))", *(["--args"] if is_main else []), "--bad-*"], "exact"),
+            ])
+            if not is_main:
+                cases.append(("rscript-filename-glob-selection", ["chosen-*.R"], "exact"))
             for source in [r"1\cignored", r"cat('a\xffb')"]:
                 cases.append(("unsafe-launcher-result", ["-e", source], "guard"))
             for label, args, kind in cases:

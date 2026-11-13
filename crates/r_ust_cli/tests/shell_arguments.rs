@@ -165,3 +165,75 @@ fn malformed_argument_counts_never_execute_stale_source() {
     );
     assert!(output.stderr.is_empty());
 }
+
+#[test]
+fn wildcard_options_expand_before_native_processing_but_trailing_arguments_stay_literal() {
+    let root = std::env::temp_dir().join(format!("r-ust wildcard args {}", std::process::id()));
+    std::fs::create_dir(&root).unwrap();
+    let files = Files(root);
+    for name in ["--bad-b", "--bad-a"] {
+        std::fs::write(files.0.join(name), "").unwrap();
+    }
+    for binary in [
+        env!("CARGO_BIN_EXE_r_ust_cli"),
+        env!("CARGO_BIN_EXE_Rscript"),
+    ] {
+        let mut command = Command::new(binary);
+        command.args([
+            "--vanilla",
+            "--no-echo",
+            "--bad-*",
+            "-e",
+            "writeLines(commandArgs(TRUE))",
+        ]);
+        if binary == env!("CARGO_BIN_EXE_r_ust_cli") {
+            command.arg("--args");
+        }
+        let output = command
+            .arg("--bad-*")
+            .current_dir(&files.0)
+            .env("LC_ALL", "C")
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(0));
+        assert_eq!(
+            output.stdout,
+            b"WARNING: unknown option '--bad-a'\n\nWARNING: unknown option '--bad-b'\n\n--bad-*\n"
+        );
+        assert!(output.stderr.is_empty());
+    }
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+#[test]
+fn matched_non_utf8_pathnames_fail_before_evaluation() {
+    use std::os::unix::ffi::OsStringExt;
+    let root = std::env::temp_dir().join(format!("r-ust byte wildcard {}", std::process::id()));
+    std::fs::create_dir(&root).unwrap();
+    let files = Files(root);
+    let name = std::ffi::OsString::from_vec(b"--bad-\xff".to_vec());
+    std::fs::write(files.0.join(name), "").unwrap();
+    for (binary, status) in [
+        (env!("CARGO_BIN_EXE_r_ust_cli"), 2),
+        (env!("CARGO_BIN_EXE_Rscript"), 1),
+    ] {
+        let output = Command::new(binary)
+            .args([
+                "--vanilla",
+                "--no-echo",
+                "--bad-*",
+                "-e",
+                "cat('UNINTENDED')",
+            ])
+            .current_dir(&files.0)
+            .env("LC_ALL", "C")
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(status));
+        assert!(output.stdout.is_empty());
+        assert_eq!(
+            output.stderr,
+            b"launcher pathname expansion produced a non-UTF-8 argument\n"
+        );
+    }
+}

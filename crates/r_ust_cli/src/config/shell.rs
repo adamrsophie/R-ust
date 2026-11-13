@@ -12,6 +12,8 @@ pub(super) fn prepare(args: &[String]) -> Result<Prepared, StartupError> {
         let encoded = match arg.as_str() {
             "--help" | "-h" => return Ok(Prepared::Help),
             "--args" | "" => {
+                output = launcher::expand_arguments(output.iter().map(String::as_str))
+                    .map_err(StartupError::Expression)?;
                 output.extend_from_slice(&args[index..]);
                 return Ok(Prepared::Arguments(output));
             }
@@ -23,10 +25,10 @@ pub(super) fn prepare(args: &[String]) -> Result<Prepared, StartupError> {
             }
             "-f" => {
                 index += 1;
-                let value = args
-                    .get(index)
-                    .filter(|value| launcher::valid_argument(value))
-                    .ok_or(StartupError::Argument("-f"))?;
+                let value = args.get(index).ok_or(StartupError::Argument("-f"))?;
+                if !launcher::valid_argument(value).map_err(StartupError::Expression)? {
+                    return Err(StartupError::Argument("-f"));
+                }
                 output.push("-f".into());
                 launcher::encode_filename(value, false).map_err(|error| {
                     StartupError::Unsupported(format!("filename launcher conversion: {error}"))
@@ -48,5 +50,7 @@ pub(super) fn prepare(args: &[String]) -> Result<Prepared, StartupError> {
         output.extend(launcher::fields(&encoded).map(str::to_string));
         index += 1;
     }
+    let output = launcher::expand_arguments(output.iter().map(String::as_str))
+        .map_err(StartupError::Expression)?;
     Ok(Prepared::Arguments(output))
 }

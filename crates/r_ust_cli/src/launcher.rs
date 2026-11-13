@@ -1,9 +1,12 @@
 // shortcut: match macOS R 4.6.0 launcher rules; port platform rules before claiming other platforms.
+mod pathname;
+
 #[derive(Debug)]
 pub(super) enum ExpressionError {
     Invalid,
     TruncatingEscape,
     NonUtf8,
+    NonUtf8Path,
 }
 
 impl std::fmt::Display for ExpressionError {
@@ -12,6 +15,7 @@ impl std::fmt::Display for ExpressionError {
             Self::Invalid => "-e requires a non-empty expression that does not start with '-'",
             Self::TruncatingEscape => "-e launcher escape \\c is not supported",
             Self::NonUtf8 => "-e launcher escapes produced non-UTF-8 source",
+            Self::NonUtf8Path => "launcher pathname expansion produced a non-UTF-8 argument",
         })
     }
 }
@@ -23,7 +27,7 @@ impl From<ExpressionError> for String {
 }
 
 pub(super) fn encode_expression(argument: &str) -> Result<String, ExpressionError> {
-    if !valid_argument(argument) {
+    if !valid_argument(argument)? {
         return Err(ExpressionError::Invalid);
     }
     let mut expanded = match expand_echo(argument) {
@@ -64,12 +68,22 @@ pub(super) fn fields(argument: &str) -> impl Iterator<Item = &str> {
         .filter(|field| !field.is_empty())
 }
 
-pub(super) fn valid_argument(argument: &str) -> bool {
-    let unquoted = fields(argument).collect::<Vec<_>>().join(" ");
-    expand_echo(&unquoted)
+pub(super) fn expand_arguments<'a>(
+    args: impl IntoIterator<Item = &'a str>,
+) -> Result<Vec<String>, ExpressionError> {
+    let mut output = Vec::new();
+    for arg in args {
+        output.extend(pathname::expand(arg).map_err(|_| ExpressionError::NonUtf8Path)?);
+    }
+    Ok(output)
+}
+
+pub(super) fn valid_argument(argument: &str) -> Result<bool, ExpressionError> {
+    let unquoted = expand_arguments(fields(argument))?.join(" ");
+    Ok(expand_echo(&unquoted)
         .into_bytes()
         .split(|byte| *byte == b'\n')
-        .any(|line| line.first() != Some(&b'-') && line.iter().any(|byte| *byte != 0))
+        .any(|line| line.first() != Some(&b'-') && line.iter().any(|byte| *byte != 0)))
 }
 
 pub(super) fn encode_filename(argument: &str, inline: bool) -> Result<String, ExpressionError> {
