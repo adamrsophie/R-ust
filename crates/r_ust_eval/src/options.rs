@@ -1,9 +1,9 @@
 use std::collections::BTreeMap;
 
 use super::{
-    bind_named_arguments, coerce_integer_values, coerce_logical_values, expand_dots_call_arguments,
-    format_number, value_len, CallArgument, EvalError, EvalFlow, EvaluatedArgument, ListElement,
-    OutputEvent, RuntimeState, Sexp,
+    bind_named_arguments, coerce_logical_values, expand_dots_call_arguments, format_number,
+    value_len, CallArgument, EvalError, EvalFlow, EvaluatedArgument, ListElement, OutputEvent,
+    RuntimeState, Sexp,
 };
 
 const MANDATORY: &[&str] = &[
@@ -221,7 +221,7 @@ impl RuntimeState {
             _ => None,
         };
         if let Some((min, max)) = range {
-            let integer = self.option_integer_with_warning(&value)?;
+            let integer = self.scalar_integer_with_warning(&value)?;
             if !integer.is_some_and(|value| (min..=max).contains(&value))
                 || (name == "showNCalls" && value_len(&value) != 1)
             {
@@ -239,7 +239,7 @@ impl RuntimeState {
         }
         match name {
             "deparse.cutoff" => Ok(Sexp::Integer(vec![
-                self.option_integer_with_warning(&value)?
+                self.scalar_integer_with_warning(&value)?
             ])),
             "prompt" | "continue" => {
                 let text = option_text(&value)
@@ -358,7 +358,7 @@ impl RuntimeState {
                     let logical = values.first() == Some(&Some(true));
                     (Sexp::Logical(vec![Some(logical)]), logical)
                 } else {
-                    match self.option_integer_with_warning(&value)? {
+                    match self.scalar_integer_with_warning(&value)? {
                         Some(value) if value >= 0 => (Sexp::Integer(vec![Some(value)]), true),
                         _ => (Sexp::Logical(vec![Some(true)]), false),
                     }
@@ -380,7 +380,7 @@ impl RuntimeState {
     }
 }
 
-pub(super) fn atomic_data(value: &Sexp) -> &Sexp {
+fn atomic_data(value: &Sexp) -> &Sexp {
     match value {
         Sexp::Matrix { data, .. } => data,
         other => other,
@@ -388,11 +388,7 @@ pub(super) fn atomic_data(value: &Sexp) -> &Sexp {
 }
 
 pub(super) fn option_integer(value: &Sexp) -> Option<i32> {
-    coerce_integer_values(value)
-        .ok()?
-        .first()
-        .copied()
-        .flatten()
+    super::coercion::silent_integer(value)
 }
 
 fn option_text(value: &Sexp) -> Option<String> {

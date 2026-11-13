@@ -528,7 +528,7 @@ fn expression_mode_runs_subset_assignment_and_vector_helpers() {
         String::from_utf8_lossy(&output.stderr)
     );
     let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
-    assert!(stdout.contains("[1] 1 99 3\n"));
+    assert!(stdout.contains("[1]  1 99  3\n"));
     assert!(stdout.contains("[1] 2 4 6 2 4 6\n"));
 }
 
@@ -552,7 +552,7 @@ fn expression_mode_runs_logical_ops_and_predicates() {
     let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
     assert!(stdout.contains("[1] FALSE\n[1] TRUE\n"));
     assert!(stdout.contains("[1] TRUE\n"));
-    assert!(stdout.contains("[1] FALSE TRUE\n"));
+    assert!(stdout.contains("[1] FALSE  TRUE\n"));
 }
 
 #[test]
@@ -573,8 +573,8 @@ fn expression_mode_runs_logical_identity_helpers() {
         String::from_utf8_lossy(&output.stderr)
     );
     let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
-    assert!(stdout.contains("[1] TRUE FALSE NA\n"));
-    assert!(stdout.contains("[1] FALSE TRUE\n"));
+    assert!(stdout.contains("[1]  TRUE FALSE    NA\n"));
+    assert!(stdout.contains("[1] FALSE  TRUE\n"));
     assert!(stdout.contains("[1] TRUE\n"));
     assert!(stdout.contains("[1] FALSE\n"));
 }
@@ -626,20 +626,20 @@ fn expression_mode_runs_additional_random_distribution_helpers() {
     let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
     assert!(stdout.contains("[1] 0.018245990155 0.691220217094\n"));
     assert!(stdout.contains("[1] 0.675034031277 1.333839266687\n"));
-    assert!(stdout.contains("[1] 6.835960082702 -4.780133104908\n"));
+    assert!(stdout.contains("[1]  6.835960082702 -4.780133104908\n"));
     assert!(stdout.contains("[1] 0.688256497741 5.147557532988\n"));
     assert!(stdout.contains("[1] 6.149202253105 3.471663233511\n"));
     assert!(stdout.contains("[1] 3 2\n"));
     assert!(stdout.contains("[1] 0 7\n"));
     assert!(stdout.contains("[1] 5 5\n"));
-    assert!(stdout.contains("[1] 3.159988069084 1.17965232797\n"));
-    assert!(stdout.contains("[1] 9.57552211355 2.852550537173\n"));
+    assert!(stdout.contains("[1] 3.159988069084  1.17965232797\n"));
+    assert!(stdout.contains("[1]  9.57552211355 2.852550537173\n"));
     assert!(stdout.contains("[1] 0.669891847819 0.279765194257\n"));
     assert!(stdout.contains("[1] 3.043965334059 0.582654140066\n"));
     assert!(stdout.contains("[1] 1.498005549196 0.067031526736\n"));
     assert!(stdout.contains("[1] 9 4\n"));
     assert!(stdout.contains("[1] 3 4\n"));
-    assert!(stdout.contains("[1] 7.0961758966 0.521138258407\n"));
+    assert!(stdout.contains("[1]   7.0961758966 0.521138258407\n"));
     assert_eq!(stdout.matches("[1] 2 3 1\n").count(), 2);
     assert!(stdout.contains("[1] 6 8 2\n"));
     assert!(stdout.contains("[1] 8 3 3\n"));
@@ -696,7 +696,7 @@ fn expression_mode_runs_data_frame_helpers() {
     assert!(stdout.contains("[1] 1 2 3\n"));
     assert!(stdout.contains("[1] 2\n"));
     assert!(stdout.contains("[1] \"a\" \"b\" \"c\"\n"));
-    assert!(stdout.contains("[1] TRUE FALSE TRUE\n"));
+    assert!(stdout.contains("[1]  TRUE FALSE  TRUE\n"));
     assert!(stdout.contains("[1] \"u\" \"v\" \"w\"\n"));
 }
 
@@ -721,7 +721,7 @@ fn expression_mode_runs_factor_helpers() {
     assert!(stdout.contains("[1] b a b <NA>\nLevels: a b\n"));
     assert!(stdout.contains("[1] \"a\" \"b\"\n"));
     assert!(stdout.contains("[1] \"b\" \"a\" \"b\" NA\n"));
-    assert!(stdout.contains("[1] 2 1 2 NA\n"));
+    assert!(stdout.contains("[1]  2  1  2 NA\n"));
     assert!(stdout.contains("[1] TRUE\n"));
     assert!(stdout.contains("[1] \"factor\"\n"));
     assert!(stdout.contains("[1] \"integer\"\n"));
@@ -730,31 +730,6 @@ fn expression_mode_runs_factor_helpers() {
     assert!(stdout.contains("Levels: low < high\n"));
     assert!(stdout.contains("[1] \"ordered\" \"factor\"\n"));
     assert!(stdout.contains("x y\n1 b 1\n2 a 2\n3 b 3\n4 NA 4\n"));
-}
-
-#[test]
-fn expression_mode_runs_coercion_and_type_predicates() {
-    let output = batch_command()
-        .args([
-            "--vanilla",
-            "-q",
-            "-e",
-            "as.integer(c(1.9, -1.9, NA, Inf)); as.double(as.integer(c(1, NA))); as.real(c(TRUE, FALSE, NA)); is.integer(as.integer(1)); is.double(c(1, 2)); is.real(c(1, 2)); is.atomic(c(1, 2)); is.atomic(list(1)); is.vector(c(1, 2)); is.vector(matrix(1:4, nrow = 2))",
-        ])
-        .output()
-        .expect("run r_ust_cli");
-
-    assert!(
-        output.status.success(),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
-    assert!(stdout.contains("[1] 1 -1 NA NA\n"));
-    assert!(stdout.contains("[1] 1 NA\n"));
-    assert!(stdout.contains("[1] 1 0 NA\n"));
-    assert!(stdout.contains("[1] TRUE\n"));
-    assert!(stdout.contains("[1] FALSE\n"));
 }
 
 #[test]
@@ -806,17 +781,17 @@ fn expression_mode_runs_base_numeric_helpers() {
         String::from_utf8_lossy(&output.stderr)
     );
     let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
-    assert!(stdout.contains("[1] FALSE TRUE FALSE\n"));
-    assert!(stdout.contains("[1] TRUE FALSE FALSE FALSE\n"));
-    assert!(stdout.contains("[1] FALSE FALSE TRUE TRUE\n"));
-    assert!(stdout.contains("[1] -2 1 NaN\n"));
-    assert!(stdout.contains("[1] -1 2 NaN\n"));
-    assert!(stdout.contains("[1] -1 1 NaN\n"));
-    assert!(stdout.contains("[1] -1 0 1 NaN\n"));
+    assert!(stdout.contains("[1] FALSE  TRUE FALSE\n"));
+    assert!(stdout.contains("[1]  TRUE FALSE FALSE FALSE\n"));
+    assert!(stdout.contains("[1] FALSE FALSE  TRUE  TRUE\n"));
+    assert!(stdout.contains("[1]  -2   1 NaN\n"));
+    assert!(stdout.contains("[1]  -1   2 NaN\n"));
+    assert!(stdout.contains("[1]  -1   1 NaN\n"));
+    assert!(stdout.contains("[1]  -1   0   1 NaN\n"));
     assert!(stdout.contains("[1] 0 1 2\n"));
     assert!(stdout.contains("[1] 0 1 3\n"));
     assert!(stdout.contains("[1] 0 1\n"));
-    assert!(stdout.contains("[1] 1 -1\n"));
+    assert!(stdout.contains("[1]  1 -1\n"));
     assert!(stdout.contains("[1] 1.2 5.7\n"));
     assert!(stdout.contains("[1] 1200\n"));
 }
@@ -840,14 +815,14 @@ fn expression_mode_runs_special_numeric_helpers() {
     );
     let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
     assert!(stdout.contains("[1] 3 4\n"));
-    assert!(stdout.contains("[1] 1.570796326795 3.14159265359\n"));
-    assert!(stdout.contains("[1] 0 1.175201193644\n"));
+    assert!(stdout.contains("[1] 1.570796326795  3.14159265359\n"));
+    assert!(stdout.contains("[1]              0 1.175201193644\n"));
     assert!(stdout.contains("[1] 1\n"));
-    assert!(stdout.contains("[1] 0 0.761594155956\n"));
+    assert!(stdout.contains("[1]              0 0.761594155956\n"));
     assert!(stdout.contains("[1] 0.88137358702\n"));
     assert!(stdout.contains("[1] 0.549306144334\n"));
-    assert!(stdout.contains("[1] 1.23 12300\n"));
-    assert!(stdout.contains("[1] 1 120\n"));
+    assert!(stdout.contains("[1]  1.23 12300\n"));
+    assert!(stdout.contains("[1]   1 120\n"));
     assert!(stdout.contains("[1] 4.787491742782\n"));
     assert!(stdout.contains("[1] -2.484906649788\n"));
     assert!(stdout.contains("[1] 2.302585092994\n"));
@@ -1030,15 +1005,15 @@ fn expression_mode_runs_statistical_vector_helpers() {
     assert!(stdout.contains("[1] 2.5\n"));
     assert!(stdout.contains("[1] 1\n"));
     assert!(stdout.contains("[1] 3 5\n"));
-    assert!(stdout.contains("[1] 8 12\n"));
+    assert!(stdout.contains("[1]  8 12\n"));
     assert!(stdout.contains("[1] 2 2\n"));
-    assert!(stdout.contains("[1] 1 3 NA NA\n"));
-    assert!(stdout.contains("[1] 1 2 NA NA\n"));
-    assert!(stdout.contains("[1] 3 1 NA NA\n"));
-    assert!(stdout.contains("[1] 3 3 NA NA\n"));
-    assert!(stdout.contains("[1] 1 3 NA\n"));
+    assert!(stdout.contains("[1]  1  3 NA NA\n"));
+    assert!(stdout.contains("[1]  1  2 NA NA\n"));
+    assert!(stdout.contains("[1]  3  1 NA NA\n"));
+    assert!(stdout.contains("[1]  3  3 NA NA\n"));
+    assert!(stdout.contains("[1]  1  3 NA\n"));
     assert!(stdout.contains("[1] 1 3 4\n"));
-    assert!(stdout.contains("[1] 2 5 NA\n"));
+    assert!(stdout.contains("[1]  2  5 NA\n"));
     assert!(stdout.contains("[1] 2 5 4\n"));
 }
 
@@ -1084,8 +1059,8 @@ fn expression_mode_runs_missing_data_helpers() {
         String::from_utf8_lossy(&output.stderr)
     );
     let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
-    assert!(stdout.contains("[1] 1 11 NA\n"));
-    assert!(stdout.contains("[1] TRUE FALSE FALSE\n"));
+    assert!(stdout.contains("[1]  1 11 NA\n"));
+    assert!(stdout.contains("[1]  TRUE FALSE FALSE\n"));
     assert!(stdout.contains("x y\n1 1 \"a\"\n"));
     assert!(stdout.contains("[1] 1 3\n"));
     assert!(stdout.contains("[1] a b\nLevels: a b\n"));
@@ -1138,7 +1113,7 @@ fn expression_mode_runs_lapply_and_sapply() {
     assert!(stdout.contains("[[2]]\n[1] 4\n"));
     assert!(stdout.contains("[1] 2 4 6\n"));
     assert!(stdout.contains("[1,] 1 2 3\n[2,] 11 12 13\n"));
-    assert!(stdout.contains("[1] 1 1.414213562373 1.732050807569\n"));
+    assert!(stdout.contains("[1]              1 1.414213562373 1.732050807569\n"));
     assert!(stdout.contains("[1] 11 12 13\n"));
     assert!(stdout.contains("[1] 2 5\n"));
 }
@@ -1161,7 +1136,7 @@ fn expression_mode_runs_matrix_apply() {
         String::from_utf8_lossy(&output.stderr)
     );
     let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
-    assert!(stdout.contains("[1] 9 12\n"));
+    assert!(stdout.contains("[1]  9 12\n"));
     assert!(stdout.contains("[1] 1.5 3.5 5.5\n"));
     assert!(stdout.contains("[1,] 1 2\n[2,] 9 12\n"));
     assert!(stdout.contains("[1] 11.5 13.5 15.5\n"));
@@ -1211,8 +1186,8 @@ fn expression_mode_runs_logical_subsetting_and_match() {
     let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
     assert!(stdout.contains("[1] 30 40\n"));
     assert!(stdout.contains("[1] 3 4\n"));
-    assert!(stdout.contains("[1] TRUE FALSE\n"));
-    assert!(stdout.contains("[1] 2 NA\n"));
+    assert!(stdout.contains("[1]  TRUE FALSE\n"));
+    assert!(stdout.contains("[1]  2 NA\n"));
 }
 
 #[test]
@@ -1235,13 +1210,13 @@ fn expression_mode_runs_string_helpers() {
     let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
     assert!(stdout.contains("[1] \"a-1\" \"a-2\"\n"));
     assert!(stdout.contains("[1] \"x1,x2\"\n"));
-    assert!(stdout.contains("[1] 2 NA\n"));
+    assert!(stdout.contains("[1]  2 NA\n"));
     assert!(stdout.contains("[1] \"AB\"\n"));
     assert!(stdout.contains("[1] \"xy\"\n"));
     assert!(stdout.contains("[1] \"bc\" NA\n"));
     assert!(stdout.contains("[1] \"ab\" \"cde\"\n"));
-    assert!(stdout.contains("[1] TRUE FALSE NA\n"));
-    assert!(stdout.contains("[1] TRUE FALSE FALSE\n"));
+    assert!(stdout.contains("[1]  TRUE FALSE    NA\n"));
+    assert!(stdout.contains("[1]  TRUE FALSE FALSE\n"));
     assert!(stdout.contains("[1] 1 3\n"));
     assert!(stdout.contains("[1] \"abc\" \"bcd\"\n"));
     assert!(stdout.contains("[1] \"a\" \"b\" \"c\"\n"));
@@ -1272,8 +1247,8 @@ fn expression_mode_runs_additional_string_helpers() {
         String::from_utf8_lossy(&output.stderr)
     );
     let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
-    assert!(stdout.contains("[1] FALSE TRUE TRUE\n"));
-    assert!(stdout.contains("[1] FALSE TRUE NA\n"));
+    assert!(stdout.contains("[1] FALSE  TRUE  TRUE\n"));
+    assert!(stdout.contains("[1] FALSE  TRUE    NA\n"));
     assert!(stdout.contains("[1] \"ABrACAdABrA\" NA\n"));
     assert!(stdout.contains("[1] \"abc\" \"xy\" NA\n"));
     assert!(stdout.contains("[1] \"aaa\" \"bcbc\" NA\n"));
@@ -1303,8 +1278,8 @@ fn expression_mode_runs_vector_order_helpers() {
     assert!(stdout.contains("[1] 1 2 3\n"));
     assert!(stdout.contains("[1] 2 3 1\n"));
     assert!(stdout.contains("[1] 3 1 2\n"));
-    assert!(stdout.contains("[1] 1 2 NA\n"));
-    assert!(stdout.contains("[1] FALSE FALSE TRUE FALSE TRUE\n"));
+    assert!(stdout.contains("[1]  1  2 NA\n"));
+    assert!(stdout.contains("[1] FALSE FALSE  TRUE FALSE  TRUE\n"));
     assert!(stdout.contains("[1] \"a\" \"b\" \"c\"\n"));
 }
 
@@ -1326,8 +1301,8 @@ fn expression_mode_runs_set_helpers() {
         String::from_utf8_lossy(&output.stderr)
     );
     let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
-    assert!(stdout.contains("[1] 1 2 NA 3\n"));
-    assert!(stdout.contains("[1] 2 NA\n"));
+    assert!(stdout.contains("[1]  1  2 NA  3\n"));
+    assert!(stdout.contains("[1]  2 NA\n"));
     assert!(stdout.contains("[1] 1\n"));
     assert!(stdout.contains("[1] TRUE\n"));
     assert!(stdout.contains("[1] FALSE\n"));

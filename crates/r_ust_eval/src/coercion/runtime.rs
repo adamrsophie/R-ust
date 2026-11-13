@@ -1,31 +1,42 @@
-use crate::options::{atomic_data, option_integer};
-use crate::{EvalError, OutputEvent, RuntimeState, Sexp};
+use super::{atomic, lists, strings::BlankPolicy};
+use crate::{EvalError, EvaluatedArgument, RuntimeState, Sexp};
 
 impl RuntimeState {
-    pub(crate) fn option_integer_with_warning(
+    pub(crate) fn scalar_integer_with_warning(
         &mut self,
         value: &Sexp,
     ) -> Result<Option<i32>, EvalError> {
-        let integer = option_integer(value);
-        if integer.is_none() {
-            let warning = match atomic_data(value) {
-                Sexp::String(values)
-                    if values
-                        .first()
-                        .and_then(|value| value.as_deref())
-                        .is_some_and(|value| !value.trim().is_empty()) =>
-                {
-                    Some("NAs introduced by coercion")
-                }
-                Sexp::Real(values) if values.first().is_some_and(|value| !value.is_nan()) => {
-                    Some("NAs introduced by coercion to integer range")
-                }
-                _ => None,
-            };
-            if let Some(warning) = warning {
-                self.emit(OutputEvent::Stderr(format!("Warning: {warning}\n")))?;
-            }
-        }
+        let (integer, warnings) = atomic::scalar_integer(value, BlankPolicy::environment());
+        self.record_parse_warnings(&warnings.messages())?;
         Ok(integer)
+    }
+
+    pub(crate) fn call_numeric_coercion(
+        &mut self,
+        name: &str,
+        args: &[EvaluatedArgument],
+    ) -> Result<Sexp, EvalError> {
+        let integer = name == "as.integer";
+        let Some(first) = args.first() else {
+            return Ok(if integer {
+                Sexp::Integer(Vec::new())
+            } else {
+                Sexp::Real(Vec::new())
+            });
+        };
+        if let Some(name) = first.name.as_deref().filter(|name| *name != "x") {
+            return Err(EvalError::Arity(format!(
+                "supplied argument name '{name}' does not match 'x'"
+            )));
+        }
+        if matches!(first.value, Sexp::MissingArg(_)) {
+            return Err(EvalError::Arity("argument 1 is empty".into()));
+        }
+        lists::convert(
+            &first.value,
+            integer,
+            BlankPolicy::environment(),
+            |warnings| self.record_parse_warnings(&warnings.messages()),
+        )
     }
 }

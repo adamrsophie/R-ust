@@ -1,11 +1,39 @@
 use super::{
-    bool_arg, console_event, data_args, dispatch_call, format_line, format_sexp, logical_scalar,
-    named_arg, named_bool_arg, output_strings, positional, string_scalar, value_len,
-    visibility_result, CallArgument, EvalError, EvalFlow, EvaluatedArgument, OutputEvent,
-    RuntimeState, Sexp,
+    bool_arg, console_event, data_args, dispatch_call, expand_dots_call_arguments, format_line,
+    format_sexp, logical_scalar, named_arg, named_bool_arg, output_strings, positional,
+    string_scalar, value_len, visibility_result, ArgumentFlow, CallArgument, EvalError, EvalFlow,
+    EvaluatedArgument, OutputEvent, RuntimeState, Sexp,
 };
 
 impl RuntimeState {
+    pub(super) fn eval_arguments(
+        &mut self,
+        arguments: &[CallArgument],
+        empty_is_error: bool,
+    ) -> Result<ArgumentFlow, EvalError> {
+        let arguments = expand_dots_call_arguments(arguments, &self.visible_environment())?;
+        let mut values = Vec::with_capacity(arguments.len());
+        for (index, argument) in arguments.iter().enumerate() {
+            if empty_is_error && matches!(argument.value, Sexp::MissingArg(_)) {
+                return Err(EvalError::Arity(format!("argument {} is empty", index + 1)));
+            }
+            let value = match self.eval_flow(&argument.value)? {
+                EvalFlow::Value(value) => value,
+                EvalFlow::Return(value) => return Ok(ArgumentFlow::Return(value)),
+                EvalFlow::Break | EvalFlow::Next => {
+                    return Err(EvalError::Control(
+                        "loop control used in function argument".to_string(),
+                    ))
+                }
+            };
+            values.push(EvaluatedArgument {
+                name: argument.name.clone(),
+                value,
+            });
+        }
+        Ok(ArgumentFlow::Value(values))
+    }
+
     pub(super) fn call_builtin(
         &mut self,
         name: &str,
@@ -35,6 +63,9 @@ impl RuntimeState {
                 };
             }
             "options" => return self.call_options(args),
+            "as.numeric" | "as.double" | "as.real" | "as.integer" => {
+                self.call_numeric_coercion(name, args)?
+            }
             "interactive" => {
                 if !args.is_empty() {
                     return Err(EvalError::Arity(
