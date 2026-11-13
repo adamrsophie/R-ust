@@ -53,8 +53,51 @@ pub(super) fn promise(
 
 pub(super) fn is_missing_binding(value: &Sexp) -> Result<bool, EvalError> {
     match value {
+        Sexp::Promise { state } if !state.supplied()? => Ok(true),
+        _ => forwarded_binding_missing(value, &mut Vec::new()),
+    }
+}
+
+fn forwarded_binding_missing(
+    value: &Sexp,
+    visited: &mut Vec<PromiseState>,
+) -> Result<bool, EvalError> {
+    match value {
         Sexp::MissingArg(_) => Ok(true),
-        Sexp::Promise { state } => Ok(!state.supplied()?),
+        Sexp::Promise { state } => {
+            if visited.contains(state) {
+                return Ok(true);
+            }
+            let Some(environment) = state.environment()? else {
+                return Ok(false);
+            };
+            visited.push(state.clone());
+            match state.expression()? {
+                promise @ Sexp::Promise { .. } => forwarded_binding_missing(&promise, visited),
+                Sexp::Symbol(name) => {
+                    if let Some(index) = name
+                        .strip_prefix("..")
+                        .and_then(|value| value.parse::<usize>().ok())
+                        .and_then(|value| value.checked_sub(1))
+                    {
+                        return match environment.get_local("...")? {
+                            Some(Sexp::Dots(values)) => {
+                                values.get(index).map_or(Ok(true), |value| {
+                                    forwarded_binding_missing(&value.value, visited)
+                                })
+                            }
+                            Some(Sexp::MissingArg(_)) => Ok(true),
+                            _ => Ok(false),
+                        };
+                    }
+                    match environment.get_local(&name)? {
+                        Some(value) => forwarded_binding_missing(&value, visited),
+                        None => Ok(false),
+                    }
+                }
+                _ => Ok(false),
+            }
+        }
         _ => Ok(false),
     }
 }

@@ -60,6 +60,7 @@ fn visit(
 ) -> Result<(), GraphError> {
     match value {
         Sexp::Nil
+        | Sexp::Primitive(_)
         | Sexp::MissingArg(_)
         | Sexp::Symbol(_)
         | Sexp::Logical(_)

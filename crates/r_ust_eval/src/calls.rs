@@ -6,16 +6,22 @@ impl RuntimeState {
         function: &Sexp,
         arguments: &[CallArgument],
     ) -> Result<EvalFlow, EvalError> {
-        if let Sexp::Parenthesized(function) = function {
-            return self.eval_call(function, arguments);
+        if let Sexp::Parenthesized(inner) = function {
+            let mut expression = inner.as_ref();
+            while let Sexp::Parenthesized(inner) = expression {
+                expression = inner.as_ref();
+            }
+            if let Sexp::Symbol(name) = expression {
+                if (is_builtin(name) || matches!(name.as_str(), ".Internal" | "...length"))
+                    && self.raw_lookup(name)?.is_none()
+                    && super::base::lookup(name)?.is_none()
+                    && r_ust_sexp::PrimitiveId::from_name(name).is_none()
+                {
+                    return self.eval_call(expression, arguments);
+                }
+            }
         }
         if let Sexp::Symbol(name) = function {
-            if name == "missing" {
-                return self.eval_missing(arguments);
-            }
-            if name == "return" {
-                return self.eval_return(arguments);
-            }
             if let Some(value) = self.lookup_function(name)? {
                 return self.call_value(value, arguments);
             }

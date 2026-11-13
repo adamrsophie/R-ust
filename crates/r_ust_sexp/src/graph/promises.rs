@@ -112,6 +112,13 @@ impl PromiseState {
     pub fn supplied(&self) -> Result<bool, GraphError> {
         Ok(self.0.heap()?.lock().promise(self.0.id())?.supplied)
     }
+    pub fn environment(&self) -> Result<Option<Environment>, GraphError> {
+        let heap = self.0.heap()?;
+        let mut staging = Vec::new();
+        let mut store = heap.lock();
+        let environment = store.promise(self.0.id())?.environment;
+        Ok(environment.map(|id| Environment(store.root(heap, id, &mut staging))))
+    }
     pub fn begin_force(&self) -> Result<Force, GraphError> {
         let heap = self.0.heap()?;
         let mut staging = Vec::new();

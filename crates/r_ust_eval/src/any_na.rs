@@ -92,6 +92,7 @@ fn recursive_flag(value: &Sexp) -> Result<bool, EvalError> {
         | Sexp::Dots(_)
         | Sexp::Promise { .. }
         | Sexp::Closure { .. }
+        | Sexp::Primitive(_)
         | Sexp::InternalCall { .. }
         | Sexp::Function { .. }
         | Sexp::If { .. }
@@ -168,6 +169,7 @@ fn contains(value: &Sexp, recursive: &Sexp) -> Result<bool, EvalError> {
         | Sexp::Dots(_)
         | Sexp::Promise { .. }
         | Sexp::Closure { .. }
+        | Sexp::Primitive(_)
         | Sexp::InternalCall { .. }
         | Sexp::Function { .. }
         | Sexp::If { .. }
@@ -217,6 +219,7 @@ fn scalar_missing(value: &Sexp) -> bool {
         | Sexp::Dots(_)
         | Sexp::Promise { .. }
         | Sexp::Closure { .. }
+        | Sexp::Primitive(_)
         | Sexp::InternalCall { .. }
         | Sexp::Function { .. }
         | Sexp::If { .. }

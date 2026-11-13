@@ -1,5 +1,6 @@
 use super::{
-    BinaryOp, CallArgument, Environment, FunctionParameter, ListElement, PromiseState, UnaryOp,
+    BinaryOp, CallArgument, Environment, FunctionParameter, ListElement, PrimitiveId, PromiseState,
+    UnaryOp,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -40,6 +41,7 @@ pub enum InternalOperation {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Sexp {
     Nil,
+    Primitive(PrimitiveId),
     MissingArg(String),
     Symbol(String),
     Logical(Vec<Option<bool>>),

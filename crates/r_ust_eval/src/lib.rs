@@ -16,6 +16,7 @@ mod control;
 mod dots;
 mod encode_string;
 mod environment;
+mod primitive_calls;
 mod promises;
 use dots::expand_dots_call_arguments;
 use promises::{is_missing_binding, promise};
@@ -76,6 +77,7 @@ enum EvalFlow {
 #[derive(Clone, Debug, PartialEq)]
 enum ApplyFunction {
     Closure(Sexp),
+    Primitive(r_ust_sexp::PrimitiveId),
     Builtin(String),
 }
 
@@ -157,6 +159,7 @@ impl RuntimeState {
         self.visible = true;
         let result = match expr {
             Sexp::Nil
+            | Sexp::Primitive(_)
             | Sexp::Logical(_)
             | Sexp::Integer(_)
             | Sexp::Real(_)
@@ -562,58 +565,6 @@ impl RuntimeState {
         )))
     }
 
-    fn eval_missing(&self, arguments: &[CallArgument]) -> Result<EvalFlow, EvalError> {
-        if arguments.len() != 1 {
-            return Err(EvalError::Arity(
-                "missing() accepts exactly one argument".to_string(),
-            ));
-        }
-        let Sexp::Symbol(name) = &arguments[0].value else {
-            return Err(EvalError::Type(
-                "missing() argument must be a name".to_string(),
-            ));
-        };
-        let value = self.raw_lookup(name)?.ok_or_else(|| {
-            EvalError::Domain("missing() can only inspect visible arguments".to_string())
-        })?;
-        Ok(EvalFlow::Value(Sexp::Logical(vec![Some(
-            is_missing_binding(&value)?,
-        )])))
-    }
-
-    fn eval_return(&mut self, arguments: &[CallArgument]) -> Result<EvalFlow, EvalError> {
-        if arguments.len() > 1 {
-            return Err(EvalError::Arity(
-                "return() accepts at most one argument".to_string(),
-            ));
-        }
-        let value = if let Some(argument) = arguments.first() {
-            let EvalFlow::Value(value) = self.eval_flow(&argument.value)?;
-            value
-        } else {
-            Sexp::Nil
-        };
-        Err(self.control.return_signal(value))
-    }
-
-    fn call_value(
-        &mut self,
-        value: Sexp,
-        arguments: &[CallArgument],
-    ) -> Result<EvalFlow, EvalError> {
-        match value {
-            Sexp::Closure {
-                parameters,
-                body,
-                environment,
-            } => self.call_closure(&parameters, &body, &environment, arguments),
-            other => Err(EvalError::Type(format!(
-                "attempted to call a non-function value of type {:?}",
-                other.sexptype()
-            ))),
-        }
-    }
-
     fn eval_apply_call(
         &mut self,
         name: &str,
@@ -623,15 +574,7 @@ impl RuntimeState {
         let (x_arg, fun_arg, extra_args, simplify) = self.apply_arguments(name, &arguments)?;
         let x = self.eval_regular_argument(&x_arg.value)?;
         let function = self.resolve_apply_function(&fun_arg.value)?;
-        let evaluated_extra_args = extra_args
-            .iter()
-            .map(|argument| {
-                Ok(EvaluatedArgument {
-                    name: argument.name.clone(),
-                    value: self.eval_regular_argument(&argument.value)?,
-                })
-            })
-            .collect::<Result<Vec<_>, EvalError>>()?;
+        let evaluated_extra_args = self.eval_apply_extra(&function, &extra_args)?;
         let elements = apply_elements(&x)?;
         let mut out = Vec::with_capacity(elements.len());
         for element in elements {
@@ -700,12 +643,16 @@ impl RuntimeState {
             return self.resolve_apply_function(expr);
         }
         if let Sexp::Symbol(name) = expr {
+            if let Some(Sexp::Primitive(id)) = self.lookup_function(name)? {
+                return Ok(ApplyFunction::Primitive(id));
+            }
             if self.raw_lookup(name)?.is_none() && is_builtin(name) {
                 return Ok(ApplyFunction::Builtin(name.clone()));
             }
         }
         let value = self.eval_regular_argument(expr)?;
         match value {
+            Sexp::Primitive(id) => Ok(ApplyFunction::Primitive(id)),
             closure @ Sexp::Closure { .. } => Ok(ApplyFunction::Closure(closure)),
             other => Err(EvalError::Type(format!(
                 "apply function must be callable, found {:?}",
@@ -721,6 +668,14 @@ impl RuntimeState {
         extra_args: &[EvaluatedArgument],
     ) -> Result<Sexp, EvalError> {
         match function {
+            ApplyFunction::Primitive(id) => {
+                let mut arguments = vec![EvaluatedArgument {
+                    name: None,
+                    value: element.clone(),
+                }];
+                arguments.extend(extra_args.iter().cloned());
+                self.call_eager_primitive(*id, &arguments)
+            }
             ApplyFunction::Closure(value) => {
                 let mut call_args = vec![CallArgument::positional(element.clone())];
                 call_args.extend(extra_args.iter().map(|argument| CallArgument {
@@ -831,15 +786,7 @@ impl RuntimeState {
         let margin_value = self.eval_regular_argument(&margin_arg.value)?;
         let margin = numeric_scalar(&margin_value, "apply margin")?.trunc() as i32;
         let function = self.resolve_apply_function(&fun_arg.value)?;
-        let evaluated_extra_args = extra_args
-            .iter()
-            .map(|argument| {
-                Ok(EvaluatedArgument {
-                    name: argument.name.clone(),
-                    value: self.eval_regular_argument(&argument.value)?,
-                })
-            })
-            .collect::<Result<Vec<_>, EvalError>>()?;
+        let evaluated_extra_args = self.eval_apply_extra(&function, &extra_args)?;
 
         let Sexp::Matrix { data, nrow, ncol } = &x else {
             return Err(EvalError::Type(format!(
@@ -1889,7 +1836,7 @@ fn dispatch_call(name: &str, args: &[EvaluatedArgument]) -> Result<Sexp, EvalErr
             let value = positional(args, 0, "x")?;
             Ok(Sexp::Logical(vec![Some(matches!(
                 value,
-                Sexp::Closure { .. } | Sexp::Function { .. }
+                Sexp::Closure { .. } | Sexp::Function { .. } | Sexp::Primitive(_)
             ))]))
         }
         "isTRUE" => {
@@ -5841,7 +5788,9 @@ fn class_value(value: &Sexp) -> Sexp {
         Sexp::DataFrame { .. } => vec!["data.frame".to_string()],
         Sexp::Matrix { .. } => vec!["matrix".to_string(), "array".to_string()],
         Sexp::List(_) | Sexp::Dots(_) | Sexp::Vector(_) => vec!["list".to_string()],
-        Sexp::Closure { .. } | Sexp::Function { .. } => vec!["function".to_string()],
+        Sexp::Closure { .. } | Sexp::Function { .. } | Sexp::Primitive(_) => {
+            vec!["function".to_string()]
+        }
         _ => vec![typeof_value(value).to_string()],
     };
     Sexp::String(values.into_iter().map(Some).collect())
@@ -5859,6 +5808,12 @@ fn typeof_value(value: &Sexp) -> &'static str {
         Sexp::Dots(_) => "...",
         Sexp::Promise { .. } => "promise",
         Sexp::Closure { .. } | Sexp::Function { .. } => "closure",
+        Sexp::Primitive(id) => match id {
+            r_ust_sexp::PrimitiveId::Sum
+            | r_ust_sexp::PrimitiveId::Length
+            | r_ust_sexp::PrimitiveId::Invisible => "builtin",
+            r_ust_sexp::PrimitiveId::Return | r_ust_sexp::PrimitiveId::Missing => "special",
+        },
         Sexp::Symbol(_) => "symbol",
         _ => "language",
     }
@@ -5872,7 +5827,7 @@ fn mode_value(value: &Sexp) -> &'static str {
         Sexp::String(_) => "character",
         Sexp::DataFrame { .. } | Sexp::List(_) | Sexp::Vector(_) => "list",
         Sexp::Matrix { data, .. } => mode_value(data),
-        Sexp::Closure { .. } | Sexp::Function { .. } => "function",
+        Sexp::Closure { .. } | Sexp::Function { .. } | Sexp::Primitive(_) => "function",
         _ => typeof_value(value),
     }
 }
@@ -7236,6 +7191,7 @@ fn sample_atomic_vector(values: &[Sexp]) -> Result<Sexp, EvalError> {
 fn sexp_identical(left: &Sexp, right: &Sexp) -> bool {
     match (left, right) {
         (Sexp::Nil, Sexp::Nil) => true,
+        (Sexp::Primitive(left), Sexp::Primitive(right)) => left == right,
         (Sexp::MissingArg(left), Sexp::MissingArg(right)) => left == right,
         (Sexp::Symbol(left), Sexp::Symbol(right)) => left == right,
         (Sexp::Logical(left), Sexp::Logical(right)) => left == right,
@@ -8370,6 +8326,7 @@ fn value_len(value: &Sexp) -> usize {
     match value {
         Sexp::Nil => 0,
         Sexp::MissingArg(_) => 1,
+        Sexp::Primitive(_) => 1,
         Sexp::Symbol(_) => 1,
         Sexp::Logical(values) => values.len(),
         Sexp::Integer(values) => values.len(),
@@ -8498,6 +8455,7 @@ pub fn format_sexp(value: &Sexp) -> String {
     match value {
         Sexp::Nil => "NULL".to_string(),
         Sexp::MissingArg(name) => format!("<missing {name}>"),
+        Sexp::Primitive(id) => primitive_calls::format_primitive(*id),
         Sexp::Logical(values) => format_numeric_line(
             values
                 .iter()

@@ -103,6 +103,7 @@ impl RuntimeState {
             | Sexp::Matrix { .. }
             | Sexp::Dots(_)
             | Sexp::Closure { .. }
+            | Sexp::Primitive(_)
             | Sexp::InternalCall { .. }
             | Sexp::Function { .. }
             | Sexp::If { .. }

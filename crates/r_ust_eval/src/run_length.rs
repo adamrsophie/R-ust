@@ -43,6 +43,7 @@ pub(super) fn encode(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
         | Sexp::Dots(_)
         | Sexp::Promise { .. }
         | Sexp::Closure { .. }
+        | Sexp::Primitive(_)
         | Sexp::Function { .. }
         | Sexp::If { .. }
         | Sexp::For { .. }

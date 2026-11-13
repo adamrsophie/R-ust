@@ -177,3 +177,7 @@ mod concurrency_tests;
 #[cfg(test)]
 #[path = "mutation_tests.rs"]
 mod mutation_tests;
+
+#[cfg(test)]
+#[path = "primitive_tests.rs"]
+mod primitive_tests;

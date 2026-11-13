@@ -90,6 +90,7 @@ pub(super) fn scalar_real(value: &Sexp, policy: BlankPolicy) -> (f64, Warnings) 
         | Sexp::Dots(_)
         | Sexp::Promise { .. }
         | Sexp::Closure { .. }
+        | Sexp::Primitive(_)
         | Sexp::Function { .. }
         | Sexp::If { .. }
         | Sexp::For { .. }

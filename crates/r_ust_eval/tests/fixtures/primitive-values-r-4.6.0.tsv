@@ -1,0 +1,95 @@
+sum	OK	builtin:.Primitive("sum")	TRUE	
+length	OK	builtin:.Primitive("length")	TRUE	
+invisible	OK	builtin:.Primitive("invisible")	TRUE	
+`return`	OK	special:.Primitive("return")	TRUE	
+missing	OK	special:.Primitive("missing")	TRUE	
+typeof(sum)	OK	character:builtin	TRUE	
+typeof(length)	OK	character:builtin	TRUE	
+typeof(invisible)	OK	character:builtin	TRUE	
+typeof(`return`)	OK	character:special	TRUE	
+typeof(missing)	OK	character:special	TRUE	
+class(sum)	OK	character:function	TRUE	
+class(`return`)	OK	character:function	TRUE	
+is.function(sum)	OK	logical:TRUE	TRUE	
+is.function(missing)	OK	logical:TRUE	TRUE	
+length(sum)	OK	integer:1	TRUE	
+length(`return`)	OK	integer:1	TRUE	
+identical(sum,sum)	OK	logical:TRUE	TRUE	
+identical(sum,length)	OK	logical:FALSE	TRUE	
+identical(`return`,missing)	OK	logical:FALSE	TRUE	
+{s<-sum;identical(s,sum)}	OK	logical:TRUE	TRUE	
+{s<-sum;s(1L,2L,3L)}	OK	integer:6	TRUE	
+{s<-sum;s(1,NA,na.rm=TRUE)}	OK	double:1	TRUE	
+{l<-length;l(1:4)}	OK	integer:4	TRUE	
+{i<-invisible;i(7L)}	OK	integer:7	FALSE	
+{i<-invisible;i()}	OK	NULL	FALSE	
+{r<-`return`;f<-function(){r(9L);99L};f()}	OK	integer:9	TRUE	
+{m<-missing;f<-function(x)m(x);f()}	OK	logical:TRUE	TRUE	
+{m<-missing;f<-function(x)m(x);f(2)}	OK	logical:FALSE	TRUE	
+{m<-missing;f<-function(x=stop('FORCED'))m(x);f()}	OK	logical:TRUE	TRUE	
+{f<-function(fun)fun(2L,3L);f(sum)}	OK	integer:5	TRUE	
+{s<-sum;sum<-function(...)99L;s(2L,3L)}	OK	integer:5	TRUE	
+{sum<-function(...)99L;sum(2L,3L)}	OK	integer:99	TRUE	
+{sum<-7L;sum(2L,3L)}	OK	integer:5	TRUE	
+{sum<-7L;sum}	OK	integer:7	TRUE	
+{s<-sum;f<-function(){sum<-9L;sum(2L,3L)};f()}	OK	integer:5	TRUE	
+{`return`<-function(x)x+1L;f<-function(){return(2L);7L};f()}	OK	integer:7	TRUE	
+{`return`<-7L;f<-function(){return(2L);7L};f()}	OK	integer:2	TRUE	
+{missing<-function(x)FALSE;f<-function(x)missing(x);f()}	OK	logical:FALSE	TRUE	
+{missing<-7L;f<-function(x)missing(x);f()}	OK	logical:TRUE	TRUE	
+{s<-sum;s({cat('A');1L},{cat('B');2L})}	OK	integer:3	TRUE	4142
+{i<-invisible;i({cat('I');4L})}	OK	integer:4	FALSE	49
+{s<-sum;f<-function(){s(return(invisible(8L)));99L};f()}	OK	integer:8	FALSE	
+{r<-`return`;f<-function(){r(invisible(8L));99L};f()}	OK	integer:8	FALSE	
+{s<-sum;for(x in 1:3){s(break)};9L}	OK	integer:9	TRUE	
+{s<-sum;n<-0L;for(x in 1:3){n<-n+1L;s(next);n<-99L};n}	OK	integer:3	TRUE	
+{r<-`return`;f<-function(...)r(...);f(3L)}	ERR	'...' used in an incorrect context	-	
+{s<-sum;f<-function(...)s(...);f(1L,2L)}	OK	integer:3	TRUE	
+{m<-missing;f<-function(...)m(...);f()}	OK	logical:TRUE	TRUE	
+{m<-missing;f<-function(...)m(...);f(1)}	OK	logical:FALSE	TRUE	
+{m<-missing;f<-function(x){g<-function(y)m(y);g(x)};f()}	OK	logical:TRUE	TRUE	
+{s<-sum;sapply(list(1:2,3:4),s)}	OK	integer:3,7	TRUE	
+{l<-length;sapply(list(1:2,3:5),l)}	OK	integer:2,3	TRUE	
+{l<-length;apply(matrix(1:6,2),1,l)}	OK	integer:3,3	TRUE	
+{s<-sum;sum<-9L;sapply(list(1:2),s)}	OK	integer:3	TRUE	
+{s<-sum;list(s)[[1]](2L,3L)}	OK	integer:5	TRUE	
+{s<-sum;(s)(2L,3L)}	OK	integer:5	TRUE	
+{s<-sum;s()}	OK	integer:0	TRUE	
+{l<-length;l()}	ERR	0 arguments passed to 'length' which requires 1	-	
+{l<-length;l(1,2)}	ERR	2 arguments passed to 'length' which requires 1	-	
+{i<-invisible;i(1,2)}	ERR	2 arguments passed to 'invisible' which requires 1	-	
+{r<-`return`;r(2L)}	ERR	no function to return from, jumping to top level	-	
+{m<-missing;m(1)}	ERR	invalid use of 'missing'	-	
+{m<-missing;m(x)}	ERR	'missing(x)' did not find an argument	-	
+{r<-`return`;f<-function()r(1,2);f()}	ERR	multi-argument returns are not permitted	-	
+{s<-sum;s(stop('FORCED'),{cat('LATE');2})}	ERR	FORCED	-	
+{m<-missing;f<-function(x)m(x,stop('FORCED'));f()}	ERR	2 arguments passed to 'missing' which requires 1	-	
+{i<-invisible;i(x=3L)}	OK	integer:3	FALSE	
+{l<-length;l(x=1:3)}	OK	integer:3	TRUE	
+{s<-sum;typeof(s)}	OK	character:builtin	TRUE	
+{s<-sum;withVisible(s)$visible}	OK	logical:TRUE	TRUE	
+{i<-invisible;withVisible(i(2))$visible}	OK	logical:FALSE	TRUE	
+{s<-sum;withVisible(s(invisible(2)))$visible}	OK	logical:TRUE	TRUE	
+lapply(list(1L),`return`)	ERR	multi-argument returns are not permitted	-	
+sapply(list(1L),`return`)	ERR	multi-argument returns are not permitted	-	
+apply(matrix(1:4,2),1,`return`)	ERR	multi-argument returns are not permitted	-	
+lapply(list(1L),missing)	ERR	2 arguments passed to 'missing' which requires 1	-	
+sapply(list(1L),missing)	ERR	2 arguments passed to 'missing' which requires 1	-	
+apply(matrix(1:4,2),1,missing)	ERR	2 arguments passed to 'missing' which requires 1	-	
+lapply(list(1L),`return`,extra={cat('FORCED');3})	ERR	multi-argument returns are not permitted	-	
+apply(matrix(1:4,2),1,missing,extra={cat('FORCED');3})	ERR	2 arguments passed to 'missing' which requires 1	-	
+{m<-missing;f<-function(...)m(..1);f()}	OK	logical:TRUE	TRUE	
+{m<-missing;f<-function(...)m(..1);f(1)}	OK	logical:FALSE	TRUE	
+{m<-missing;f<-function(x=1){x;m(x)};f()}	OK	logical:TRUE	TRUE	
+{m<-missing;f<-function(x){x;m(x)};f(1)}	OK	logical:FALSE	TRUE	
+{m<-missing;f<-function(x)m('x');f()}	OK	logical:TRUE	TRUE	
+{l<-length;l(y={cat('FORCED');1})}	ERR	supplied argument name 'y' does not match 'x'	-	464f52434544
+{i<-invisible;i(y={cat('FORCED');1})}	ERR	supplied argument name 'y' does not match 'x'	-	464f52434544
+{m<-missing;m(y={cat('FORCED');1})}	ERR	supplied argument name 'y' does not match 'x'	-	
+{l<-length;l({cat('A');1},{cat('B');2})}	ERR	2 arguments passed to 'length' which requires 1	-	4142
+{i<-invisible;i({cat('A');1},{cat('B');2})}	ERR	2 arguments passed to 'invisible' which requires 1	-	4142
+{r<-`return`;f<-function()r({cat('A');1},{cat('B');2});f()}	ERR	multi-argument returns are not permitted	-	
+{m<-missing;f<-function(x)m({cat('A');x});f()}	ERR	invalid use of 'missing'	-	
+{f<-function(x)x;identical(f,sum)}	OK	logical:FALSE	TRUE	
+typeof(encodeString)	OK	character:closure	TRUE	
+{s<-sum;f<-function(x)function()x;g<-f(s);identical(g(),sum)}	OK	logical:TRUE	TRUE	

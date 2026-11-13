@@ -2,9 +2,11 @@
 
 mod graph;
 mod operators;
+mod primitive;
 mod promise;
 mod value;
 
+pub use primitive::PrimitiveId;
 pub use value::{ClosureEnvironment, InternalOperation, Sexp};
 
 pub use graph::{Environment, Force, ForceLease, GraphError, PromiseState};
@@ -192,6 +194,7 @@ impl Sexp {
     pub const fn sexptype(&self) -> SexpType {
         match self {
             Self::Nil => SexpType::Nil,
+            Self::Primitive(id) => id.sexptype(),
             Self::MissingArg(_) => SexpType::Promise,
             Self::Symbol(_) => SexpType::Symbol,
             Self::Logical(_) => SexpType::Logical,
