@@ -10,14 +10,14 @@ import base64
 import hashlib
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import sys
 import tempfile
+from pathlib import Path
 from typing import Literal, TypedDict, assert_never
 
-Kind = Literal["exact", "help", "version", "known", "guard"]
+Kind = Literal["exact", "help", "version", "guard"]
 
 
 class Result(TypedDict):
@@ -138,9 +138,9 @@ def main() -> None:
                     ("filename-validation-glob", ["-f", "[-][-]bad-?"], "exact"),
                     ("filename-glob-selection", ["-f", "chosen-*.R"], "exact"),
                     ("inline-filename-glob-selection", ["--file=chosen-*.R"], "exact"),
-                    ("pathname-equivalence", ["patterns/p[[=a=]]", "-e", "1"], "known"),
-                    ("pathname-invalid-class", ["patterns/p[[:bogus:]]", "-e", "1"], "known"),
-                    ("pathname-invalid-class-prefix", ["patterns/p[a[:bogus:]]", "-e", "1"], "known"),
+                    ("pathname-equivalence", ["patterns/p[[=a=]]", "-e", "1"], "exact"),
+                    ("pathname-invalid-class", ["patterns/p[[:bogus:]]", "-e", "1"], "exact"),
+                    ("pathname-invalid-class-prefix", ["patterns/p[a[:bogus:]]", "-e", "1"], "exact"),
                     ("pathname-invalid-class-star", ["patterns/p*[[:bogus:]]", "-e", "1"], "exact"),
                     ("pathname-invalid-class-suffix", ["patterns/p[[:bogus:]a]", "-e", "1"], "exact"),
                 ])
@@ -157,14 +157,14 @@ def main() -> None:
                 cases.append(("unsafe-launcher-result", ["-e", source], "guard"))
             for label, args, kind in cases:
                 u = subprocess.run([native, *prefix, *args], input=b"", env=environment, cwd=root,
-                                   capture_output=True, timeout=20)
+                                   capture_output=True, timeout=20, check=False)
                 r = None
                 match kind:
                     case "guard":
                         passed = u.returncode == (2 if is_main else 1) and not u.stdout and u.stderr.startswith(b"-e launcher")
-                    case "exact" | "help" | "version" | "known":
+                    case "exact" | "help" | "version":
                         r = subprocess.run([reference, *prefix, *args], input=b"", env=environment, cwd=root,
-                                           capture_output=True, timeout=20)
+                                           capture_output=True, timeout=20, check=False)
                         passed = (r.returncode, r.stdout) == (u.returncode, u.stdout)
                         if r.returncode == 1 and not r.stderr.startswith(b"ERROR:"):
                             passed = passed and bool(r.stderr) and bool(u.stderr) and not u.stderr.startswith(b"ERROR:")
@@ -178,7 +178,7 @@ def main() -> None:
                                 rp, rm, _ = r.stdout.partition(b"R version ")
                                 up, um, _ = u.stdout.partition(b"R-ust ")
                                 passed = r.returncode == u.returncode == 0 and not r.stderr and not u.stderr and bool(rm) and bool(um) and rp == up
-                            case "exact" | "known":
+                            case "exact":
                                 pass
                             case _:
                                 assert_never(kind)
@@ -189,13 +189,13 @@ def main() -> None:
                                        r=recorded(r) if r is not None else None, rust=recorded(u)))
             print(f"Checked {'main' if is_main else 'rscript'}: {len(cases)} cases", flush=True)
     assert all(hashlib.sha256(Path(path).read_bytes()).hexdigest() == digest for path, digest in sources.items()), "Sources changed during comparison"
-    _ = Path("target/shell-argument-parity.json").write_text(json.dumps(dict(
-        versions=[r.stdout + r.stderr for r in versions], source_sha256=sources, binary_sha256=hashes,
-        cases=rows), indent=2) + "\n")
-    failed = [row for row in rows if not row["passed"] and row["kind"] != "known"]
+    _ = Path("target/shell-argument-parity.json").write_text(json.dumps({
+        "versions": [r.stdout + r.stderr for r in versions], "source_sha256": sources, "binary_sha256": hashes,
+        "cases": rows}, indent=2) + "\n")
+    failed = [row for row in rows if not row["passed"]]
     for row in failed:
         print(f"FAIL {row['mode']} {row['label']}: {row['args'][:2]!r}")
-    print(f"{sum(row['passed'] for row in rows if row['kind'] not in ['known', 'guard'])} passing comparisons; {len(failed)} unexpected differences; {sum(row['kind'] == 'known' for row in rows)} pathname limits; {sum(row['kind'] == 'guard' for row in rows)} native guards without reference execution")
+    print(f"{sum(row['passed'] for row in rows if row['kind'] != 'guard')} passing comparisons; {len(failed)} unexpected differences; {sum(row['kind'] == 'guard' for row in rows)} native guards without reference execution")
     print("Successful streams, launcher errors and statuses compare exactly. Runtime error and help/version wording are excluded; unsafe guards never run reference R.")
     if failed:
         raise SystemExit(1)

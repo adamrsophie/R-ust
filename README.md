@@ -112,7 +112,7 @@ Source reads stop at a newline or 4095 bytes, matching R's console buffer. Compl
 
 Unknown main-CLI options warn on stdout and continue. Warnings follow argument order alongside file opens and omitted expressions; help/version or launcher validation can prevent native startup and suppress them. Arguments after `--args` are left to the program. Warning truncation preserves raw bytes, including cuts inside UTF-8. Recognized R options for unimplemented features still report explicit errors.
 
-Unquoted launcher fields expand wildcards during raw validation and again after expression/filename encoding. Matching covers `*`, `?`, bracket ranges, negation, ASCII character classes, hidden-file rules and directory traversal with C/POSIX byte sorting. Matches containing whitespace stay single arguments; unmatched patterns remain literal. Arguments after raw `--args` or an empty raw argument stay quoted. Inline filenames include the `--file=` prefix during expansion, matching Rscript's launcher behavior. Character equivalence classes, malformed named-class behavior and locale-aware matching/collation remain incomplete. Matched non-UTF-8 paths report an explicit error.
+Unquoted launcher fields expand wildcards during raw validation and again after expression/filename encoding. Matching covers `*`, `?`, bracket ranges, negation, ASCII character/equivalence classes, named collating symbols, hidden-file rules and directory traversal with C/POSIX byte sorting. Matches containing whitespace stay single arguments; unmatched patterns remain literal. Arguments after raw `--args` or an empty raw argument stay quoted. Inline filenames include the `--file=` prefix during expansion, matching Rscript's launcher behavior. Bracket consumption follows macOS Bash 3.2.57, including its malformed named-class behavior. Locale-aware matching/collation remains incomplete. Matched non-UTF-8 paths report an explicit error.
 
 Remaining input boundaries: truncated multibyte sequences at EOF can differ from R's byte-based lexer. Stdin encoding translation, non-UTF-8 strings and unimplemented launcher features remain incomplete.
 
@@ -240,6 +240,7 @@ python3 scripts/check-numeric-warnings.py
 python3 scripts/check-cli-startup.py
 python3 scripts/check-unknown-options.py
 python3 scripts/check-shell-arguments.py
+python3 scripts/check-pathname-patterns.py
 python3 scripts/check-file-stream.py
 python3 scripts/check-console-buffer.py
 ```
@@ -262,7 +263,9 @@ python3 scripts/check-console-buffer.py
 
 `scripts/check-unknown-options.py` compares unknown options, argument retention, warning order, truncation and frontend boundaries against R/Rscript 4.6.0. Raw successful streams and statuses compare exactly, including invalid UTF-8 warning output. Help/version wording and Rscript error wording are excluded. Results and source/binary hashes are written to `target/unknown-option-parity.json`. Run with Python 3.11+ or `uv run scripts/check-unknown-options.py`.
 
-`scripts/check-shell-arguments.py` compares shell validation, echo escapes, field splitting, filename byte limits, common-option processing, argument retention and diagnostic order with macOS R/Rscript 4.6.0. Successful streams, launcher errors and statuses compare exactly. Runtime error and help/version wording are excluded. Pathname-expansion limits remain separate from passing coverage; unsafe truncation and non-UTF-8 guards run only against Rust. Results and source/binary hashes are recorded in `target/shell-argument-parity.json`.
+`scripts/check-shell-arguments.py` compares shell validation, echo escapes, field splitting, filename byte limits, common-option processing, argument retention and diagnostic order with macOS R/Rscript 4.6.0. Successful streams, launcher errors and statuses compare exactly. Runtime error and help/version wording are excluded. Unsafe truncation and non-UTF-8 guards run only against Rust. Results and source/binary hashes are recorded in `target/shell-argument-parity.json`.
+
+`scripts/check-pathname-patterns.py` checks 717 composed patterns through the built main CLI against independent macOS Bash 3.2.57 expansion. Fixtures cover ASCII/control filenames, bracket quoting, equivalence, invalid named classes, ranges and all 95 named collating symbols. Native stdout, stderr and status compare exactly. Results and source/binary hashes are recorded in `target/pathname-pattern-parity.json`. Matching uses the C/POSIX locale; unsafe unterminated collating/equivalence reference forms are not executed.
 
 `scripts/check-file-stream.py` requires Python 3.11+, Unix FIFOs, independent R/Rscript 4.6.0 references, and both built executables. It holds each FIFO writer open while checking output, continuation prompts, split CRLF, warning timing and early exit. It also checks valid output before an invalid byte and skipping unread bytes after quit on the same or a later line. Exact successful streams, statuses, live snapshots, source/binary hashes and reference locale are recorded in `target/file-stream-parity.json`. Error wording and `Execution halted` are excluded. Truncated multibyte EOF differences are recorded separately, outside passing coverage.
 
