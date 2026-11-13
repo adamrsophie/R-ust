@@ -4,6 +4,8 @@ pub enum BinaryOp {
     Subtract,
     Multiply,
     Divide,
+    Modulo,
+    IntegerDivide,
     Power,
     Less,
     LessEqual,

@@ -19,6 +19,8 @@ impl SyntaxParser {
             Token::Star => (BinaryOp::Multiply, 9),
             Token::Slash => (BinaryOp::Divide, 9),
             Token::Special(name) if name == "in" => (BinaryOp::In, 10),
+            Token::Special(name) if name.is_empty() => (BinaryOp::Modulo, 10),
+            Token::Special(name) if name == "/" => (BinaryOp::IntegerDivide, 10),
             Token::Special(name) => {
                 return Err(ParseError::new(format!(
                     "special operator %{name}% is not implemented"

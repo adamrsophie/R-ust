@@ -5,7 +5,6 @@ mod binary;
 mod options;
 mod parse_warnings;
 
-use binary::eval_binary;
 use r_ust_gc::{Gc, GcConfig};
 use r_ust_parse::{ParseError, ParseResult, Parser};
 use r_ust_sexp::{
@@ -518,7 +517,7 @@ impl RuntimeState {
                     flow @ EvalFlow::Return(_) => return Ok(flow),
                     flow @ (EvalFlow::Break | EvalFlow::Next) => return Ok(flow),
                 };
-                EvalFlow::Value(eval_binary(*op, &left, &right)?)
+                EvalFlow::Value(self.eval_binary(*op, (&left, &right))?)
             }
             Sexp::Unary { op, value } => {
                 let value = match self.eval_flow(value)? {
