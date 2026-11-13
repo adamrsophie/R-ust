@@ -668,7 +668,7 @@ impl RuntimeState {
                     arguments,
                     matches!(
                         name.as_str(),
-                        "as.numeric" | "as.double" | "as.real" | "as.integer"
+                        "as.numeric" | "as.double" | "as.real" | "as.integer" | "sum" | "prod"
                     ),
                 )? {
                     ArgumentFlow::Value(value) => value,
