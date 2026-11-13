@@ -1,4 +1,5 @@
 mod arity;
+mod bitwise;
 mod character;
 mod conditions;
 mod dispatch;
@@ -42,6 +43,12 @@ impl RuntimeState {
     ) -> Result<Sexp, EvalError> {
         arity::check(operation, args.len())?;
         match operation {
+            InternalOperation::BitwiseNot => self.bitwise_not(&args[0].value),
+            InternalOperation::BitwiseAnd => self.bitwise_binary(bitwise::Binary::And, args),
+            InternalOperation::BitwiseOr => self.bitwise_binary(bitwise::Binary::Or, args),
+            InternalOperation::BitwiseXor => self.bitwise_binary(bitwise::Binary::Xor, args),
+            InternalOperation::BitwiseShiftL => self.bitwise_binary(bitwise::Binary::ShiftL, args),
+            InternalOperation::BitwiseShiftR => self.bitwise_binary(bitwise::Binary::ShiftR, args),
             InternalOperation::RunLengthEncode => super::run_length::encode(args),
             InternalOperation::RunLengthDecode => self.inverse_rle(args),
             InternalOperation::RowsumValidate => self.call_rowsum(true, args),

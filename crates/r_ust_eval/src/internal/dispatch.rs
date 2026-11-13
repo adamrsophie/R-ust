@@ -3,6 +3,12 @@ use r_ust_sexp::InternalOperation;
 
 pub fn resolve(name: &str) -> Option<InternalOperation> {
     match name {
+        "bitwiseNot" => Some(InternalOperation::BitwiseNot),
+        "bitwiseAnd" => Some(InternalOperation::BitwiseAnd),
+        "bitwiseOr" => Some(InternalOperation::BitwiseOr),
+        "bitwiseXor" => Some(InternalOperation::BitwiseXor),
+        "bitwiseShiftL" => Some(InternalOperation::BitwiseShiftL),
+        "bitwiseShiftR" => Some(InternalOperation::BitwiseShiftR),
         "encodeString" => Some(InternalOperation::EncodeString),
         "sequence" => Some(InternalOperation::Sequence),
         "utf8ToInt" => Some(InternalOperation::Utf8ToInt),

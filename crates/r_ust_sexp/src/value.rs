@@ -10,6 +10,12 @@ pub enum ClosureEnvironment {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum InternalOperation {
+    BitwiseNot,
+    BitwiseAnd,
+    BitwiseOr,
+    BitwiseXor,
+    BitwiseShiftL,
+    BitwiseShiftR,
     RunLengthEncode,
     RunLengthDecode,
     RowsumValidate,

@@ -3,6 +3,12 @@ use r_ust_sexp::InternalOperation;
 
 pub(super) fn check(operation: InternalOperation, count: usize) -> Result<(), EvalError> {
     let (name, arity) = match operation {
+        InternalOperation::BitwiseNot => ("bitwiseNot", 1),
+        InternalOperation::BitwiseAnd => ("bitwiseAnd", 2),
+        InternalOperation::BitwiseOr => ("bitwiseOr", 2),
+        InternalOperation::BitwiseXor => ("bitwiseXor", 2),
+        InternalOperation::BitwiseShiftL => ("bitwiseShiftL", 2),
+        InternalOperation::BitwiseShiftR => ("bitwiseShiftR", 2),
         InternalOperation::RunLengthEncode => ("rle", 1),
         InternalOperation::RunLengthDecode => ("inverse.rle", 1),
         InternalOperation::RowsumValidate => ("rowsum validation", 2),
@@ -32,7 +38,13 @@ pub(super) fn check(operation: InternalOperation, count: usize) -> Result<(), Ev
             }
             true
         }
-        InternalOperation::RunLengthEncode
+        InternalOperation::BitwiseNot
+        | InternalOperation::BitwiseAnd
+        | InternalOperation::BitwiseOr
+        | InternalOperation::BitwiseXor
+        | InternalOperation::BitwiseShiftL
+        | InternalOperation::BitwiseShiftR
+        | InternalOperation::RunLengthEncode
         | InternalOperation::RunLengthDecode
         | InternalOperation::RowsumValidate
         | InternalOperation::RowsumAggregate

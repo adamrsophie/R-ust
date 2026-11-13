@@ -1,3 +1,4 @@
+mod bitwise;
 mod constants;
 mod definitions;
 mod encode_string;
@@ -20,6 +21,7 @@ const SEQUENCE_DEFINITIONS: &[(&str, &str)] = &[
 fn definitions() -> impl Iterator<Item = &'static (&'static str, &'static str)> {
     definitions::DEFINITIONS
         .iter()
+        .chain(bitwise::DEFINITIONS.iter())
         .chain(run_length::DEFINITIONS.iter())
         .chain(rowsum::DEFINITIONS.iter())
         .chain(encode_string::DEFINITIONS.iter())
