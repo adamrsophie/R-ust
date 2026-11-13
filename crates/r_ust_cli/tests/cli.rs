@@ -59,7 +59,6 @@ fn repeated_expressions_share_state_and_continue_incomplete_syntax() {
     for args in [
         vec!["-e", "1", "-f", "script.R"],
         vec!["-f", "script.R", "-e", "1"],
-        vec!["-e", "1", "-"],
         vec!["-f", "script.R", "argument"],
         vec!["--file="],
     ] {
@@ -74,11 +73,7 @@ fn script_arguments_are_not_parsed_as_options_or_other_files() {
     std::fs::write(&path, "writeLines(commandArgs(TRUE));interactive()\n").unwrap();
     for args in [
         vec![
-            path.to_string_lossy().to_string(),
-            "one".into(),
-            "--help".into(),
-        ],
-        vec![
+            "-f".into(),
             path.to_string_lossy().to_string(),
             "--args".into(),
             "one".into(),
@@ -117,7 +112,7 @@ fn statements_execute_before_later_parse_errors() {
     ] {
         for output in [
             batch_command().args(["-e", source]).output().unwrap(),
-            run_stdin(source, &["-"]),
+            run_stdin(source, &["--file=-"]),
         ] {
             assert_eq!(output.status.code(), Some(status), "{source}: {:?}", output);
             assert_eq!(
@@ -236,7 +231,7 @@ fn stdin_mode_preserves_state_and_reads_multiline_expressions() {
         "(1\n+2)\n",
         "cat(\"done\\n\")\n",
     );
-    for args in [&[][..], &["-"][..], &["--file=-"][..]] {
+    for args in [&[][..], &["--file=-"][..]] {
         let output = run_stdin(source, args);
         assert!(output.status.success(), "{:?}", output);
         assert_eq!(

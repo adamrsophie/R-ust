@@ -3,13 +3,13 @@ use std::process::{Command, Stdio};
 
 #[test]
 fn batch_readline_does_not_consume_following_source_lines() {
-    for executable in [
-        env!("CARGO_BIN_EXE_r_ust_cli"),
-        env!("CARGO_BIN_EXE_Rscript"),
+    for (executable, input) in [
+        (env!("CARGO_BIN_EXE_r_ust_cli"), "--file=-"),
+        (env!("CARGO_BIN_EXE_Rscript"), "-"),
     ] {
         let mut child = Command::new(executable)
             .arg("--no-echo")
-            .arg("-")
+            .arg(input)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())

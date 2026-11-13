@@ -14,15 +14,15 @@ use r_ust_runtime::{
     PORT_TARGET,
 };
 
-const HELP: &str = "Usage: r_ust_cli [options] [script.R]
+const HELP: &str = "Usage: r_ust_cli [options] [< infile]
 
-With no script or expression, start a console on a terminal or read piped stdin.
+With no -f or -e input, start a console on a terminal or read piped stdin.
 Console input supports multiple lines. Use q() or Ctrl-D to exit.
 Workspace saving is not implemented; choose n or c at the save prompt.
 
   -e EXPR          Evaluate an expression; may be repeated
-  -f, --file FILE  Run a script (also --file=FILE; --file=- reads stdin)
-  -                Read stdin; use --no-echo to suppress input and prompts
+  -f FILE          Run a script (also --file=FILE)
+  --file=-         Read stdin; use --no-echo to suppress input and prompts
   -q, --quiet      Suppress the startup banner (also --silent)
   -s, --no-echo    Suppress input echo, banner, and default save prompts (also --slave)
   --no-save        Exit without prompting to save the workspace

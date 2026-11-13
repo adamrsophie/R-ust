@@ -73,7 +73,7 @@ mean(scores)
 ```
 
 ```bash
-cargo run -q -p r_ust_cli -- --no-echo example.R
+cargo run -q -p r_ust_cli -- --no-echo -f example.R
 ```
 
 ```text
@@ -87,24 +87,24 @@ Read commands from stdin, without prompts:
 printf 'x <- 1:5\nsum(x)\n' | cargo run -q -p r_ust_cli -- --no-echo
 ```
 
-Use `-` or `-f -` to request stdin explicitly, and `--help` for available options. Script and piped input stop on the first error with a nonzero exit status.
+Use `--file=-` to request stdin explicitly, and `--help` for available options. Script and piped input stop on the first error with a nonzero exit status. The main frontend follows R's option syntax: bare filenames are reported as ignored arguments; use `-f FILE`, `--file=FILE`, or native Rscript to run files.
 
-Pass arguments after a script path, or use `--args` after expressions or `-f`/`--file=FILE`:
+Use `--args` after expressions or `-f`/`--file=FILE` to pass program arguments:
 
 ```bash
 cargo run -q -p r_ust_cli -- --no-echo -e 'writeLines(commandArgs(TRUE))' --args first "two words"
-cargo run -q -p r_ust_cli -- --no-echo example.R first "two words"
+cargo run -q -p r_ust_cli -- --no-echo -f example.R --args first "two words"
 ```
 
-`commandArgs()` returns the invocation, including the program name. For a positional script, an implicit `--args` separator is inserted before its arguments. `commandArgs(trailingOnly = TRUE)` returns only arguments after the first separator, including empty strings and option-like values. `interactive()` is true only for the terminal console, and false for expressions, scripts, and explicit stdin.
+`commandArgs()` returns the normalized invocation, including the program name. Main-frontend arguments after `--args` retain their original whitespace and empty strings. `commandArgs(trailingOnly = TRUE)` returns only arguments after the first separator. `interactive()` is true only for the terminal console, and false for expressions, scripts, and explicit stdin.
 
-Repeat `-e` to evaluate expressions in one session. Each admitted expression gets a terminating newline, so comments and unfinished syntax can continue across `-e` arguments. Combining an admitted expression with a real script file is a fatal startup error. Use `--file=-` for R-compatible stdin selection; it can accompany expressions. The macOS launcher rejects `-f -`. Bare `-` and separated `--file FILE` remain native extensions. Echo uses primary or continuation prompts at each input read, includes comments and blank lines, normalizes CRLF endings, and stops reading source on quit or error. Code after a semicolon on an already-read line can therefore appear in echo even when it is never evaluated.
+Repeat `-e` to evaluate expressions in one session. Each admitted expression gets a terminating newline, so comments and unfinished syntax can continue across `-e` arguments. Combining an admitted expression with a real script file is a fatal startup error. `--file=-` can accompany expressions; `-f -` is rejected during launcher validation. Bare `-` and separated `--file FILE` warn as unknown options, and bare arguments are ignored. Echo uses primary or continuation prompts at each input read, includes comments and blank lines, normalizes CRLF endings, and stops reading source on quit or error. Code after a semicolon on an already-read line can therefore appear in echo even when it is never evaluated.
 
 Expressions share R's 10,000-byte input buffer. Admission counts existing decoded source, the new encoded argument and two terminator bytes. Oversized arguments are omitted with a startup warning; later arguments can still fit. Omitted arguments remain visible in `commandArgs()`. If none are admitted, input falls back to non-interactive stdin. The main CLI can also run an explicit file alongside omitted expressions. Startup warnings precede evaluation and preserve macOS R's byte truncation, even when it cuts inside UTF-8. `scripts/check-expression-buffer.py` compares these cases with R 4.6.0.
 
-Both frontends process `-e` backslashes and whitespace markers using the macOS R 4.6.0 launcher's rules, including octal/hex byte escapes, escaped backslashes, and NUL removal. `commandArgs()` exposes the encoded expression; execution receives decoded source. `scripts/check-cli-launcher.py` compares source execution and invocation encoding with R. Other shells' echo rules are unverified. The launcher rejects `\c` truncation and non-UTF-8 escape results explicitly. Quoted strings decode R control, octal/hex, and `\u`/`\U` escapes; non-UTF-8 strings and unpaired surrogates remain unsupported.
+Both frontends share shell preparation and native argument processing. Raw `-e` and `-f` values are validated after unquoted field splitting and echo expansion; quoted expression/file conversion then runs separately. Expressions encode spaces, tabs and newlines as markers. Filenames encode spaces while tabs/newlines can split into additional native arguments. A raw empty argument stops shell preparation and preserves the remaining arguments without conversion. `commandArgs()` exposes prepared arguments; execution receives decoded source. `scripts/check-cli-launcher.py` compares source execution and invocation encoding with R. Other shells' echo rules are unverified. Non-UTF-8 results and truncation that would lose an expression argument remain explicit errors; safe newline-terminated truncation and filename truncation are supported. Quoted R strings decode control, octal/hex, and `\u`/`\U` escapes; non-UTF-8 strings and unpaired surrogates remain unsupported.
 
-Malformed `-e` and `-f` arguments return status 1 on stderr. File-open failures and admitted file/expression conflicts return status 2 on stdout. Help exits immediately when reached during launcher validation; version output waits until that validation finishes. The main frontend then opens files and emits omission warnings in argument order, before checking the final file/expression conflict. Every real file option is opened, even when a later option selects another file. `--file=-` leaves any earlier real file selected. Opened streams remain alive through the session; the last real file supplies input. Both frontends treat directory input as an empty file.
+Malformed `-e` and `-f` arguments return status 1 on stderr. File-open failures and admitted file/expression conflicts return status 2 on stdout. Help exits immediately when reached during launcher validation; version output waits until that validation finishes. Common options are processed before file opens, unknown-option warnings and expression-admission diagnostics. The native phase performs those actions in argument order before checking the final file/expression conflict. Every real file option is opened, even when a later option selects another file. `--file=-` leaves any earlier real file selected. Opened streams remain alive through the session; the last real file supplies input. Both frontends treat directory input as an empty file. Malformed expansion that loses a required argument is rejected before source evaluation, including cases where reference R has undefined behavior.
 
 `run_main` accepts a complete invocation and performs these startup actions. `CliConfig::from_args` builds configuration without file I/O and keeps its `Result<Self, String>` API. `run` executes a prepared configuration; `run_to_string` captures output and returns file-read errors to its caller. Use `run_main` when the full invocation's file-open order matters.
 
@@ -112,7 +112,7 @@ Source reads stop at a newline or 4095 bytes, matching R's console buffer. Compl
 
 Unknown main-CLI options warn on stdout and continue. Warnings follow argument order alongside file opens and omitted expressions; help/version or launcher validation can prevent native startup and suppress them. Arguments after `--args` are left to the program. Warning truncation preserves raw bytes, including cuts inside UTF-8. Recognized R options for unimplemented features still report explicit errors.
 
-Remaining input boundaries: truncated multibyte sequences at EOF can differ from R's byte-based lexer. Stdin encoding translation and non-UTF-8 strings remain incomplete. Shell field splitting, filename transformation and escape-validation ordering still have gaps.
+Remaining input boundaries: truncated multibyte sequences at EOF can differ from R's byte-based lexer. Stdin encoding translation and non-UTF-8 strings remain incomplete. Wildcard pathname expansion and unimplemented launcher features still have gaps.
 
 ## Native Rscript frontend
 
@@ -237,6 +237,7 @@ python3 scripts/check-hex-numbers.py
 python3 scripts/check-numeric-warnings.py
 python3 scripts/check-cli-startup.py
 python3 scripts/check-unknown-options.py
+python3 scripts/check-shell-arguments.py
 python3 scripts/check-file-stream.py
 python3 scripts/check-console-buffer.py
 ```
@@ -255,9 +256,11 @@ python3 scripts/check-console-buffer.py
 
 `scripts/check-numeric-warnings.py` requires Python 3.11+, Unix pipes, R/Rscript 4.6.0, and both built executables. It checks warning text, suppression, promotion, truncation, count limits, stream order, live continuation input, and empty-expression status. Results are recorded in `target/numeric-warning-parity.json`. Error wording and `Execution halted` are not compared. General `warning()`, `warnings()`, `last.warning`, condition handlers, and `warning.expression` remain incomplete.
 
-`scripts/check-cli-startup.py` requires macOS R/Rscript 4.6.0, Python 3.11+, Unix FIFOs, and both built executables. It compares startup statuses and raw streams, including malformed arguments, help/version precedence, repeated files, directory input, stdin selection and conflicts. Live probes check unknown-option and expression-admission warnings around a blocking file open and verify that earlier and selected streams remain open during evaluation. Help/version wording is excluded. Known shell-validation differences are recorded separately in `target/cli-startup-parity.json`; they do not count as passing coverage. Executable snapshots and source/binary SHA-256 manifests bind results to the tested implementation; source changes during a run fail the driver.
+`scripts/check-cli-startup.py` requires macOS R/Rscript 4.6.0, Python 3.11+, Unix FIFOs, and both built executables. It compares startup statuses and raw streams, including malformed arguments, help/version precedence, repeated files, directory input, stdin selection and conflicts. Live probes check unknown-option and expression-admission warnings around a blocking file open and verify that earlier and selected streams remain open during evaluation. Help/version wording is excluded. Results are recorded in `target/cli-startup-parity.json`. Executable snapshots and source/binary SHA-256 manifests bind results to the tested implementation; source changes during a run fail the driver.
 
-`scripts/check-unknown-options.py` compares unknown options, argument retention, warning order, truncation and frontend boundaries against R/Rscript 4.6.0. Raw successful streams and statuses compare exactly, including invalid UTF-8 warning output. Help/version wording and Rscript error wording are excluded; main-launcher field-splitting differences are recorded separately. Results and source/binary hashes are written to `target/unknown-option-parity.json`. Run with Python 3.11+ or `uv run scripts/check-unknown-options.py`.
+`scripts/check-unknown-options.py` compares unknown options, argument retention, warning order, truncation and frontend boundaries against R/Rscript 4.6.0. Raw successful streams and statuses compare exactly, including invalid UTF-8 warning output. Help/version wording and Rscript error wording are excluded. Results and source/binary hashes are written to `target/unknown-option-parity.json`. Run with Python 3.11+ or `uv run scripts/check-unknown-options.py`.
+
+`scripts/check-shell-arguments.py` compares shell validation, echo escapes, field splitting, filename byte limits, common-option processing, argument retention and diagnostic order with macOS R/Rscript 4.6.0. Successful streams, launcher errors and statuses compare exactly. Runtime error and help/version wording are excluded. Pathname-expansion limits remain separate from passing coverage; unsafe truncation and non-UTF-8 guards run only against Rust. Results and source/binary hashes are recorded in `target/shell-argument-parity.json`.
 
 `scripts/check-file-stream.py` requires Python 3.11+, Unix FIFOs, independent R/Rscript 4.6.0 references, and both built executables. It holds each FIFO writer open while checking output, continuation prompts, split CRLF, warning timing and early exit. It also checks valid output before an invalid byte and skipping unread bytes after quit on the same or a later line. Exact successful streams, statuses, live snapshots, source/binary hashes and reference locale are recorded in `target/file-stream-parity.json`. Error wording and `Execution halted` are excluded. Truncated multibyte EOF differences are recorded separately, outside passing coverage.
 

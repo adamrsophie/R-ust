@@ -1,5 +1,4 @@
-use super::launcher::{append_expression, decode_argument, encode_expression};
-use super::{run, startup, write_console, CliConfig, CliMode, OutputEvent, PORT_TARGET};
+use super::{startup, write_console, OutputEvent, PORT_TARGET};
 
 const HELP: &str = "Usage: Rscript [options] file [args]
    or: Rscript [options] -e expr [-e expr2 ...] [args]
@@ -58,94 +57,58 @@ where
     }
 
     let mut invocation = vec![program, "--no-echo".to_string(), "--no-restore".to_string()];
-    let mut expressions = String::new();
     let mut expression_mode = false;
-    let mut startup_stdout = Vec::new();
     let mut verbose = false;
-    let mut vanilla = false;
-    let mut file = None;
+    let mut file = false;
     let mut args = args.into_iter().peekable();
     while let Some(arg) = args.peek() {
         if arg == "-e" {
-            let option = args.next().unwrap();
-            let expression = args.next().ok_or("-e requires an expression")?;
-            let encoded = encode_expression(&expression)?;
+            let option = args.next().ok_or("-e not followed by an expression")?;
+            let expression = args.next().ok_or("-e not followed by an expression")?;
             expression_mode = true;
-            append_expression(&mut expressions, &mut startup_stdout, &encoded);
-            invocation.extend([option, encoded]);
+            invocation.extend([option, expression]);
         } else if expression_mode {
             break;
         } else if arg.starts_with("--") {
-            let option = args.next().unwrap();
+            let option = args.next().ok_or("file name is missing")?;
             match option.as_str() {
                 "--verbose" => {
                     verbose = true;
                     continue;
                 }
-                "--vanilla" => vanilla = true,
-                "--quiet" | "--silent" | "--no-save" => {}
-                "--no-echo"
-                | "--slave"
-                | "--no-restore"
-                | "--no-restore-data"
-                | "--no-restore-history"
-                | "--no-environ"
-                | "--no-site-file"
-                | "--no-init-file" => {}
-                "--save" => return Err("workspace saving is not implemented yet".to_string()),
+                "--save" => return Err("workspace saving is not implemented yet".into()),
                 "--restore" | "--restore-data" | "--restore-history" => {
-                    return Err("workspace restoration is not implemented yet".to_string());
+                    return Err("workspace restoration is not implemented yet".into())
                 }
                 _ if option.starts_with("--default-packages=") => {
-                    return Err("package selection is not implemented yet".to_string());
+                    return Err("package selection is not implemented yet".into())
                 }
-                _ if startup::is_backend_option(&option) => {
-                    return Err(format!("unsupported Rscript option {option}"));
-                }
-                _ => startup::append_unknown_option(&mut startup_stdout, &option),
+                _ => {}
             }
             invocation.push(option);
         } else {
-            let path = args.next().unwrap();
-            let encoded = path.replace(' ', "~+~");
-            invocation.push(format!("--file={encoded}"));
-            file = Some(decode_argument(&encoded));
+            let path = args.next().ok_or("file name is missing")?;
+            if path.len() > 1024 {
+                return Err("file name is too long".into());
+            }
+            invocation.push(format!("--file={path}"));
+            file = true;
             break;
         }
     }
-    let mode = if expression_mode {
-        if expressions.is_empty() {
-            CliMode::Stdin
-        } else {
-            expressions.pop();
-            CliMode::Expression(expressions)
-        }
-    } else {
-        match file.ok_or("file name is missing")?.as_str() {
-            "-" => CliMode::Stdin,
-            path => CliMode::File(path.into()),
-        }
-    };
+    if !expression_mode && !file {
+        return Err("file name is missing".into());
+    }
     let trailing = args.collect::<Vec<_>>();
     if !trailing.is_empty() {
-        invocation.push("--args".to_string());
-        invocation.extend(trailing.iter().cloned());
+        invocation.push("--args".into());
+        invocation.extend(trailing);
     }
-    let config = CliConfig {
-        mode,
-        quiet: true,
-        no_echo: true,
-        no_save: true,
-        vanilla,
-        command_args: invocation,
-        startup_stdout,
-    };
     if verbose {
         write_console(OutputEvent::Stderr(format!(
-            "R-ust Rscript arguments: {:?}\n",
-            config.command_args
+            "R-ust Rscript arguments: {invocation:?}\n"
         )))
         .map_err(|error| error.to_string())?;
     }
-    run(config)
+    startup::run_invocation(invocation, startup::Frontend::Rscript)
 }

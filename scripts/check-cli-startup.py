@@ -212,8 +212,8 @@ with tempfile.TemporaryDirectory(prefix="r-ust-startup-") as directory:
             cases.append((f"stdin-after-file-{first.name}-{len(tail)}",
                           ["-f", str(first), "--file=-", *tail], "exact", ""))
     extra_cases = [
-        ("escaped-tab-expression", ["-e", "\\t"], "Unquoted shell validation expands escapes after field splitting; native validation conflates these stages"),
-        ("escaped-tab-filename", ["-f", "\\t"], "Empty filenames after shell field splitting are not implemented"),
+        ("escaped-tab-expression", ["-e", "\\t"], ""),
+        ("escaped-tab-filename", ["-f", "\\t"], ""),
         ("unknown-option", ["--bad-option"], ""),
     ]
     cases.extend((label, args, "known" if reason else "exact", reason) for label, args, reason in extra_cases)

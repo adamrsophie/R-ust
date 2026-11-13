@@ -98,8 +98,8 @@ fn string_capture_preserves_startup_text_and_rejects_non_utf8_output() {
 fn omitted_expressions_can_accompany_an_explicit_file_in_either_order() {
     let source = format!("#{}", "x".repeat(10000));
     for args in [
-        ["--file", "example.R", "-e", &source],
-        ["-e", &source, "--file", "example.R"],
+        ["-f", "example.R", "-e", &source],
+        ["-e", &source, "-f", "example.R"],
     ] {
         let config = CliConfig::from_args(args).unwrap();
         assert_eq!(config.mode, CliMode::File("example.R".into()));

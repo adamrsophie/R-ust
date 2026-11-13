@@ -23,6 +23,72 @@ impl From<ExpressionError> for String {
 }
 
 pub(super) fn encode_expression(argument: &str) -> Result<String, ExpressionError> {
+    if !valid_argument(argument) {
+        return Err(ExpressionError::Invalid);
+    }
+    let mut expanded = match expand_echo(argument) {
+        Echo::Complete(bytes) => bytes,
+        Echo::Truncated(bytes) if bytes.contains(&b'\n') => bytes,
+        Echo::Truncated(_) => return Err(ExpressionError::TruncatingEscape),
+    };
+    expanded.push(b'\n');
+    for _ in 0..2 {
+        if expanded.last() == Some(&b'\n') {
+            expanded.pop();
+        }
+    }
+    expanded.retain(|byte| *byte != 0);
+    let expression = String::from_utf8(expanded).map_err(|_| ExpressionError::NonUtf8)?;
+    Ok(expression
+        .replace(' ', "~+~")
+        .replace('\n', "~n~")
+        .replace('\t', "~t~"))
+}
+
+enum Echo {
+    Complete(Vec<u8>),
+    Truncated(Vec<u8>),
+}
+
+impl Echo {
+    fn into_bytes(self) -> Vec<u8> {
+        match self {
+            Self::Complete(bytes) | Self::Truncated(bytes) => bytes,
+        }
+    }
+}
+
+pub(super) fn fields(argument: &str) -> impl Iterator<Item = &str> {
+    argument
+        .split([' ', '\t', '\n'])
+        .filter(|field| !field.is_empty())
+}
+
+pub(super) fn valid_argument(argument: &str) -> bool {
+    let unquoted = fields(argument).collect::<Vec<_>>().join(" ");
+    expand_echo(&unquoted)
+        .into_bytes()
+        .split(|byte| *byte == b'\n')
+        .any(|line| line.first() != Some(&b'-') && line.iter().any(|byte| *byte != 0))
+}
+
+pub(super) fn encode_filename(argument: &str, inline: bool) -> Result<String, ExpressionError> {
+    let bytes = expand_echo(argument).into_bytes();
+    let text = String::from_utf8(bytes).map_err(|_| ExpressionError::NonUtf8)?;
+    let value = if inline {
+        text.split_inclusive('\n')
+            .map(|line| line.split_once('=').map_or(line, |(_, rest)| rest))
+            .collect::<String>()
+    } else {
+        text
+    };
+    Ok(value
+        .replace('\0', "")
+        .trim_end_matches('\n')
+        .replace(' ', "~+~"))
+}
+
+fn expand_echo(argument: &str) -> Echo {
     let mut bytes = argument.bytes().peekable();
     let mut expanded = Vec::with_capacity(argument.len());
     while let Some(byte) = bytes.next() {
@@ -43,20 +109,21 @@ pub(super) fn encode_expression(argument: &str) -> Result<String, ExpressionErro
             b't' => b'\t',
             b'v' => 11,
             b'\\' => b'\\',
-            b'c' => return Err(ExpressionError::TruncatingEscape),
+            b'c' => return Echo::Truncated(expanded),
             b'0' | b'x' => {
                 let radix = if escape == b'0' { 8 } else { 16 };
                 let mut value = 0u8;
                 let mut digits = 0;
                 for _ in 0..if radix == 8 { 3 } else { 2 } {
-                    let Some(digit) = bytes
-                        .peek()
-                        .and_then(|byte| (*byte as char).to_digit(radix))
-                    else {
-                        break;
+                    let digit = match bytes.peek() {
+                        Some(byte @ b'0'..=b'7') => byte - b'0',
+                        Some(byte @ b'8'..=b'9') if radix == 16 => byte - b'0',
+                        Some(byte @ b'a'..=b'f') if radix == 16 => byte - b'a' + 10,
+                        Some(byte @ b'A'..=b'F') if radix == 16 => byte - b'A' + 10,
+                        _ => break,
                     };
                     bytes.next();
-                    value = value.wrapping_mul(radix as u8).wrapping_add(digit as u8);
+                    value = value.wrapping_mul(radix).wrapping_add(digit);
                     digits += 1;
                 }
                 if escape == b'x' && digits == 0 {
@@ -72,17 +139,8 @@ pub(super) fn encode_expression(argument: &str) -> Result<String, ExpressionErro
         };
         expanded.push(decoded);
     }
-    // Shell command substitution discards NUL bytes before encoding the expression.
-    expanded.retain(|byte| *byte != 0);
-    let expression = String::from_utf8(expanded).map_err(|_| ExpressionError::NonUtf8)?;
-    let first_token = expression.trim_start_matches([' ', '\t', '\n']);
-    if first_token.is_empty() || first_token.starts_with('-') {
-        return Err(ExpressionError::Invalid);
-    }
-    Ok(expression
-        .replace(' ', "~+~")
-        .replace('\n', "~n~")
-        .replace('\t', "~t~"))
+    expanded.push(b'\n');
+    Echo::Complete(expanded)
 }
 
 pub(super) fn decode_argument(encoded: &str) -> String {

@@ -71,7 +71,7 @@ fn echoed_input_stops_at_quit_or_error_without_reading_later_lines() {
 #[test]
 fn stdin_echo_normalizes_crlf_and_terminates_last_line() {
     let mut child = Command::new(env!("CARGO_BIN_EXE_r_ust_cli"))
-        .args(["--quiet", "--no-save", "-"])
+        .args(["--quiet", "--no-save", "--file=-"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

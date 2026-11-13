@@ -78,7 +78,6 @@ fn known_unimplemented_options_keep_explicit_errors() {
         "--restore",
         "--encoding=UTF-8",
         "--max-ppsize=10000",
-        "--no-readline",
         "--gui=Tk",
         "-psn_0_123",
     ] {

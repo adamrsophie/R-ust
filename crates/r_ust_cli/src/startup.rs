@@ -1,7 +1,7 @@
 use std::io::{self, Write};
 use std::path::Path;
 
-use super::{launcher, run_with_file, write_console, CliConfig, CliMode, OutputEvent};
+use super::{launcher, run_with_file, write_console, CliConfig, OutputEvent};
 
 pub(super) enum Event<'a> {
     File(&'a Path),
@@ -21,6 +21,7 @@ impl StartupError {
     pub(super) fn message(self) -> String {
         match self {
             Self::Argument(option) => argument_message(option),
+            Self::Expression(launcher::ExpressionError::Invalid) => argument_message("-e"),
             Self::Expression(error) => error.to_string(),
             Self::Fatal(message) | Self::Unsupported(message) => message,
             Self::Output(error) => error.to_string(),
@@ -35,10 +36,23 @@ pub(super) fn file_error(path: &Path, error: &io::Error) -> String {
 }
 
 pub(super) fn append_unknown_option(stdout: &mut Vec<u8>, option: &str) {
-    let mut warning = format!("WARNING: unknown option '{option}'\n").into_bytes();
-    warning.truncate(1024 + 128 - 1);
-    warning.push(b'\n');
-    stdout.extend(warning);
+    append_message(
+        stdout,
+        &format!("WARNING: unknown option '{option}'\n"),
+        1151,
+    );
+}
+
+pub(super) fn append_message(stdout: &mut Vec<u8>, message: &str, capacity: usize) {
+    let bytes = message.as_bytes();
+    stdout.extend_from_slice(&bytes[..bytes.len().min(capacity)]);
+    stdout.push(b'\n');
+}
+
+#[derive(Clone, Copy)]
+pub(super) enum Frontend {
+    Main,
+    Rscript,
 }
 
 pub(super) fn is_backend_option(option: &str) -> bool {
@@ -67,7 +81,6 @@ pub(super) fn is_backend_option(option: &str) -> bool {
             | "--interactive"
             | "-f"
             | "-e"
-            | "--file"
             | "-save"
             | "-nosave"
             | "-restore"
@@ -105,47 +118,16 @@ fn argument_message(option: &str) -> String {
     format!("ERROR: option '{option}' requires {required}")
 }
 
-pub(super) fn preflight(args: &[String]) -> Result<Option<CliMode>, StartupError> {
-    let mut args = args.iter();
-    let mut version = false;
-    while let Some(arg) = args.next() {
-        match arg.as_str() {
-            "--help" | "-h" => return Ok(Some(CliMode::Help)),
-            "--version" => version = true,
-            "--args" => break,
-            "-e" => {
-                let expression = args.next().ok_or(StartupError::Argument("-e"))?;
-                launcher::encode_expression(expression).map_err(StartupError::Expression)?;
-            }
-            "-f" => {
-                let file = args.next().ok_or(StartupError::Argument("-f"))?;
-                match launcher::encode_expression(file) {
-                    Ok(_) => {}
-                    Err(launcher::ExpressionError::Invalid) => {
-                        return Err(StartupError::Argument("-f"))
-                    }
-                    Err(error) => {
-                        return Err(StartupError::Unsupported(format!(
-                            "filename launcher conversion: {error}"
-                        )))
-                    }
-                }
-            }
-            "--file" => {
-                args.next().filter(|file| !file.is_empty()).ok_or_else(|| {
-                    StartupError::Unsupported("--file requires a file path".into())
-                })?;
-            }
-            "-" => {}
-            _ if arg.starts_with('-') => {}
-            _ => break,
-        }
-    }
-    Ok(version.then_some(CliMode::Version))
-}
-
 /// Runs the main frontend with a complete invocation, including its program name.
 pub fn run_main<I, S>(args: I) -> Result<i32, String>
+where
+    I: IntoIterator<Item = S>,
+    S: Into<String>,
+{
+    run_invocation(args, Frontend::Main)
+}
+
+pub(super) fn run_invocation<I, S>(args: I, frontend: Frontend) -> Result<i32, String>
 where
     I: IntoIterator<Item = S>,
     S: Into<String>,
@@ -173,6 +155,23 @@ where
     }) {
         Ok(config) => config,
         Err(error) => {
+            match (frontend, &error) {
+                (
+                    Frontend::Rscript,
+                    StartupError::Argument(_)
+                    | StartupError::Expression(_)
+                    | StartupError::Unsupported(_),
+                ) => return Err(error.message()),
+                (Frontend::Rscript, StartupError::Fatal(_) | StartupError::Output(_))
+                | (
+                    Frontend::Main,
+                    StartupError::Argument(_)
+                    | StartupError::Expression(_)
+                    | StartupError::Fatal(_)
+                    | StartupError::Unsupported(_)
+                    | StartupError::Output(_),
+                ) => {}
+            }
             let (event, status) = match error {
                 StartupError::Argument(option) => (
                     OutputEvent::Stderr(format!("{}\n", argument_message(option))),

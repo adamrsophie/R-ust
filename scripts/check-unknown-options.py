@@ -29,7 +29,7 @@ class Comparison(TypedDict):
     mode: str
     label: str
     args: list[str]
-    kind: Literal["exact", "help", "version", "known"]
+    kind: Literal["exact", "help", "version"]
     passed: bool
     r: Result
     rust: Result
@@ -73,7 +73,7 @@ def main() -> None:
             (True, reference_r, str(snapshots[0]), ["--vanilla", "--no-echo"]),
             (False, reference_script, str(snapshots[1]), ["--vanilla"]),
         ]:
-            cases: list[tuple[str, list[str], Literal["exact", "help", "version", "known"]]] = []
+            cases: list[tuple[str, list[str], Literal["exact", "help", "version"]]] = []
             for option in options:
                 if not is_main and not option.startswith("--"):
                     continue
@@ -105,7 +105,7 @@ def main() -> None:
                         ("missing-file-name", [option], "exact"),
                     ])
             if is_main:
-                cases.extend(("shell-field-splitting", [option], "known") for option in ["--bad option", "--bad\toption"])
+                cases.extend(("shell-field-splitting", [option], "exact") for option in ["--bad option", "--bad\toption"])
             for label, args, kind in cases:
                 r, u = [subprocess.run([program, *prefix, *args], input=b"", env=environment,
                                       capture_output=True, timeout=20) for program in [reference, native]]
@@ -115,7 +115,7 @@ def main() -> None:
                         start = b"Usage:"
                     case "version":
                         start = b"R"
-                    case "exact" | "known":
+                    case "exact":
                         start = None
                     case _:
                         assert_never(kind)
@@ -131,10 +131,10 @@ def main() -> None:
     _ = Path("target/unknown-option-parity.json").write_text(json.dumps(dict(
         versions=[result.stdout + result.stderr for result in versions], source_sha256=sources,
         binary_sha256=hashes, cases=results), indent=2) + "\n")
-    failed = [row for row in results if not row["passed"] and row["kind"] != "known"]
+    failed = [row for row in results if not row["passed"]]
     for row in failed:
         print(f"FAIL {row['mode']}: {row['label']} {row['args'][0][:50]!r}")
-    print(f"{sum(row['passed'] for row in results if row['kind'] != 'known')} passing comparisons; {len(failed)} unexpected differences; two shell-splitting cases excluded")
+    print(f"{sum(row['passed'] for row in results)} passing comparisons; {len(failed)} unexpected differences")
     print("Main streams/statuses and successful Rscript streams are exact; help/version and Rscript error wording are excluded.")
     if failed:
         raise SystemExit(1)
