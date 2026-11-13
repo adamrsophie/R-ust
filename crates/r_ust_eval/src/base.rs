@@ -1,6 +1,7 @@
 mod constants;
 mod definitions;
 mod encode_string;
+mod evaluation;
 mod rowsum;
 mod run_length;
 mod sequence;
@@ -22,6 +23,7 @@ fn definitions() -> impl Iterator<Item = &'static (&'static str, &'static str)> 
         .chain(run_length::DEFINITIONS.iter())
         .chain(rowsum::DEFINITIONS.iter())
         .chain(encode_string::DEFINITIONS.iter())
+        .chain(evaluation::DEFINITIONS.iter())
         .chain(SEQUENCE_DEFINITIONS.iter())
 }
 

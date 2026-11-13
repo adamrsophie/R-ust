@@ -1,0 +1,105 @@
+owner	id	source	type	value	visible	stdout_hex	warnings_hex
+identity	integer	identity(3L)	integer	integer|1|3	TRUE	-	-
+identity	named	identity(x=7L)	integer	integer|1|7	TRUE	-	-
+identity	null	identity(NULL)	NULL	NULL|0|	TRUE	-	-
+identity	empty	identity(integer())	integer	integer|0|	TRUE	-	-
+identity	logical	identity(c(TRUE,FALSE,NA))	logical	logical|3|T,F,NA	TRUE	-	-
+identity	string	identity(c('a','',NA_character_))	character	character|3|x61,x,NA	TRUE	-	-
+identity	integers	identity(c(-1L,NA_integer_,9L))	integer	integer|3|-1,NA,9	TRUE	-	-
+identity	real_storage	identical(identity(c(1.5,NA_real_,NaN,Inf)),c(1.5,NA_real_,NaN,Inf))	logical	logical|1|T	TRUE	-	-
+identity	list_value	identical(identity(list(1L,'a',NULL)),list(1L,'a',NULL))	logical	logical|1|T	TRUE	-	-
+identity	matrix_value	identical(identity(matrix(1:4,2)),matrix(1:4,2))	logical	logical|1|T	TRUE	-	-
+identity	missing	identity()	error	617267756d656e7420227822206973206d697373696e672c2077697468206e6f2064656661756c74	-	-	-
+identity	explicit_missing	identity(x=)	error	617267756d656e7420227822206973206d697373696e672c2077697468206e6f2064656661756c74	-	-	-
+identity	blank	identity(,)	error	756e7573656420617267756d656e742028616c697374282929	-	-	-
+identity	duplicate	identity(x=stop('FIRST'),x=stop('SECOND'))	error	666f726d616c20617267756d656e7420227822206d617463686564206279206d756c7469706c652061637475616c20617267756d656e7473	-	-	-
+identity	unused	identity(1L,extra=stop('UNUSED'))	error	756e7573656420617267756d656e7420286578747261203d2073746f702822554e55534544222929	-	-	-
+identity	too_many	identity(1L,2L)	error	756e7573656420617267756d656e7420283229	-	-	-
+identity	overlong_not_partial	identity(xx=stop('UNUSED'))	error	756e7573656420617267756d656e7420287878203d2073746f702822554e55534544222929	-	-	-
+identity	exact_before_positional	identity({cat('BAD');2L},x=1L)	error	756e7573656420617267756d656e7420287b0a20202020636174282242414422290a20202020320a7d29	-	-	-
+identity	supplied_effect	identity({cat('A');4L})	integer	integer|1|4	TRUE	41	-
+identity	stop_effect	identity({cat('A');stop('BOOM');cat('BAD')})	error	424f4f4d	-	41	-
+identity	unforced	(function(x) 7L)(identity(stop('BAD')))	integer	integer|1|7	TRUE	-	-
+identity	forced_once	(function(x){identity(x);identity(x);x})({cat('ONCE');8L})	integer	integer|1|8	TRUE	4f4e4345	-
+identity	default	(function(x={cat('DEFAULT');9L}) identity(x))()	integer	integer|1|9	TRUE	44454641554c54	-
+identity	default_dependency	(function(x=y,y=8L) identity(x))()	integer	integer|1|8	TRUE	-	-
+identity	unused_default	(function(x=stop('BAD')) identity(7L))()	integer	integer|1|7	TRUE	-	-
+identity	dots	(function(...) identity(...))({cat('DOT');6L})	integer	integer|1|6	TRUE	444f54	-
+identity	dots_named	(function(...) identity(...))(x=6L)	integer	integer|1|6	TRUE	-	-
+identity	dots_unused	(function(...) identity(...))(1L,extra=stop('UNUSED'))	error	554e55534544	-	-	-
+identity	dots_duplicate	(function(...) identity(...))(x=1L,x=2L)	error	666f726d616c20617267756d656e7420227822206d617463686564206279206d756c7469706c652061637475616c20617267756d656e7473	-	-	-
+identity	alias	{alias<-identity;alias(8L)}	integer	integer|1|8	TRUE	-	-
+identity	parameter_alias	(function(f)f(8L))(identity)	integer	integer|1|8	TRUE	-	-
+identity	shadow	{identity<-function(x) x+1L;identity(4L)}	integer	integer|1|5	TRUE	-	-
+identity	shadow_non_function	{identity<-99L;identity(4L)}	integer	integer|1|4	TRUE	-	-
+identity	caller_x	{x<-99L;identity(4L)}	integer	integer|1|4	TRUE	-	-
+identity	caller_binding	{y<-11L;(function(y)identity(y))(4L)}	integer	integer|1|4	TRUE	-	-
+identity	invisible	identity(invisible(4L))	integer	integer|1|4	FALSE	-	-
+identity	assignment_visibility	identity(z<-4L)	integer	integer|1|4	FALSE	-	-
+identity	nested_visibility	identity(identity(invisible(4L)))	integer	integer|1|4	FALSE	-	-
+identity	repeated_visibility	(function(x){identity(x);identity(x) })(invisible(4L))	integer	integer|1|4	TRUE	-	-
+identity	return_value	(function(){identity(return(7L));cat('BAD');9L})()	integer	integer|1|7	TRUE	-	-
+identity	return_invisible	(function(){identity(return(invisible(7L)));cat('BAD');9L})()	integer	integer|1|7	FALSE	-	-
+identity	return_effect	(function(){identity({cat('A');return(7L);cat('BAD')});cat('BAD');9L})()	integer	integer|1|7	TRUE	41	-
+identity	top_return	identity(return(7L))	error	6e6f2066756e6374696f6e20746f2072657475726e2066726f6d2c206a756d70696e6720746f20746f70206c6576656c	-	-	-
+identity	top_break	identity(break)	error	6e6f206c6f6f7020666f7220627265616b2f6e6578742c206a756d70696e6720746f20746f70206c6576656c	-	-	-
+identity	top_next	identity(next)	error	6e6f206c6f6f7020666f7220627265616b2f6e6578742c206a756d70696e6720746f20746f70206c6576656c	-	-	-
+identity	loop_break	{v<-0L;for(i in 1:3){identity({cat('A');break});v<-v+1L};v}	integer	integer|1|0	TRUE	41	-
+identity	loop_next	{v<-0L;for(i in 1:3){identity({cat('A');next});v<-v+1L};v}	integer	integer|1|0	TRUE	414141	-
+identity	loop_return	(function(){for(i in 1:3){identity(return(8L))};99L})()	integer	integer|1|8	TRUE	-	-
+identity	closure_retained	{make<-function(x){identity(x);function()x};f<-make({cat('CAPTURE');8L});f()}	integer	integer|1|8	TRUE	43415054555245	-
+identity	closure_lazy_after	{make<-function(x)identity(function()x);f<-make({cat('LATER');8L});f()}	integer	integer|1|8	TRUE	4c41544552	-
+identity	changed_binding	{y<-3L;f<-(function(x){identity(x);function()x})(y);y<-9L;f()}	integer	integer|1|3	TRUE	-	-
+identity	closure_storage	typeof(identity(function(x)x))	character	character|1|x636c6f73757265	TRUE	-	-
+force	integer	force(3L)	integer	integer|1|3	TRUE	-	-
+force	named	force(x=7L)	integer	integer|1|7	TRUE	-	-
+force	null	force(NULL)	NULL	NULL|0|	TRUE	-	-
+force	empty	force(integer())	integer	integer|0|	TRUE	-	-
+force	logical	force(c(TRUE,FALSE,NA))	logical	logical|3|T,F,NA	TRUE	-	-
+force	string	force(c('a','',NA_character_))	character	character|3|x61,x,NA	TRUE	-	-
+force	integers	force(c(-1L,NA_integer_,9L))	integer	integer|3|-1,NA,9	TRUE	-	-
+force	real_storage	identical(force(c(1.5,NA_real_,NaN,Inf)),c(1.5,NA_real_,NaN,Inf))	logical	logical|1|T	TRUE	-	-
+force	list_value	identical(force(list(1L,'a',NULL)),list(1L,'a',NULL))	logical	logical|1|T	TRUE	-	-
+force	matrix_value	identical(force(matrix(1:4,2)),matrix(1:4,2))	logical	logical|1|T	TRUE	-	-
+force	missing	force()	error	617267756d656e7420227822206973206d697373696e672c2077697468206e6f2064656661756c74	-	-	-
+force	explicit_missing	force(x=)	error	617267756d656e7420227822206973206d697373696e672c2077697468206e6f2064656661756c74	-	-	-
+force	blank	force(,)	error	756e7573656420617267756d656e742028616c697374282929	-	-	-
+force	duplicate	force(x=stop('FIRST'),x=stop('SECOND'))	error	666f726d616c20617267756d656e7420227822206d617463686564206279206d756c7469706c652061637475616c20617267756d656e7473	-	-	-
+force	unused	force(1L,extra=stop('UNUSED'))	error	756e7573656420617267756d656e7420286578747261203d2073746f702822554e55534544222929	-	-	-
+force	too_many	force(1L,2L)	error	756e7573656420617267756d656e7420283229	-	-	-
+force	overlong_not_partial	force(xx=stop('UNUSED'))	error	756e7573656420617267756d656e7420287878203d2073746f702822554e55534544222929	-	-	-
+force	exact_before_positional	force({cat('BAD');2L},x=1L)	error	756e7573656420617267756d656e7420287b0a20202020636174282242414422290a20202020320a7d29	-	-	-
+force	supplied_effect	force({cat('A');4L})	integer	integer|1|4	TRUE	41	-
+force	stop_effect	force({cat('A');stop('BOOM');cat('BAD')})	error	424f4f4d	-	41	-
+force	unforced	(function(x) 7L)(force(stop('BAD')))	integer	integer|1|7	TRUE	-	-
+force	forced_once	(function(x){force(x);force(x);x})({cat('ONCE');8L})	integer	integer|1|8	TRUE	4f4e4345	-
+force	default	(function(x={cat('DEFAULT');9L}) force(x))()	integer	integer|1|9	TRUE	44454641554c54	-
+force	default_dependency	(function(x=y,y=8L) force(x))()	integer	integer|1|8	TRUE	-	-
+force	unused_default	(function(x=stop('BAD')) force(7L))()	integer	integer|1|7	TRUE	-	-
+force	dots	(function(...) force(...))({cat('DOT');6L})	integer	integer|1|6	TRUE	444f54	-
+force	dots_named	(function(...) force(...))(x=6L)	integer	integer|1|6	TRUE	-	-
+force	dots_unused	(function(...) force(...))(1L,extra=stop('UNUSED'))	error	554e55534544	-	-	-
+force	dots_duplicate	(function(...) force(...))(x=1L,x=2L)	error	666f726d616c20617267756d656e7420227822206d617463686564206279206d756c7469706c652061637475616c20617267756d656e7473	-	-	-
+force	alias	{alias<-force;alias(8L)}	integer	integer|1|8	TRUE	-	-
+force	parameter_alias	(function(f)f(8L))(force)	integer	integer|1|8	TRUE	-	-
+force	shadow	{force<-function(x) x+1L;force(4L)}	integer	integer|1|5	TRUE	-	-
+force	shadow_non_function	{force<-99L;force(4L)}	integer	integer|1|4	TRUE	-	-
+force	caller_x	{x<-99L;force(4L)}	integer	integer|1|4	TRUE	-	-
+force	caller_binding	{y<-11L;(function(y)force(y))(4L)}	integer	integer|1|4	TRUE	-	-
+force	invisible	force(invisible(4L))	integer	integer|1|4	FALSE	-	-
+force	assignment_visibility	force(z<-4L)	integer	integer|1|4	FALSE	-	-
+force	nested_visibility	force(force(invisible(4L)))	integer	integer|1|4	FALSE	-	-
+force	repeated_visibility	(function(x){force(x);force(x) })(invisible(4L))	integer	integer|1|4	TRUE	-	-
+force	return_value	(function(){force(return(7L));cat('BAD');9L})()	integer	integer|1|7	TRUE	-	-
+force	return_invisible	(function(){force(return(invisible(7L)));cat('BAD');9L})()	integer	integer|1|7	FALSE	-	-
+force	return_effect	(function(){force({cat('A');return(7L);cat('BAD')});cat('BAD');9L})()	integer	integer|1|7	TRUE	41	-
+force	top_return	force(return(7L))	error	6e6f2066756e6374696f6e20746f2072657475726e2066726f6d2c206a756d70696e6720746f20746f70206c6576656c	-	-	-
+force	top_break	force(break)	error	6e6f206c6f6f7020666f7220627265616b2f6e6578742c206a756d70696e6720746f20746f70206c6576656c	-	-	-
+force	top_next	force(next)	error	6e6f206c6f6f7020666f7220627265616b2f6e6578742c206a756d70696e6720746f20746f70206c6576656c	-	-	-
+force	loop_break	{v<-0L;for(i in 1:3){force({cat('A');break});v<-v+1L};v}	integer	integer|1|0	TRUE	41	-
+force	loop_next	{v<-0L;for(i in 1:3){force({cat('A');next});v<-v+1L};v}	integer	integer|1|0	TRUE	414141	-
+force	loop_return	(function(){for(i in 1:3){force(return(8L))};99L})()	integer	integer|1|8	TRUE	-	-
+force	closure_retained	{make<-function(x){force(x);function()x};f<-make({cat('CAPTURE');8L});f()}	integer	integer|1|8	TRUE	43415054555245	-
+force	closure_lazy_after	{make<-function(x)force(function()x);f<-make({cat('LATER');8L});f()}	integer	integer|1|8	TRUE	4c41544552	-
+force	changed_binding	{y<-3L;f<-(function(x){force(x);function()x})(y);y<-9L;f()}	integer	integer|1|3	TRUE	-	-
+force	closure_storage	typeof(force(function(x)x))	character	character|1|x636c6f73757265	TRUE	-	-
