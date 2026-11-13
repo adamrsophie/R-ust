@@ -124,10 +124,7 @@ impl RuntimeState {
         let arguments = expand_dots_call_arguments(arguments, &self.visible_environment())?;
         let [x, default] = bind_named_arguments(&arguments, ["x", "default"])?;
         let x = x.ok_or_else(|| EvalError::MissingArgument("x".into()))?;
-        let value = match self.eval_flow(&x.value)? {
-            EvalFlow::Value(value) => value,
-            flow => return Ok(flow),
-        };
+        let EvalFlow::Value(value) = self.eval_flow(&x.value)?;
         let name = option_query(&value, true)?;
         if let Some(value) = self.get_option(name) {
             let value = value.clone();

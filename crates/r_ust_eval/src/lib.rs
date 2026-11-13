@@ -1,82 +1,33 @@
 use std::collections::HashMap;
-use std::fmt;
 
 mod arguments;
+mod base;
+mod error;
+mod internal;
+mod message_helpers;
+pub use error::EvalError;
 mod binary;
 mod builtins;
 mod coercion;
+mod control;
 mod environment;
 mod formatting;
+mod loops;
 mod options;
 mod parse_warnings;
 mod summary;
+mod unused_arguments;
 
-use arguments::bind_supplied_argument_promises;
 use coercion::coerce_integer_values;
+pub use control::{ControlTransfer, LoopId};
 use formatting::{format_line, format_numeric_line};
 
 use r_ust_gc::{Gc, GcConfig};
 use r_ust_parse::{ParseError, ParseResult, Parser};
 use r_ust_sexp::{
-    is_na_real, BinaryOp, CallArgument, FunctionParameter, ListElement, Sexp, UnaryOp, NA_REAL,
+    is_na_real, BinaryOp, CallArgument, ClosureEnvironment, EvaluationOrigin, FunctionParameter,
+    ListElement, Sexp, UnaryOp, NA_REAL,
 };
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum EvalError {
-    Parse(String),
-    UndefinedSymbol(String),
-    Type(String),
-    Arity(String),
-    Domain(String),
-    Control(String),
-    MissingArgument(String),
-    Output(String),
-    Input(String),
-    Quit(QuitRequest),
-    NotImplemented(&'static str),
-    WithWarnings {
-        error: Box<EvalError>,
-        warnings: String,
-    },
-}
-
-impl fmt::Display for EvalError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Parse(message) => write!(f, "parse error: {message}"),
-            Self::UndefinedSymbol(name) => write!(f, "object '{name}' not found"),
-            Self::Type(message) => write!(f, "type error: {message}"),
-            Self::Arity(message) => write!(f, "argument error: {message}"),
-            Self::Domain(message) => write!(f, "domain error: {message}"),
-            Self::Control(message) => write!(f, "control-flow error: {message}"),
-            Self::MissingArgument(name) => {
-                write!(f, "argument '{name}' is missing, with no default")
-            }
-            Self::Output(message) => write!(f, "output error: {message}"),
-            Self::Input(message) => write!(f, "input error: {message}"),
-            Self::Quit(request) => {
-                write!(f, "session exit requested with status {}", request.status)
-            }
-            Self::NotImplemented(feature) => write!(f, "{feature} is not implemented yet"),
-            Self::WithWarnings { error, warnings } => {
-                write!(
-                    f,
-                    "{error}\nIn addition: {}",
-                    warnings.trim_end_matches('\n')
-                )
-            }
-        }
-    }
-}
-
-impl std::error::Error for EvalError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::WithWarnings { error, .. } => Some(error.as_ref()),
-            _ => None,
-        }
-    }
-}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SaveAction {
@@ -103,15 +54,6 @@ struct EvaluatedArgument {
 #[derive(Clone, Debug, PartialEq)]
 enum EvalFlow {
     Value(Sexp),
-    Return(Sexp),
-    Break,
-    Next,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-enum ArgumentFlow {
-    Value(Vec<EvaluatedArgument>),
-    Return(Sexp),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -124,6 +66,10 @@ enum ApplyFunction {
 pub struct RuntimeState {
     gc: Gc,
     scopes: Vec<HashMap<String, Sexp>>,
+    control: control::ControlState,
+    lookup_start: usize,
+    base_origins: Vec<EvaluationOrigin>,
+    base_scopes: Vec<std::ops::Range<usize>>,
     visible: bool,
     output: Vec<OutputEvent>,
     output_sink: Option<fn(OutputEvent) -> std::io::Result<()>>,
@@ -148,6 +94,10 @@ impl RuntimeState {
         Self {
             gc: Gc::new(gc_config),
             scopes: vec![HashMap::new()],
+            control: control::ControlState::default(),
+            lookup_start: 0,
+            base_origins: Vec::new(),
+            base_scopes: Vec::new(),
             visible: true,
             output: Vec::new(),
             output_sink: None,
@@ -179,13 +129,10 @@ impl RuntimeState {
     }
 
     pub fn eval(&mut self, expr: &Sexp) -> Result<Sexp, EvalError> {
-        let result = match self.eval_flow(expr)? {
-            EvalFlow::Value(value) | EvalFlow::Return(value) => value,
-            EvalFlow::Break => {
-                return Err(EvalError::Control("break used outside loop".to_string()))
-            }
-            EvalFlow::Next => return Err(EvalError::Control("next used outside loop".to_string())),
-        };
+        let EvalFlow::Value(result) = self.eval_flow(expr).map_err(|error| match error {
+            EvalError::Transfer(transfer) => EvalError::Control(transfer.inactive_message().into()),
+            other => other,
+        })?;
         self.gc.alloc_header(result.sexptype());
         Ok(result)
     }
@@ -205,6 +152,10 @@ impl RuntimeState {
             | Sexp::Matrix { .. }
             | Sexp::Dots(_)
             | Sexp::Closure { .. } => EvalFlow::Value(expr.clone()),
+            Sexp::InternalCall {
+                operation,
+                arguments,
+            } => EvalFlow::Value(self.eval_internal(*operation, arguments)?),
             Sexp::MissingArg(name) => return Err(EvalError::MissingArgument(name.clone())),
             Sexp::Promise { .. } => EvalFlow::Value(self.force_value(expr.clone())?),
             Sexp::Symbol(name) if name == "..." => {
@@ -219,22 +170,14 @@ impl RuntimeState {
             Sexp::Function { parameters, body } => EvalFlow::Value(Sexp::Closure {
                 parameters: parameters.clone(),
                 body: body.clone(),
-                environment: self.visible_environment(),
+                environment: ClosureEnvironment::Captured(self.visible_environment()),
             }),
             Sexp::If {
                 condition,
                 then_branch,
                 else_branch,
             } => {
-                let condition = match self.eval_flow(condition)? {
-                    EvalFlow::Value(value) => value,
-                    flow @ EvalFlow::Return(_) => return Ok(flow),
-                    EvalFlow::Break | EvalFlow::Next => {
-                        return Err(EvalError::Control(
-                            "loop control used in if() condition".to_string(),
-                        ))
-                    }
-                };
+                let EvalFlow::Value(condition) = self.eval_flow(condition)?;
                 match condition_truth(&condition)? {
                     true => return self.eval_flow(then_branch),
                     false => {
@@ -250,83 +193,25 @@ impl RuntimeState {
                 variable,
                 sequence,
                 body,
-            } => {
-                let sequence = match self.eval_flow(sequence)? {
-                    EvalFlow::Value(value) => value,
-                    flow @ EvalFlow::Return(_) => return Ok(flow),
-                    EvalFlow::Break | EvalFlow::Next => {
-                        return Err(EvalError::Control(
-                            "loop control used in for() sequence".to_string(),
-                        ))
-                    }
-                };
-                let values = sequence_elements(&sequence)?;
-                for value in values {
-                    self.assign_local(variable.clone(), value);
-                    match self.eval_flow(body)? {
-                        EvalFlow::Value(_) | EvalFlow::Next => {}
-                        EvalFlow::Break => break,
-                        flow @ EvalFlow::Return(_) => return Ok(flow),
-                    }
-                }
-                EvalFlow::Value(Sexp::Nil)
-            }
-            Sexp::While { condition, body } => {
-                loop {
-                    let condition = match self.eval_flow(condition)? {
-                        EvalFlow::Value(value) => value,
-                        flow @ EvalFlow::Return(_) => return Ok(flow),
-                        EvalFlow::Break | EvalFlow::Next => {
-                            return Err(EvalError::Control(
-                                "loop control used in while() condition".to_string(),
-                            ))
-                        }
-                    };
-                    if !condition_truth(&condition)? {
-                        break;
-                    }
-                    match self.eval_flow(body)? {
-                        EvalFlow::Value(_) | EvalFlow::Next => {}
-                        EvalFlow::Break => break,
-                        flow @ EvalFlow::Return(_) => return Ok(flow),
-                    }
-                }
-                EvalFlow::Value(Sexp::Nil)
-            }
-            Sexp::Repeat { body } => {
-                loop {
-                    match self.eval_flow(body)? {
-                        EvalFlow::Value(_) | EvalFlow::Next => {}
-                        EvalFlow::Break => break,
-                        flow @ EvalFlow::Return(_) => return Ok(flow),
-                    }
-                }
-                EvalFlow::Value(Sexp::Nil)
-            }
-            Sexp::Break => EvalFlow::Break,
-            Sexp::Next => EvalFlow::Next,
+            } => self.eval_for(variable, sequence, body)?,
+            Sexp::While { condition, body } => self.eval_while(condition, body)?,
+            Sexp::Repeat { body } => self.eval_repeat(body)?,
+            Sexp::Break => return Err(self.control.loop_signal(ControlTransfer::Break)),
+            Sexp::Next => return Err(self.control.loop_signal(ControlTransfer::Next)),
             Sexp::Block(expressions) => {
                 let mut last = Sexp::Nil;
                 for expression in expressions {
                     match self.eval_flow(expression)? {
                         EvalFlow::Value(value) => last = value,
-                        flow @ EvalFlow::Return(_) => return Ok(flow),
-                        flow @ (EvalFlow::Break | EvalFlow::Next) => return Ok(flow),
                     }
                 }
                 EvalFlow::Value(last)
             }
             Sexp::Subset { value, index } => {
-                let value = match self.eval_flow(value)? {
-                    EvalFlow::Value(value) => value,
-                    flow @ EvalFlow::Return(_) => return Ok(flow),
-                    flow @ (EvalFlow::Break | EvalFlow::Next) => return Ok(flow),
-                };
+                let EvalFlow::Value(value) = self.eval_flow(value)?;
                 let index = if let Some(index) = index {
                     Some(match self.eval_flow(index)? {
                         EvalFlow::Value(value) => value,
-                        flow @ EvalFlow::Return(_) => return Ok(flow),
-                        flow @ (EvalFlow::Break | EvalFlow::Next) => return Ok(flow),
                     })
                 } else {
                     None
@@ -334,16 +219,10 @@ impl RuntimeState {
                 EvalFlow::Value(subset_value(&value, index.as_ref())?)
             }
             Sexp::Subset2D { value, row, col } => {
-                let value = match self.eval_flow(value)? {
-                    EvalFlow::Value(value) => value,
-                    flow @ EvalFlow::Return(_) => return Ok(flow),
-                    flow @ (EvalFlow::Break | EvalFlow::Next) => return Ok(flow),
-                };
+                let EvalFlow::Value(value) = self.eval_flow(value)?;
                 let row = if let Some(row) = row {
                     Some(match self.eval_flow(row)? {
                         EvalFlow::Value(value) => value,
-                        flow @ EvalFlow::Return(_) => return Ok(flow),
-                        flow @ (EvalFlow::Break | EvalFlow::Next) => return Ok(flow),
                     })
                 } else {
                     None
@@ -351,8 +230,6 @@ impl RuntimeState {
                 let col = if let Some(col) = col {
                     Some(match self.eval_flow(col)? {
                         EvalFlow::Value(value) => value,
-                        flow @ EvalFlow::Return(_) => return Ok(flow),
-                        flow @ (EvalFlow::Break | EvalFlow::Next) => return Ok(flow),
                     })
                 } else {
                     None
@@ -360,41 +237,21 @@ impl RuntimeState {
                 EvalFlow::Value(subset_2d_value(&value, row.as_ref(), col.as_ref())?)
             }
             Sexp::Extract { value, index } => {
-                let value = match self.eval_flow(value)? {
-                    EvalFlow::Value(value) => value,
-                    flow @ EvalFlow::Return(_) => return Ok(flow),
-                    flow @ (EvalFlow::Break | EvalFlow::Next) => return Ok(flow),
-                };
-                let index = match self.eval_flow(index)? {
-                    EvalFlow::Value(value) => value,
-                    flow @ EvalFlow::Return(_) => return Ok(flow),
-                    flow @ (EvalFlow::Break | EvalFlow::Next) => return Ok(flow),
-                };
+                let EvalFlow::Value(value) = self.eval_flow(value)?;
+                let EvalFlow::Value(index) = self.eval_flow(index)?;
                 EvalFlow::Value(extract_value(&value, &index)?)
             }
             Sexp::Dollar { value, name } => {
-                let value = match self.eval_flow(value)? {
-                    EvalFlow::Value(value) => value,
-                    flow @ EvalFlow::Return(_) => return Ok(flow),
-                    flow @ (EvalFlow::Break | EvalFlow::Next) => return Ok(flow),
-                };
+                let EvalFlow::Value(value) = self.eval_flow(value)?;
                 EvalFlow::Value(dollar_value(&value, name)?)
             }
             Sexp::Assignment { target, value } => {
-                let value = match self.eval_flow(value)? {
-                    EvalFlow::Value(value) => value,
-                    flow @ EvalFlow::Return(_) => return Ok(flow),
-                    flow @ (EvalFlow::Break | EvalFlow::Next) => return Ok(flow),
-                };
+                let EvalFlow::Value(value) = self.eval_flow(value)?;
                 self.assign_local(target.clone(), value.clone());
                 EvalFlow::Value(value)
             }
             Sexp::SuperAssignment { target, value } => {
-                let value = match self.eval_flow(value)? {
-                    EvalFlow::Value(value) => value,
-                    flow @ EvalFlow::Return(_) => return Ok(flow),
-                    flow @ (EvalFlow::Break | EvalFlow::Next) => return Ok(flow),
-                };
+                let EvalFlow::Value(value) = self.eval_flow(value)?;
                 self.assign_super(target.clone(), value.clone());
                 EvalFlow::Value(value)
             }
@@ -403,16 +260,10 @@ impl RuntimeState {
                 index,
                 value,
             } => {
-                let replacement = match self.eval_flow(value)? {
-                    EvalFlow::Value(value) => value,
-                    flow @ EvalFlow::Return(_) => return Ok(flow),
-                    flow @ (EvalFlow::Break | EvalFlow::Next) => return Ok(flow),
-                };
+                let EvalFlow::Value(replacement) = self.eval_flow(value)?;
                 let index = if let Some(index) = index {
                     Some(match self.eval_flow(index)? {
                         EvalFlow::Value(value) => value,
-                        flow @ EvalFlow::Return(_) => return Ok(flow),
-                        flow @ (EvalFlow::Break | EvalFlow::Next) => return Ok(flow),
                     })
                 } else {
                     None
@@ -428,16 +279,10 @@ impl RuntimeState {
                 col,
                 value,
             } => {
-                let replacement = match self.eval_flow(value)? {
-                    EvalFlow::Value(value) => value,
-                    flow @ EvalFlow::Return(_) => return Ok(flow),
-                    flow @ (EvalFlow::Break | EvalFlow::Next) => return Ok(flow),
-                };
+                let EvalFlow::Value(replacement) = self.eval_flow(value)?;
                 let row = if let Some(row) = row {
                     Some(match self.eval_flow(row)? {
                         EvalFlow::Value(value) => value,
-                        flow @ EvalFlow::Return(_) => return Ok(flow),
-                        flow @ (EvalFlow::Break | EvalFlow::Next) => return Ok(flow),
                     })
                 } else {
                     None
@@ -445,8 +290,6 @@ impl RuntimeState {
                 let col = if let Some(col) = col {
                     Some(match self.eval_flow(col)? {
                         EvalFlow::Value(value) => value,
-                        flow @ EvalFlow::Return(_) => return Ok(flow),
-                        flow @ (EvalFlow::Break | EvalFlow::Next) => return Ok(flow),
                     })
                 } else {
                     None
@@ -462,16 +305,8 @@ impl RuntimeState {
                 index,
                 value,
             } => {
-                let replacement = match self.eval_flow(value)? {
-                    EvalFlow::Value(value) => value,
-                    flow @ EvalFlow::Return(_) => return Ok(flow),
-                    flow @ (EvalFlow::Break | EvalFlow::Next) => return Ok(flow),
-                };
-                let index = match self.eval_flow(index)? {
-                    EvalFlow::Value(value) => value,
-                    flow @ EvalFlow::Return(_) => return Ok(flow),
-                    flow @ (EvalFlow::Break | EvalFlow::Next) => return Ok(flow),
-                };
+                let EvalFlow::Value(replacement) = self.eval_flow(value)?;
+                let EvalFlow::Value(index) = self.eval_flow(index)?;
                 let current = self.lookup(target)?.unwrap_or(Sexp::Nil);
                 let updated = extract_assign_value(&current, &index, &replacement)?;
                 self.assign_local(target.clone(), updated);
@@ -482,35 +317,23 @@ impl RuntimeState {
                 name,
                 value,
             } => {
-                let replacement = match self.eval_flow(value)? {
-                    EvalFlow::Value(value) => value,
-                    flow @ EvalFlow::Return(_) => return Ok(flow),
-                    flow @ (EvalFlow::Break | EvalFlow::Next) => return Ok(flow),
-                };
+                let EvalFlow::Value(replacement) = self.eval_flow(value)?;
                 let current = self.lookup(target)?.unwrap_or(Sexp::Nil);
                 let updated = dollar_assign_value(&current, name, &replacement)?;
                 self.assign_local(target.clone(), updated);
                 EvalFlow::Value(replacement)
             }
             Sexp::NamesAssignment { target, value } => {
-                let replacement = match self.eval_flow(value)? {
-                    EvalFlow::Value(value) => value,
-                    flow @ EvalFlow::Return(_) => return Ok(flow),
-                    flow @ (EvalFlow::Break | EvalFlow::Next) => return Ok(flow),
-                };
+                let EvalFlow::Value(replacement) = self.eval_flow(value)?;
                 let current = self.lookup(target)?.unwrap_or(Sexp::Nil);
                 let updated = names_assign_value(&current, &replacement)?;
                 self.assign_local(target.clone(), updated);
                 EvalFlow::Value(replacement)
             }
             Sexp::Binary { op, left, right } => {
-                let left = match self.eval_flow(left)? {
-                    EvalFlow::Value(value) => value,
-                    flow @ EvalFlow::Return(_) => return Ok(flow),
-                    flow @ (EvalFlow::Break | EvalFlow::Next) => return Ok(flow),
-                };
+                let EvalFlow::Value(left) = self.eval_flow(left)?;
                 if matches!(op, BinaryOp::AndScalar | BinaryOp::OrScalar) {
-                    match (*op, logical_scalar(&left, "left side of logical operator")?) {
+                    match (*op, binary::logical_operand(&left)?) {
                         (BinaryOp::AndScalar, Some(false)) => {
                             self.visible = true;
                             return Ok(EvalFlow::Value(Sexp::Logical(vec![Some(false)])));
@@ -522,29 +345,18 @@ impl RuntimeState {
                         _ => {}
                     }
                 }
-                let right = match self.eval_flow(right)? {
-                    EvalFlow::Value(value) => value,
-                    flow @ EvalFlow::Return(_) => return Ok(flow),
-                    flow @ (EvalFlow::Break | EvalFlow::Next) => return Ok(flow),
-                };
+                let EvalFlow::Value(right) = self.eval_flow(right)?;
                 EvalFlow::Value(self.eval_binary(*op, (&left, &right))?)
             }
             Sexp::Unary { op, value } => {
-                let value = match self.eval_flow(value)? {
-                    EvalFlow::Value(value) => value,
-                    flow @ EvalFlow::Return(_) => return Ok(flow),
-                    flow @ (EvalFlow::Break | EvalFlow::Next) => return Ok(flow),
-                };
+                let EvalFlow::Value(value) = self.eval_flow(value)?;
                 EvalFlow::Value(eval_unary(*op, &value)?)
             }
             Sexp::Call {
                 function,
                 arguments,
             } => self.eval_call(function, arguments)?,
-            Sexp::Parenthesized(value) => match self.eval_flow(value)? {
-                EvalFlow::Value(value) => EvalFlow::Value(value),
-                flow => return Ok(flow),
-            },
+            Sexp::Parenthesized(value) => self.eval_flow(value)?,
         };
         if is_assignment(expr)
             || matches!(
@@ -625,8 +437,11 @@ impl RuntimeState {
             if name == "return" {
                 return self.eval_return(arguments);
             }
-            if let Some(value) = self.lookup(name)? {
+            if let Some(value) = self.lookup_function(name)? {
                 return self.call_value(value, arguments);
+            }
+            if name == "...length" {
+                return self.eval_dots_length(arguments).map(EvalFlow::Value);
             }
             if is_builtin(name) {
                 if matches!(name.as_str(), "q" | "quit") {
@@ -667,26 +482,19 @@ impl RuntimeState {
                     self.visible = true;
                     return Ok(EvalFlow::Value(value));
                 }
-                let evaluated = match self.eval_arguments(
+                let evaluated = self.eval_arguments(
                     arguments,
                     matches!(
                         name.as_str(),
                         "as.numeric" | "as.double" | "as.real" | "as.integer" | "sum" | "prod"
                     ),
-                )? {
-                    ArgumentFlow::Value(value) => value,
-                    ArgumentFlow::Return(value) => return Ok(EvalFlow::Return(value)),
-                };
+                )?;
                 return self.call_builtin(name, &evaluated).map(EvalFlow::Value);
             }
             return Err(EvalError::UndefinedSymbol(name.clone()));
         }
 
-        let value = match self.eval_flow(function)? {
-            EvalFlow::Value(value) => value,
-            flow @ EvalFlow::Return(_) => return Ok(flow),
-            flow @ (EvalFlow::Break | EvalFlow::Next) => return Ok(flow),
-        };
+        let EvalFlow::Value(value) = self.eval_flow(function)?;
         self.call_value(value, arguments)
     }
 
@@ -718,7 +526,6 @@ impl RuntimeState {
         let value = if let Some(argument) = arguments.first() {
             match self.eval_flow(&argument.value)? {
                 EvalFlow::Value(value) => value,
-                flow => return Ok(flow),
             }
         } else {
             Sexp::Nil
@@ -741,7 +548,6 @@ impl RuntimeState {
         {
             match self.eval_flow(&argument.value)? {
                 EvalFlow::Value(value) => value,
-                flow => return Ok(flow),
             }
         } else {
             Sexp::String(vec![Some(String::new())])
@@ -793,10 +599,7 @@ impl RuntimeState {
             if matches!(argument.value, Sexp::MissingArg(_)) {
                 false
             } else {
-                let value = match self.eval_flow(&argument.value)? {
-                    EvalFlow::Value(value) => value,
-                    flow => return Ok(flow),
-                };
+                let EvalFlow::Value(value) = self.eval_flow(&argument.value)?;
                 condition_truth(&value)?
             }
         } else {
@@ -833,7 +636,6 @@ impl RuntimeState {
             {
                 values[index] = match self.eval_flow(&argument.value)? {
                     EvalFlow::Value(value) => value,
-                    flow => return Ok(flow),
                 };
             }
         }
@@ -894,18 +696,12 @@ impl RuntimeState {
             ));
         }
         let value = if let Some(argument) = arguments.first() {
-            match self.eval_flow(&argument.value)? {
-                EvalFlow::Value(value) | EvalFlow::Return(value) => value,
-                EvalFlow::Break | EvalFlow::Next => {
-                    return Err(EvalError::Control(
-                        "loop control used inside return() argument".to_string(),
-                    ))
-                }
-            }
+            let EvalFlow::Value(value) = self.eval_flow(&argument.value)?;
+            value
         } else {
             Sexp::Nil
         };
-        Ok(EvalFlow::Return(value))
+        Err(self.control.return_signal(value))
     }
 
     fn call_value(
@@ -933,14 +729,14 @@ impl RuntimeState {
     ) -> Result<Sexp, EvalError> {
         let arguments = expand_dots_call_arguments(arguments, &self.visible_environment())?;
         let (x_arg, fun_arg, extra_args, simplify) = self.apply_arguments(name, &arguments)?;
-        let x = self.eval_regular_argument(&x_arg.value, "apply input")?;
+        let x = self.eval_regular_argument(&x_arg.value)?;
         let function = self.resolve_apply_function(&fun_arg.value)?;
         let evaluated_extra_args = extra_args
             .iter()
             .map(|argument| {
                 Ok(EvaluatedArgument {
                     name: argument.name.clone(),
-                    value: self.eval_regular_argument(&argument.value, "apply argument")?,
+                    value: self.eval_regular_argument(&argument.value)?,
                 })
             })
             .collect::<Result<Vec<_>, EvalError>>()?;
@@ -977,7 +773,7 @@ impl RuntimeState {
                 Some("X") => x_arg = Some(argument.clone()),
                 Some("FUN") => fun_arg = Some(argument.clone()),
                 Some("simplify") if name == "sapply" => {
-                    let value = self.eval_regular_argument(&argument.value, "simplify")?;
+                    let value = self.eval_regular_argument(&argument.value)?;
                     simplify = logical_scalar(&value, "simplify")?.unwrap_or(true);
                 }
                 Some("USE.NAMES") if name == "sapply" => {}
@@ -1002,13 +798,9 @@ impl RuntimeState {
         ))
     }
 
-    fn eval_regular_argument(&mut self, expr: &Sexp, context: &str) -> Result<Sexp, EvalError> {
-        match self.eval_flow(expr)? {
-            EvalFlow::Value(value) | EvalFlow::Return(value) => Ok(value),
-            EvalFlow::Break | EvalFlow::Next => Err(EvalError::Control(format!(
-                "loop control used in {context}"
-            ))),
-        }
+    fn eval_regular_argument(&mut self, expr: &Sexp) -> Result<Sexp, EvalError> {
+        let EvalFlow::Value(value) = self.eval_flow(expr)?;
+        Ok(value)
     }
 
     fn resolve_apply_function(&mut self, expr: &Sexp) -> Result<ApplyFunction, EvalError> {
@@ -1020,7 +812,7 @@ impl RuntimeState {
                 return Ok(ApplyFunction::Builtin(name.clone()));
             }
         }
-        let value = self.eval_regular_argument(expr, "apply function")?;
+        let value = self.eval_regular_argument(expr)?;
         match value {
             closure @ Sexp::Closure { .. } => Ok(ApplyFunction::Closure(closure)),
             other => Err(EvalError::Type(format!(
@@ -1043,12 +835,8 @@ impl RuntimeState {
                     name: argument.name.clone(),
                     value: argument.value.clone(),
                 }));
-                match self.call_value(value.clone(), &call_args)? {
-                    EvalFlow::Value(value) | EvalFlow::Return(value) => Ok(value),
-                    EvalFlow::Break | EvalFlow::Next => Err(EvalError::Control(
-                        "loop control used inside apply callback".to_string(),
-                    )),
-                }
+                let EvalFlow::Value(value) = self.call_value(value.clone(), &call_args)?;
+                Ok(value)
             }
             ApplyFunction::Builtin(name) => {
                 let mut call_args = vec![EvaluatedArgument {
@@ -1067,8 +855,8 @@ impl RuntimeState {
             .ok_or_else(|| EvalError::Arity("with() missing data".to_string()))?;
         let expr_arg = call_argument(&arguments, 1, &["expr"])
             .ok_or_else(|| EvalError::Arity("with() missing expr".to_string()))?;
-        let data = self.eval_regular_argument(&data_arg.value, "with data")?;
-        self.eval_in_data_mask(&data, &expr_arg.value, "with")
+        let data = self.eval_regular_argument(&data_arg.value)?;
+        self.eval_in_data_mask(&data, &expr_arg.value)
     }
 
     fn eval_subset_call(&mut self, arguments: &[CallArgument]) -> Result<Sexp, EvalError> {
@@ -1077,11 +865,11 @@ impl RuntimeState {
             .ok_or_else(|| EvalError::Arity("subset() missing x".to_string()))?;
         let subset_arg = call_argument(&arguments, 1, &["subset"]);
         let select_arg = call_argument(&arguments, 2, &["select"]);
-        let x = self.eval_regular_argument(&x_arg.value, "subset input")?;
+        let x = self.eval_regular_argument(&x_arg.value)?;
 
         if let Sexp::DataFrame { columns, nrow } = &x {
             let row_index = subset_arg
-                .map(|argument| self.eval_in_data_mask(&x, &argument.value, "subset"))
+                .map(|argument| self.eval_in_data_mask(&x, &argument.value))
                 .transpose()?;
             let col_index = select_arg
                 .map(|argument| select_index_value(&argument.value, self))
@@ -1095,7 +883,7 @@ impl RuntimeState {
         }
 
         if let Some(subset_arg) = subset_arg {
-            let index = self.eval_regular_argument(&subset_arg.value, "subset index")?;
+            let index = self.eval_regular_argument(&subset_arg.value)?;
             subset_value(&x, Some(&index))
         } else {
             Ok(x)
@@ -1106,7 +894,7 @@ impl RuntimeState {
         let arguments = expand_dots_call_arguments(arguments, &self.visible_environment())?;
         let x_arg = call_argument(&arguments, 0, &["_data", "x"])
             .ok_or_else(|| EvalError::Arity("transform() missing data".to_string()))?;
-        let mut out = self.eval_regular_argument(&x_arg.value, "transform data")?;
+        let mut out = self.eval_regular_argument(&x_arg.value)?;
         if !matches!(out, Sexp::DataFrame { .. }) {
             return Err(EvalError::Type(format!(
                 "transform() expected a data frame, found {:?}",
@@ -1121,7 +909,7 @@ impl RuntimeState {
                     "transform() arguments must be named".to_string(),
                 ));
             };
-            let value = self.eval_in_data_mask(&out, &argument.value, "transform")?;
+            let value = self.eval_in_data_mask(&out, &argument.value)?;
             replacements.push((name.clone(), value));
         }
         for (name, value) in replacements {
@@ -1130,27 +918,21 @@ impl RuntimeState {
         Ok(out)
     }
 
-    fn eval_in_data_mask(
-        &mut self,
-        data: &Sexp,
-        expression: &Sexp,
-        context: &str,
-    ) -> Result<Sexp, EvalError> {
-        self.scopes.push(data_mask_scope(data)?);
+    fn eval_in_data_mask(&mut self, data: &Sexp, expression: &Sexp) -> Result<Sexp, EvalError> {
+        let scope = data_mask_scope(data)?;
+        let (id, previous) = self.control.enter_return_context()?;
+        self.scopes.push(scope);
         let result = self.eval_flow(expression);
         self.scopes.pop();
-        match result? {
-            EvalFlow::Value(value) | EvalFlow::Return(value) => Ok(value),
-            EvalFlow::Break => Err(EvalError::Control(format!("break used inside {context}()"))),
-            EvalFlow::Next => Err(EvalError::Control(format!("next used inside {context}()"))),
-        }
+        let EvalFlow::Value(value) = self.control.leave_return_context(id, previous, result)?;
+        Ok(value)
     }
 
     fn eval_matrix_apply_call(&mut self, arguments: &[CallArgument]) -> Result<Sexp, EvalError> {
         let arguments = expand_dots_call_arguments(arguments, &self.visible_environment())?;
         let (x_arg, margin_arg, fun_arg, extra_args) = self.matrix_apply_arguments(&arguments)?;
-        let x = self.eval_regular_argument(&x_arg.value, "apply input")?;
-        let margin_value = self.eval_regular_argument(&margin_arg.value, "apply margin")?;
+        let x = self.eval_regular_argument(&x_arg.value)?;
+        let margin_value = self.eval_regular_argument(&margin_arg.value)?;
         let margin = numeric_scalar(&margin_value, "apply margin")?.trunc() as i32;
         let function = self.resolve_apply_function(&fun_arg.value)?;
         let evaluated_extra_args = extra_args
@@ -1158,7 +940,7 @@ impl RuntimeState {
             .map(|argument| {
                 Ok(EvaluatedArgument {
                     name: argument.name.clone(),
-                    value: self.eval_regular_argument(&argument.value, "apply argument")?,
+                    value: self.eval_regular_argument(&argument.value)?,
                 })
             })
             .collect::<Result<Vec<_>, EvalError>>()?;
@@ -1245,20 +1027,27 @@ impl RuntimeState {
         &mut self,
         parameters: &[FunctionParameter],
         body: &Sexp,
-        environment: &[(String, Sexp)],
+        environment: &ClosureEnvironment,
         arguments: &[CallArgument],
     ) -> Result<EvalFlow, EvalError> {
         let caller_environment = self.visible_environment();
         let arguments = expand_dots_call_arguments(arguments, &caller_environment)?;
-        let captured_scope = environment.iter().cloned().collect::<HashMap<_, _>>();
-        let mut local_scope = HashMap::new();
-        bind_supplied_argument_promises(
-            parameters,
-            &arguments,
-            &caller_environment,
-            &mut local_scope,
-        )?;
+        let captured_scope = match environment {
+            ClosureEnvironment::Captured(values) => values.iter().cloned().collect(),
+            ClosureEnvironment::Base => HashMap::new(),
+        };
+        let local_scope =
+            self.bind_supplied_argument_promises(parameters, &arguments, &caller_environment)?;
 
+        let (id, previous) = self.control.enter_return_context()?;
+        let previous_lookup = self.lookup_start;
+        let base = matches!(environment, ClosureEnvironment::Base);
+        if base {
+            self.lookup_start = self.scopes.len();
+            self.base_origins.push(self.control.origin);
+            self.base_scopes
+                .push(self.scopes.len()..self.scopes.len() + 2);
+        }
         self.scopes.push(captured_scope);
         self.scopes.push(local_scope);
         let result = self
@@ -1267,11 +1056,12 @@ impl RuntimeState {
         self.scopes.pop();
         self.scopes.pop();
 
-        match result? {
-            EvalFlow::Value(value) | EvalFlow::Return(value) => Ok(EvalFlow::Value(value)),
-            EvalFlow::Break => Err(EvalError::Control("break used outside loop".to_string())),
-            EvalFlow::Next => Err(EvalError::Control("next used outside loop".to_string())),
+        self.lookup_start = previous_lookup;
+        if base {
+            self.base_origins.pop();
+            self.base_scopes.pop();
         }
+        self.control.leave_return_context(id, previous, result)
     }
 
     fn bind_missing_default_promises(
@@ -1285,7 +1075,12 @@ impl RuntimeState {
                 continue;
             }
             let value = if let Some(default) = &parameter.default {
-                promise(default.clone(), self.visible_environment(), false)
+                promise(
+                    default.clone(),
+                    self.visible_environment(),
+                    self.control.origin,
+                    false,
+                )
             } else {
                 Sexp::MissingArg(parameter.name.clone())
             };
@@ -1659,7 +1454,7 @@ fn select_index_value(expr: &Sexp, runtime: &mut RuntimeState) -> Result<Sexp, E
     if collect_select_names(expr, &mut names)? {
         return Ok(Sexp::String(names.into_iter().map(Some).collect()));
     }
-    runtime.eval_regular_argument(expr, "subset select")
+    runtime.eval_regular_argument(expr)
 }
 
 fn collect_select_names(expr: &Sexp, names: &mut Vec<String>) -> Result<bool, EvalError> {
@@ -1694,14 +1489,20 @@ fn collect_select_names(expr: &Sexp, names: &mut Vec<String>) -> Result<bool, Ev
     }
 }
 
-fn promise(expression: Sexp, environment: Vec<(String, Sexp)>, supplied: bool) -> Sexp {
+fn promise(
+    expression: Sexp,
+    environment: Vec<(String, Sexp)>,
+    origin: EvaluationOrigin,
+    supplied: bool,
+) -> Sexp {
     if matches!(expression, Sexp::MissingArg(_)) {
         return expression;
     }
     Sexp::Promise {
         expression: Box::new(expression),
         environment,
-        value: None,
+        origin,
+        state: Default::default(),
         supplied,
     }
 }
@@ -3083,8 +2884,8 @@ fn colon_sequence(from: f64, to: f64) -> Result<Sexp, EvalError> {
 }
 
 fn eval_scalar_logical(op: BinaryOp, left: &Sexp, right: &Sexp) -> Result<Option<bool>, EvalError> {
-    let left = logical_scalar(left, "left side of logical operator")?;
-    let right = logical_scalar(right, "right side of logical operator")?;
+    let left = binary::logical_operand(left)?;
+    let right = binary::logical_operand(right)?;
     Ok(match op {
         BinaryOp::AndScalar => logical_and(left, right),
         BinaryOp::OrScalar => logical_or(left, right),
@@ -7800,20 +7601,25 @@ fn sexp_identical(left: &Sexp, right: &Sexp) -> bool {
         (
             Sexp::Promise {
                 expression: left_expression,
-                value: left_value,
+                state: left_state,
                 supplied: left_supplied,
                 ..
             },
             Sexp::Promise {
                 expression: right_expression,
-                value: right_value,
+                state: right_state,
                 supplied: right_supplied,
                 ..
             },
         ) => {
             left_supplied == right_supplied
                 && sexp_identical(left_expression, right_expression)
-                && optional_boxed_sexp_identical(left_value, right_value)
+                && (std::sync::Arc::ptr_eq(left_state, right_state)
+                    || match (left_state.value.get(), right_state.value.get()) {
+                        (Some(left), Some(right)) => sexp_identical(left, right),
+                        (None, None) => true,
+                        _ => false,
+                    })
         }
         (
             Sexp::Closure {
@@ -7854,14 +7660,6 @@ fn list_elements_identical(left: &[ListElement], right: &[ListElement]) -> bool 
         && left.iter().zip(right).all(|(left, right)| {
             left.name == right.name && sexp_identical(&left.value, &right.value)
         })
-}
-
-fn optional_boxed_sexp_identical(left: &Option<Box<Sexp>>, right: &Option<Box<Sexp>>) -> bool {
-    match (left, right) {
-        (Some(left), Some(right)) => sexp_identical(left, right),
-        (None, None) => true,
-        _ => false,
-    }
 }
 
 fn call_which_min_max(args: &[EvaluatedArgument], mode: MinMax) -> Result<Sexp, EvalError> {
@@ -8821,6 +8619,14 @@ fn logical_values(value: &Sexp) -> Result<Vec<Option<bool>>, EvalError> {
 
 fn string_values(value: &Sexp) -> Result<Vec<Option<String>>, EvalError> {
     match value {
+        Sexp::List(values) => values
+            .iter()
+            .map(|element| message_helpers::list_character(&element.value).map(Some))
+            .collect(),
+        Sexp::Vector(values) => values
+            .iter()
+            .map(|value| message_helpers::list_character(value).map(Some))
+            .collect(),
         Sexp::Nil => Ok(Vec::new()),
         Sexp::Matrix { data, .. } => string_values(data),
         Sexp::String(values) => Ok(values.clone()),
@@ -8926,6 +8732,7 @@ fn value_len(value: &Sexp) -> usize {
         | Sexp::Extract { .. }
         | Sexp::Dollar { .. }
         | Sexp::Call { .. }
+        | Sexp::InternalCall { .. }
         | Sexp::Assignment { .. }
         | Sexp::SuperAssignment { .. }
         | Sexp::Subassignment { .. }
@@ -9088,6 +8895,7 @@ pub fn format_sexp(value: &Sexp) -> String {
         | Sexp::Extract { .. }
         | Sexp::Dollar { .. }
         | Sexp::Call { .. }
+        | Sexp::InternalCall { .. }
         | Sexp::Assignment { .. }
         | Sexp::SuperAssignment { .. }
         | Sexp::Subassignment { .. }

@@ -1,70 +1,151 @@
-use super::{promise, CallArgument, EvalError, FunctionParameter, HashMap, ListElement, Sexp};
+use super::{
+    promise, CallArgument, EvalError, FunctionParameter, HashMap, ListElement, RuntimeState, Sexp,
+};
 
-pub(super) fn bind_supplied_argument_promises(
-    parameters: &[FunctionParameter],
-    supplied: &[CallArgument],
-    caller_environment: &[(String, Sexp)],
-    local_scope: &mut HashMap<String, Sexp>,
-) -> Result<(), EvalError> {
-    let dots_position = parameters
-        .iter()
-        .position(|parameter| parameter.name == "...");
-    let mut dots_values = Vec::new();
-    let mut next_positional = 0usize;
-    for argument in supplied {
-        if let Some(name) = &argument.name {
-            if !parameters.iter().any(|parameter| parameter.name == *name) {
-                if dots_position.is_some() {
-                    dots_values.push(ListElement {
-                        name: Some(name.clone()),
-                        value: promise(argument.value.clone(), caller_environment.to_vec(), true),
-                    });
-                    continue;
-                }
-                return Err(EvalError::Arity(format!("unused argument {name}")));
-            }
-            if local_scope.contains_key(name) {
-                return Err(EvalError::Arity(format!("argument {name} matched twice")));
-            }
-            local_scope.insert(
-                name.clone(),
-                promise(argument.value.clone(), caller_environment.to_vec(), true),
-            );
-            continue;
-        }
+#[derive(Clone, Copy, PartialEq)]
+enum MatchUse {
+    Unused,
+    Partial,
+    Exact,
+}
 
-        while parameters.get(next_positional).is_some_and(|parameter| {
-            parameter.name != "..." && local_scope.contains_key(&parameter.name)
-        }) {
-            next_positional += 1;
-        }
-        if dots_position.is_some_and(|position| next_positional >= position) {
-            dots_values.push(ListElement {
-                name: None,
-                value: promise(argument.value.clone(), caller_environment.to_vec(), true),
-            });
-            continue;
-        }
-        let Some(parameter) = parameters.get(next_positional) else {
-            if dots_position.is_some() {
-                dots_values.push(ListElement {
-                    name: None,
-                    value: promise(argument.value.clone(), caller_environment.to_vec(), true),
-                });
+impl RuntimeState {
+    pub(super) fn bind_supplied_argument_promises(
+        &mut self,
+        parameters: &[FunctionParameter],
+        supplied: &[CallArgument],
+        caller_environment: &[(String, Sexp)],
+    ) -> Result<HashMap<String, Sexp>, EvalError> {
+        let dots = parameters
+            .iter()
+            .position(|parameter| parameter.name == "...");
+        let mut formal_use = vec![MatchUse::Unused; parameters.len()];
+        let mut actual_use = vec![MatchUse::Unused; supplied.len()];
+        let mut matched: Vec<Option<&CallArgument>> = vec![None; parameters.len()];
+        // R match.c resolves every exact tag before considering any partial tag.
+        for (formal, parameter) in parameters.iter().enumerate() {
+            if parameter.name == "..." {
                 continue;
             }
-            return Err(EvalError::Arity(
-                "too many positional arguments".to_string(),
-            ));
-        };
-        local_scope.insert(
-            parameter.name.clone(),
-            promise(argument.value.clone(), caller_environment.to_vec(), true),
-        );
-        next_positional += 1;
+            for (actual, argument) in supplied.iter().enumerate() {
+                if argument.name.as_deref() != Some(parameter.name.as_str()) {
+                    continue;
+                }
+                if formal_use[formal] == MatchUse::Exact {
+                    return Err(duplicate_formal(&parameter.name));
+                }
+                if actual_use[actual] == MatchUse::Exact {
+                    return Err(ambiguous_actual(actual));
+                }
+                matched[formal] = Some(argument);
+                formal_use[formal] = MatchUse::Exact;
+                actual_use[actual] = MatchUse::Exact;
+            }
+        }
+        for (formal, parameter) in parameters
+            .iter()
+            .enumerate()
+            .take(dots.unwrap_or(parameters.len()))
+        {
+            if formal_use[formal] == MatchUse::Exact {
+                continue;
+            }
+            for (actual, argument) in supplied.iter().enumerate() {
+                let Some(name) = &argument.name else {
+                    continue;
+                };
+                if actual_use[actual] == MatchUse::Exact || !parameter.name.starts_with(name) {
+                    continue;
+                }
+                if actual_use[actual] == MatchUse::Partial {
+                    return Err(ambiguous_actual(actual));
+                }
+                if formal_use[formal] == MatchUse::Partial {
+                    return Err(duplicate_formal(&parameter.name));
+                }
+                if matches!(self.get_option("warnPartialMatchArgs"), Some(Sexp::Logical(values)) if values.as_slice() == [Some(true)])
+                {
+                    self.record_parse_warnings(&[format!(
+                        "partial argument match of '{name}' to '{}'",
+                        parameter.name
+                    )])?;
+                }
+                matched[formal] = Some(argument);
+                formal_use[formal] = MatchUse::Partial;
+                actual_use[actual] = MatchUse::Partial;
+            }
+        }
+        let mut positional = supplied
+            .iter()
+            .zip(&mut actual_use)
+            .filter(|(argument, used)| **used == MatchUse::Unused && argument.name.is_none());
+        for slot in matched.iter_mut().take(dots.unwrap_or(parameters.len())) {
+            if slot.is_some_and(|argument| !matches!(argument.value, Sexp::MissingArg(_))) {
+                continue;
+            }
+            let Some((argument, used)) = positional.next() else {
+                break;
+            };
+            *slot = Some(argument);
+            *used = MatchUse::Partial;
+        }
+        let unused = supplied
+            .iter()
+            .zip(&actual_use)
+            .filter_map(|(argument, used)| (*used == MatchUse::Unused).then_some(argument))
+            .collect::<Vec<_>>();
+        if dots.is_none() && !unused.is_empty() {
+            return Err(EvalError::Arity(self.render_unused_arguments(&unused)?));
+        }
+        let mut scope = HashMap::new();
+        for (parameter, argument) in parameters.iter().zip(matched) {
+            if let Some(argument) = argument {
+                scope.insert(
+                    parameter.name.clone(),
+                    promise(
+                        argument.value.clone(),
+                        caller_environment.to_vec(),
+                        self.control.origin,
+                        true,
+                    ),
+                );
+            }
+        }
+        if dots.is_some() {
+            scope.insert(
+                "...".into(),
+                Sexp::Dots(
+                    unused
+                        .into_iter()
+                        .map(|argument| ListElement {
+                            name: argument.name.clone(),
+                            value: match &argument.value {
+                                Sexp::MissingArg(_) => Sexp::MissingArg(String::new()),
+                                value => promise(
+                                    value.clone(),
+                                    caller_environment.to_vec(),
+                                    self.control.origin,
+                                    true,
+                                ),
+                            },
+                        })
+                        .collect(),
+                ),
+            );
+        }
+        Ok(scope)
     }
-    if dots_position.is_some() {
-        local_scope.insert("...".to_string(), Sexp::Dots(dots_values));
-    }
-    Ok(())
+}
+
+fn duplicate_formal(name: &str) -> EvalError {
+    EvalError::Arity(format!(
+        "formal argument \"{name}\" matched by multiple actual arguments"
+    ))
+}
+
+fn ambiguous_actual(index: usize) -> EvalError {
+    EvalError::Arity(format!(
+        "argument {} matches multiple formal arguments",
+        index + 1
+    ))
 }

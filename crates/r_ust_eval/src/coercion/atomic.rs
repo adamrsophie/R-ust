@@ -103,6 +103,7 @@ pub(super) fn scalar_real(value: &Sexp, policy: BlankPolicy) -> (f64, Warnings) 
         | Sexp::Extract { .. }
         | Sexp::Dollar { .. }
         | Sexp::Call { .. }
+        | Sexp::InternalCall { .. }
         | Sexp::Assignment { .. }
         | Sexp::SuperAssignment { .. }
         | Sexp::Subassignment { .. }

@@ -1,7 +1,7 @@
 use super::{
     bool_arg, console_event, data_args, dispatch_call, expand_dots_call_arguments, format_line,
     format_sexp, logical_scalar, named_arg, named_bool_arg, output_strings, positional,
-    string_scalar, value_len, visibility_result, ArgumentFlow, CallArgument, EvalError, EvalFlow,
+    string_scalar, value_len, visibility_result, CallArgument, EvalError, EvalFlow,
     EvaluatedArgument, OutputEvent, RuntimeState, Sexp,
 };
 
@@ -10,28 +10,20 @@ impl RuntimeState {
         &mut self,
         arguments: &[CallArgument],
         empty_is_error: bool,
-    ) -> Result<ArgumentFlow, EvalError> {
+    ) -> Result<Vec<EvaluatedArgument>, EvalError> {
         let arguments = expand_dots_call_arguments(arguments, &self.visible_environment())?;
         let mut values = Vec::with_capacity(arguments.len());
         for (index, argument) in arguments.iter().enumerate() {
             if empty_is_error && matches!(argument.value, Sexp::MissingArg(_)) {
                 return Err(EvalError::Arity(format!("argument {} is empty", index + 1)));
             }
-            let value = match self.eval_flow(&argument.value)? {
-                EvalFlow::Value(value) => value,
-                EvalFlow::Return(value) => return Ok(ArgumentFlow::Return(value)),
-                EvalFlow::Break | EvalFlow::Next => {
-                    return Err(EvalError::Control(
-                        "loop control used in function argument".to_string(),
-                    ))
-                }
-            };
+            let EvalFlow::Value(value) = self.eval_flow(&argument.value)?;
             values.push(EvaluatedArgument {
                 name: argument.name.clone(),
                 value,
             });
         }
-        Ok(ArgumentFlow::Value(values))
+        Ok(values)
     }
 
     pub(super) fn call_builtin(
@@ -55,12 +47,8 @@ impl RuntimeState {
                     "getOption" => self.eval_get_option(&arguments),
                     _ => self.eval_quit_call(&arguments),
                 };
-                return match result? {
-                    EvalFlow::Value(value) | EvalFlow::Return(value) => Ok(value),
-                    _ => Err(EvalError::Control(format!(
-                        "loop control used in {name} arguments"
-                    ))),
-                };
+                let EvalFlow::Value(value) = result?;
+                return Ok(value);
             }
             "options" => return self.call_options(args),
             "as.numeric" | "as.double" | "as.real" | "as.integer" => {

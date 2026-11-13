@@ -1,8 +1,13 @@
 #![allow(non_camel_case_types)]
 
 mod operators;
+mod promise;
+mod value;
+
+pub use value::{ClosureEnvironment, InternalOperation, Sexp};
 
 pub use operators::BinaryOp;
+pub use promise::{EvaluationEnvironmentId, EvaluationOrigin, PromiseState};
 
 pub const R_VERSION: &str = "4.6.0";
 
@@ -181,133 +186,6 @@ pub struct ListElement {
     pub value: Sexp,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum Sexp {
-    Nil,
-    MissingArg(String),
-    Symbol(String),
-    Logical(Vec<Option<bool>>),
-    Integer(Vec<Option<i32>>),
-    Real(Vec<f64>),
-    String(Vec<Option<String>>),
-    Vector(Vec<Sexp>),
-    List(Vec<ListElement>),
-    Factor {
-        codes: Vec<Option<usize>>,
-        levels: Vec<String>,
-        ordered: bool,
-    },
-    DataFrame {
-        columns: Vec<ListElement>,
-        nrow: usize,
-    },
-    Matrix {
-        data: Box<Sexp>,
-        nrow: usize,
-        ncol: usize,
-    },
-    Dots(Vec<ListElement>),
-    Promise {
-        expression: Box<Sexp>,
-        environment: Vec<(String, Sexp)>,
-        value: Option<Box<Sexp>>,
-        supplied: bool,
-    },
-    Closure {
-        parameters: Vec<FunctionParameter>,
-        body: Box<Sexp>,
-        environment: Vec<(String, Sexp)>,
-    },
-    Function {
-        parameters: Vec<FunctionParameter>,
-        body: Box<Sexp>,
-    },
-    If {
-        condition: Box<Sexp>,
-        then_branch: Box<Sexp>,
-        else_branch: Option<Box<Sexp>>,
-    },
-    For {
-        variable: String,
-        sequence: Box<Sexp>,
-        body: Box<Sexp>,
-    },
-    While {
-        condition: Box<Sexp>,
-        body: Box<Sexp>,
-    },
-    Repeat {
-        body: Box<Sexp>,
-    },
-    Break,
-    Next,
-    Block(Vec<Sexp>),
-    Subset {
-        value: Box<Sexp>,
-        index: Option<Box<Sexp>>,
-    },
-    Subset2D {
-        value: Box<Sexp>,
-        row: Option<Box<Sexp>>,
-        col: Option<Box<Sexp>>,
-    },
-    Extract {
-        value: Box<Sexp>,
-        index: Box<Sexp>,
-    },
-    Dollar {
-        value: Box<Sexp>,
-        name: String,
-    },
-    Call {
-        function: Box<Sexp>,
-        arguments: Vec<CallArgument>,
-    },
-    Assignment {
-        target: String,
-        value: Box<Sexp>,
-    },
-    SuperAssignment {
-        target: String,
-        value: Box<Sexp>,
-    },
-    Subassignment {
-        target: String,
-        index: Option<Box<Sexp>>,
-        value: Box<Sexp>,
-    },
-    MatrixSubassignment {
-        target: String,
-        row: Option<Box<Sexp>>,
-        col: Option<Box<Sexp>>,
-        value: Box<Sexp>,
-    },
-    ExtractAssignment {
-        target: String,
-        index: Box<Sexp>,
-        value: Box<Sexp>,
-    },
-    DollarAssignment {
-        target: String,
-        name: String,
-        value: Box<Sexp>,
-    },
-    NamesAssignment {
-        target: String,
-        value: Box<Sexp>,
-    },
-    Binary {
-        op: BinaryOp,
-        left: Box<Sexp>,
-        right: Box<Sexp>,
-    },
-    Unary {
-        op: UnaryOp,
-        value: Box<Sexp>,
-    },
-    Parenthesized(Box<Sexp>),
-}
-
 impl Sexp {
     pub const fn sexptype(&self) -> SexpType {
         match self {
@@ -339,6 +217,7 @@ impl Sexp {
             | Self::Extract { .. }
             | Self::Dollar { .. }
             | Self::Call { .. }
+            | Self::InternalCall { .. }
             | Self::Assignment { .. }
             | Self::SuperAssignment { .. }
             | Self::Subassignment { .. }
@@ -354,28 +233,4 @@ impl Sexp {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{is_na_real, SexpType, NA_REAL};
-
-    #[test]
-    fn missing_double_payload_matches_r() {
-        assert!(NA_REAL.is_nan());
-        assert!(is_na_real(NA_REAL));
-        assert!(is_na_real(-NA_REAL));
-        assert!(is_na_real(NA_REAL + 1.0));
-        assert!(!is_na_real(f64::NAN));
-        assert!(!is_na_real(1954.0));
-        assert!(!is_na_real(f64::INFINITY));
-    }
-
-    #[test]
-    fn sexptype_values_match_r_4_6_0() {
-        assert_eq!(SexpType::Nil.as_r_type(), 0);
-        assert_eq!(SexpType::Closure.as_r_type(), 3);
-        assert_eq!(SexpType::Integer.as_r_type(), 13);
-        assert_eq!(SexpType::Raw.as_r_type(), 24);
-        assert_eq!(SexpType::Object.as_r_type(), 25);
-        assert_eq!(SexpType::Free.as_r_type(), 31);
-        assert_eq!(SexpType::Function.as_r_type(), 99);
-    }
-}
+mod tests;

@@ -1,63 +1,91 @@
 use std::collections::HashMap;
+use std::sync::atomic::Ordering;
+
+use r_ust_sexp::EvaluationOrigin;
 
 use super::{EvalError, EvalFlow, RuntimeState, Sexp};
 
 impl RuntimeState {
-    pub(super) fn lookup(&mut self, name: &str) -> Result<Option<Sexp>, EvalError> {
-        let Some(scope_index) = (0..self.scopes.len())
-            .rev()
-            .find(|index| self.scopes[*index].contains_key(name))
-        else {
-            return Ok(None);
-        };
-        let value = self.scopes[scope_index]
-            .get(name)
-            .expect("scope index was selected by contains_key")
-            .clone();
-        let forced = match value {
-            Sexp::MissingArg(name) => return Err(EvalError::MissingArgument(name)),
-            Sexp::Promise {
-                value: Some(value), ..
-            } => *value,
-            Sexp::Promise {
-                expression,
-                environment,
-                value: None,
-                supplied,
-            } => {
-                let forced = self.eval_in_environment(&environment, &expression)?;
-                self.scopes[scope_index].insert(
-                    name.to_string(),
-                    Sexp::Promise {
-                        expression,
-                        environment,
-                        value: Some(Box::new(forced.clone())),
-                        supplied,
-                    },
-                );
-                forced
+    fn scope_visible(&self, index: usize) -> bool {
+        index >= self.lookup_start
+            && (self.lookup_start != 0
+                || !self.base_scopes.iter().any(|range| range.contains(&index)))
+    }
+
+    pub(super) fn lookup_function(&mut self, name: &str) -> Result<Option<Sexp>, EvalError> {
+        for index in (self.lookup_start..self.scopes.len()).rev() {
+            if !self.scope_visible(index) {
+                continue;
             }
-            other => other,
-        };
-        Ok(Some(forced))
+            if let Some(value) = self.scopes[index].get(name).cloned() {
+                let value = self.force_value(value)?;
+                if matches!(value, Sexp::Closure { .. }) {
+                    return Ok(Some(value));
+                }
+            }
+        }
+        super::base::lookup(name)
+    }
+
+    pub(super) fn lookup(&mut self, name: &str) -> Result<Option<Sexp>, EvalError> {
+        if let Some(index) = name
+            .strip_prefix("..")
+            .and_then(|s| s.parse::<usize>().ok())
+        {
+            return self.lookup_dot(index).map(Some);
+        }
+        match self.raw_lookup(name).cloned() {
+            Some(value) => self.force_value(value).map(Some),
+            None => super::base::lookup(name),
+        }
     }
 
     pub(super) fn raw_lookup(&self, name: &str) -> Option<&Sexp> {
-        self.scopes.iter().rev().find_map(|scope| scope.get(name))
+        self.scopes
+            .iter()
+            .enumerate()
+            .rev()
+            .filter(|(index, _)| self.scope_visible(*index))
+            .find_map(|(_, scope)| scope.get(name))
     }
 
     pub(super) fn force_value(&mut self, value: Sexp) -> Result<Sexp, EvalError> {
         match value {
             Sexp::MissingArg(name) => Err(EvalError::MissingArgument(name)),
             Sexp::Promise {
-                value: Some(value), ..
-            } => Ok(*value),
-            Sexp::Promise {
                 expression,
                 environment,
-                value: None,
+                origin,
+                state,
                 ..
-            } => self.eval_in_environment(&environment, &expression),
+            } => {
+                if let Some(value) = state.value.get() {
+                    return Ok((**value).clone());
+                }
+                if state.evaluating.swap(true, Ordering::SeqCst) {
+                    return Err(EvalError::Domain(
+                        "promise already under evaluation: recursive default argument reference or earlier problems?".into(),
+                    ));
+                }
+                let result = (|| {
+                    if let Some(value) = state.value.get() {
+                        return Ok((**value).clone());
+                    }
+                    if state.interrupted.load(Ordering::SeqCst) {
+                        self.record_parse_warnings(&[
+                            "restarting interrupted promise evaluation".into()
+                        ])?;
+                    }
+                    let value = self.eval_in_environment(&environment, origin, &expression)?;
+                    state.value.set(Box::new(value.clone())).map_err(|_| {
+                        EvalError::Control("promise completed more than once".into())
+                    })?;
+                    Ok(value)
+                })();
+                state.interrupted.store(result.is_err(), Ordering::SeqCst);
+                state.evaluating.store(false, Ordering::SeqCst);
+                result
+            }
             other => Ok(other),
         }
     }
@@ -65,17 +93,30 @@ impl RuntimeState {
     fn eval_in_environment(
         &mut self,
         environment: &[(String, Sexp)],
+        origin: EvaluationOrigin,
         expression: &Sexp,
     ) -> Result<Sexp, EvalError> {
+        let previous_lookup = self.lookup_start;
+        let base = self.base_origins.contains(&origin);
+        self.lookup_start = if base {
+            self.base_scopes
+                .push(self.scopes.len()..self.scopes.len() + 1);
+            self.scopes.len()
+        } else {
+            0
+        };
         self.scopes
             .push(environment.iter().cloned().collect::<HashMap<_, _>>());
+        let previous = std::mem::replace(&mut self.control.origin, origin);
         let result = self.eval_flow(expression);
+        self.control.origin = previous;
+        self.lookup_start = previous_lookup;
         self.scopes.pop();
-        match result? {
-            EvalFlow::Value(value) | EvalFlow::Return(value) => Ok(value),
-            EvalFlow::Break => Err(EvalError::Control("break used inside promise".to_string())),
-            EvalFlow::Next => Err(EvalError::Control("next used inside promise".to_string())),
+        if base {
+            self.base_scopes.pop();
         }
+        let EvalFlow::Value(value) = result?;
+        Ok(value)
     }
 
     pub(super) fn assign_local(&mut self, name: String, value: Sexp) {
@@ -89,6 +130,9 @@ impl RuntimeState {
         let current_scope = self.scopes.len().saturating_sub(1);
         let mut updated = false;
         for scope_index in 0..current_scope {
+            if !self.scope_visible(scope_index) {
+                continue;
+            }
             if self.scopes[scope_index].contains_key(&name) {
                 self.scopes[scope_index].insert(name.clone(), value.clone());
                 updated = true;
@@ -110,7 +154,10 @@ impl RuntimeState {
 
     pub(super) fn visible_environment(&self) -> Vec<(String, Sexp)> {
         let mut merged = HashMap::new();
-        for scope in &self.scopes {
+        for (index, scope) in self.scopes.iter().enumerate() {
+            if !self.scope_visible(index) {
+                continue;
+            }
             for (name, value) in scope {
                 merged.insert(name.clone(), value.clone());
             }

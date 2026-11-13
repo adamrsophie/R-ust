@@ -69,3 +69,15 @@ fn arithmetic(
         .map(|(a, b)| f(*a, *b))
         .collect())
 }
+
+pub(super) fn logical_operand(value: &Sexp) -> Result<Option<bool>, EvalError> {
+    let values = logical_values(value)?;
+    match values.as_slice() {
+        [] => Ok(None),
+        [value] => Ok(*value),
+        _ => Err(EvalError::Domain(format!(
+            "'length = {}' in coercion to 'logical(1)'",
+            values.len()
+        ))),
+    }
+}
