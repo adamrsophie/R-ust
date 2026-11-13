@@ -10,6 +10,7 @@ pub enum ClosureEnvironment {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum InternalOperation {
+    Vector,
     Stop,
     Inherits,
     Gettext,

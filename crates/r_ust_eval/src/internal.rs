@@ -1,10 +1,15 @@
+mod character;
+mod dispatch;
 mod logical;
+mod vector;
 
+use character::character_values;
+pub use dispatch::resolve;
 use logical::as_logical;
 
 use r_ust_sexp::InternalOperation;
 
-use super::{class_value, string_values, CallArgument, EvalError, RuntimeState, Sexp};
+use super::{class_value, CallArgument, EvalError, EvaluatedArgument, RuntimeState, Sexp};
 
 impl RuntimeState {
     pub(super) fn eval_internal(
@@ -13,7 +18,18 @@ impl RuntimeState {
         arguments: &[CallArgument],
     ) -> Result<Sexp, EvalError> {
         let args = self.eval_arguments(arguments, true)?;
+        let value = self.call_internal(operation, &args)?;
+        self.visible = true;
+        Ok(value)
+    }
+
+    fn call_internal(
+        &mut self,
+        operation: InternalOperation,
+        args: &[EvaluatedArgument],
+    ) -> Result<Sexp, EvalError> {
         let (name, arity) = match operation {
+            InternalOperation::Vector => ("vector", 2),
             InternalOperation::Stop => ("stop", 2),
             InternalOperation::DefaultStop => (".dfltStop", 2),
             InternalOperation::Inherits => ("inherits", 3),
@@ -29,7 +45,8 @@ impl RuntimeState {
                 }
                 true
             }
-            InternalOperation::Stop
+            InternalOperation::Vector
+            | InternalOperation::Stop
             | InternalOperation::Inherits
             | InternalOperation::SignalCondition
             | InternalOperation::DefaultStop => args.len() == arity,
@@ -42,6 +59,7 @@ impl RuntimeState {
             )));
         }
         match operation {
+            InternalOperation::Vector => self.make_vector(&args[0].value, &args[1].value),
             InternalOperation::Stop => {
                 let call_requested = as_logical(&args[0].value).unwrap_or(true);
                 let message = match &args[1].value {
@@ -83,7 +101,7 @@ impl RuntimeState {
                     | Sexp::NamesAssignment { .. }
                     | Sexp::Binary { .. }
                     | Sexp::Unary { .. }
-                    | Sexp::Parenthesized(_)) => string_values(value)?
+                    | Sexp::Parenthesized(_)) => character_values(value)?
                         .first()
                         .cloned()
                         .ok_or_else(|| EvalError::Domain(" [invalid string in stop(.)]".into()))?

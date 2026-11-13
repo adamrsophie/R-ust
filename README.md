@@ -180,13 +180,14 @@ Interactive embedded hosts install a console reader through `RuntimeState::set_i
 - Backtick-quoted names in assignments, calls, parameters, argument tags, loops, and `$` access; control and UTF-8 byte escapes decode, while Unicode escapes inside backticks are errors
 - Assignment with `<-`, `=`, `->`, `<<-`, and `->>`, including replacement through `[`, `[[`, `$`, and `names<-`
 - Control flow: `if`/`else`, `for`, `while`, `repeat`, `break`, `next`, and `return()`
-- Closures with lazily evaluated arguments and defaults, `missing()`, `...` forwarding, and exact named and positional argument matching
+- Closures with lazily evaluated arguments and defaults, `missing()`, `...` forwarding, and exact, partial, and positional argument matching
 - Operators: arithmetic, comparison, `:`, `&`, `|`, `&&`, `||`, and `%in%`
 - Result visibility through assignments, calls, parentheses, `invisible()`, and `withVisible()`
 
 **Data structures**
 
 - Atomic vectors, lists, factors (including ordered factors), matrices, and data frames
+- Constructors: `logical()`, `integer()`, `double()`, `numeric()`, `character()`, and `vector()` for logical, integer, double, character, and list storage. Complex, raw, expression, and pairlist storage remain incomplete.
 
 **Built-in functions**
 
@@ -243,9 +244,12 @@ python3 scripts/check-shell-arguments.py
 python3 scripts/check-pathname-patterns.py
 python3 scripts/check-file-stream.py
 python3 scripts/check-console-buffer.py
+python3 scripts/check-constructors.py compare
 ```
 
 `scripts/check-c-abi.sh` builds the static library and links a C program against it to exercise the exported Rmath ABI. It requires a C compiler.
+
+`scripts/check-constructors.py` requires Python 3.11+, independent R/Rscript 4.6.0 references on aarch64 with 8-byte long double, and both built executables. It checks 102 constructor cases across five CLI modes, preserving raw streams in `target/constructor-parity/compare/`. Values, warnings, error messages, exit status, and output order are checked; R call headers and stack layout remain separate. The SDK suite covers all 628 represented fixture cases. Twenty future-type cases remain explicit limits.
 
 `scripts/check-cli-quit.py` compares exit behavior with installed R using isolated processes. It requires `Rscript` and a built CLI, records results in `target/cli-quit-parity.json`, and reports unsupported workspace saving separately. Error wording and full warning layout are not compared.
 

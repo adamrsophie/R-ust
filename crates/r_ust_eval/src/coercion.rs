@@ -4,6 +4,7 @@ mod atomic;
 mod lists;
 mod runtime;
 mod strings;
+mod vector;
 mod warnings;
 
 #[cfg(test)]

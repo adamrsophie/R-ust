@@ -1,12 +1,13 @@
 use std::sync::OnceLock;
 
-use r_ust_sexp::{ClosureEnvironment, InternalOperation};
+use r_ust_sexp::ClosureEnvironment;
 
 use super::{EvalError, Parser, Sexp};
 
 // R 4.6.0 src/library/base/R/stop.R: Copyright (C) 1995-2025 The R Core Team
 // R 4.6.0 src/library/base/R/message.R: Copyright (C) 1995-2021 The R Core Team
 // R 4.6.0 src/library/base/R/New-Internal.R: Copyright (C) 1995-2023 The R Core Team
+// R 4.6.0 src/library/base/R/vector.R: Copyright (C) 1995-2013 The R Core Team
 // Part of the R package, https://www.R-project.org
 //
 // This program is free software; you can redistribute it and/or modify
@@ -22,6 +23,30 @@ use super::{EvalError, Parser, Sexp};
 // A copy of the GNU General Public License is available at
 // https://www.R-project.org/Licenses/
 const DEFINITIONS: &[(&str, &str)] = &[
+    (
+        "vector",
+        "function(mode = \"logical\", length = 0L) .Internal(vector(mode, length))",
+    ),
+    (
+        "logical",
+        "function(length = 0L) .Internal(vector(\"logical\", length))",
+    ),
+    (
+        "integer",
+        "function(length = 0L) .Internal(vector(\"integer\", length))",
+    ),
+    (
+        "double",
+        "function(length = 0L) .Internal(vector(\"double\", length))",
+    ),
+    (
+        "numeric",
+        "function(length = 0L) .Internal(vector(\"double\", length))",
+    ),
+    (
+        "character",
+        "function(length = 0L) .Internal(vector(\"character\", length))",
+    ),
     (
         "stop",
         r#"function(..., call. = TRUE, domain = NULL)
@@ -114,14 +139,8 @@ fn lower(value: &mut Sexp) -> Result<(), EvalError> {
                 let Sexp::Symbol(name) = function.as_ref() else {
                     return Err(EvalError::Type("invalid base internal identity".into()));
                 };
-                let operation = match name.as_str() {
-                    "stop" => InternalOperation::Stop,
-                    "inherits" => InternalOperation::Inherits,
-                    "gettext" => InternalOperation::Gettext,
-                    ".signalCondition" => InternalOperation::SignalCondition,
-                    ".dfltStop" => InternalOperation::DefaultStop,
-                    _ => return Err(EvalError::NotImplemented("unresolved R internal")),
-                };
+                let operation = super::internal::resolve(name)
+                    .ok_or(EvalError::NotImplemented("unresolved R internal"))?;
                 for argument in arguments.iter_mut() {
                     lower(&mut argument.value)?;
                 }
