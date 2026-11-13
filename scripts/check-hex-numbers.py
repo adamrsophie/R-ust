@@ -1,14 +1,24 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = []
+# ///
+# ─── How to run ───
+# Install uv: curl -LsSf https://astral.sh/uv/install.sh | sh
+# Run: uv run scripts/check-hex-numbers.py [path/to/r_ust_cli]
+# ──────────────────
+from __future__ import annotations
+
 import base64
 import hashlib
 import json
 import os
-from pathlib import Path
 import random
 import shutil
 import subprocess
 import sys
 import tempfile
+from pathlib import Path
 from typing import NotRequired, TypedDict
 
 
@@ -91,6 +101,9 @@ for _ in range(1200):
 invalid = ["0x", "0X", "0xp1", "0xL", "0xg", "0x1p", "0x1p+", "0x1p-", "0x.p",
            "0x1.2.3", "0x1p--1", "0x1p1.0", "0x1p1e2", "0x1p1p2", "0x1LL", "0x1p+L"]
 literals += invalid
+literals.extend(row.split("\t")[0] for row in
+                (root / "crates/r_ust_parse/tests/fixtures/decimal-literals-r-4.6.0.tsv").read_text().splitlines()
+                if not row.startswith("#"))
 programs: list[Program] = [
     Program(label="inventory", source="0x1F\n", expected="[1] 31\n", status=0),
     Program(label="arithmetic", source="cat(0x1E+2,0x.8+0X1P2,sep=\",|\")\n", expected="32,|4.5", status=0),
@@ -103,6 +116,14 @@ programs: list[Program] = [
     Program(label="index", source='x<-c(0x1,0x2,0x3);x[0x2L]<-0x10;cat(sum(x))\n', expected="20", status=0),
     Program(label="loop", source='s<-0;for(i in 0x1L:0x4L)s<-s+i;cat(s)\n', expected="10", status=0),
     Program(label="string", source='cat("0x10")\n', expected="0x10", status=0),
+    Program(label="decimal-rounding", source='cat(1e100==0x1.249ad2594c37ep332,1e300==0x1.7e43c880075a0p996,sep=":")\n', expected="TRUE:TRUE", status=0),
+    Program(label="decimal-plain", source='cat(' + '1' + '0' * 100 + '==0x1.249ad2594c38p332)\n', expected="TRUE", status=0),
+    Program(label="decimal-subnormals", source='cat(5e-324>0,1e-324==0,sep=":")\n', expected="TRUE:TRUE", status=0),
+    Program(label="decimal-cancellation", source='cat(0.' + '0' * 1000 + '1e1000==0.1)\n', expected="TRUE", status=0),
+    Program(label="decimal-accumulator-overflow", source='cat(is.nan(' + '9' * 400 + 'e-999))\n', expected="TRUE", status=0),
+    Program(label="numeric-cap-accepted", source='cat(' + '0' * 8189 + 'L)\n', expected="0", status=0),
+    Program(label="numeric-cap-error", source='cat("BEFORE\\n")\n' + '0' * 8191 + '\ncat("AFTER")\n', expected="BEFORE\n", status=1),
+    Program(label="hex-cap-error", source='cat("BEFORE\\n")\n0x' + '0' * 8189 + '\ncat("AFTER")\n', expected="BEFORE\n", status=1),
 ]
 programs += [Program(label=f"invalid-{i}", source=f'cat("BEFORE\\n")\n{source}\ncat("AFTER")\n', expected="BEFORE\n", status=1)
              for i, source in enumerate(invalid)]
@@ -120,7 +141,7 @@ def run(command, data):
 
 
 sources = {str(path): hashlib.sha256(path.read_bytes()).hexdigest()
-           for path in [*Path("crates").rglob("*.rs"), *Path("crates").glob("*/Cargo.toml"),
+           for path in [*Path("crates").rglob("*.rs"), *Path("crates").rglob("*.tsv"), *Path("crates").glob("*/Cargo.toml"),
                         Path("Cargo.toml"), Path("Cargo.lock"), Path(__file__)]}
 results = []
 with tempfile.TemporaryDirectory(prefix="r-ust-hex-") as directory:

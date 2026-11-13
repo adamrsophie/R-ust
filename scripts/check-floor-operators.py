@@ -100,6 +100,7 @@ CASES: Final = (
     Case("cat(1:3 %% 1:2,sep=',')", "messages", (RECYCLE,)),
     Case("options(warn=1);cat(1:3 %/% 1:2,sep=',')", "messages", (RECYCLE,)),
     Case("cat(0x1p54 %% 3)", "messages", (PRECISION,)),
+    Case("cat((1e100 %% 3) == -0x1p224)", "messages", (PRECISION,)),
     Case("options(warn=1);cat(c(0x1p54,0x1p54,0x1p54) %% c(3,3))", "messages", (RECYCLE,PRECISION,PRECISION,PRECISION)),
     Case("options(warn=2);cat('BEFORE');1:3 %% 1:2", "messages", (RECYCLE,)),
     Case("options(warn=2);cat('BEFORE');0x1p54 %% 3", "messages", (PRECISION,)),
