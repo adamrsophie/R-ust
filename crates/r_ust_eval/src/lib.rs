@@ -10,26 +10,34 @@ mod message_helpers;
 pub use error::EvalError;
 mod binary;
 mod builtins;
+mod closure_calls;
 mod coercion;
 mod control;
+mod dots;
 mod environment;
+mod promises;
+use dots::expand_dots_call_arguments;
+use promises::{is_missing_binding, promise};
 mod formatting;
 mod loops;
+mod matching;
 mod options;
 mod ordering;
 mod parse_warnings;
+mod session_calls;
 mod summary;
 mod unused_arguments;
 
 use coercion::coerce_integer_values;
 pub use control::{ControlTransfer, LoopId};
 use formatting::{format_line, format_numeric_line};
+use matching::match_indices;
 use ordering::call_is_unsorted;
 
 use r_ust_gc::{Gc, GcConfig};
 use r_ust_parse::{ParseError, ParseResult, Parser};
 use r_ust_sexp::{
-    is_na_real, BinaryOp, CallArgument, ClosureEnvironment, EvaluationOrigin, FunctionParameter,
+    is_na_real, BinaryOp, CallArgument, ClosureEnvironment, Environment, FunctionParameter,
     ListElement, Sexp, UnaryOp, NA_REAL,
 };
 
@@ -69,11 +77,9 @@ enum ApplyFunction {
 #[derive(Debug)]
 pub struct RuntimeState {
     gc: Gc,
-    scopes: Vec<HashMap<String, Sexp>>,
+    current: Environment,
+    global: Environment,
     control: control::ControlState,
-    lookup_start: usize,
-    base_origins: Vec<EvaluationOrigin>,
-    base_scopes: Vec<std::ops::Range<usize>>,
     visible: bool,
     output: Vec<OutputEvent>,
     output_sink: Option<fn(OutputEvent) -> std::io::Result<()>>,
@@ -95,13 +101,12 @@ pub enum OutputEvent {
 
 impl RuntimeState {
     pub fn new(gc_config: GcConfig) -> Self {
+        let global = Environment::global();
         Self {
             gc: Gc::new(gc_config),
-            scopes: vec![HashMap::new()],
+            current: global.clone(),
+            global,
             control: control::ControlState::default(),
-            lookup_start: 0,
-            base_origins: Vec::new(),
-            base_scopes: Vec::new(),
             visible: true,
             output: Vec::new(),
             output_sink: None,
@@ -174,7 +179,7 @@ impl RuntimeState {
             Sexp::Function { parameters, body } => EvalFlow::Value(Sexp::Closure {
                 parameters: parameters.clone(),
                 body: body.clone(),
-                environment: ClosureEnvironment::Captured(self.visible_environment()),
+                environment: ClosureEnvironment::Captured(self.current.clone()),
             }),
             Sexp::If {
                 condition,
@@ -251,12 +256,12 @@ impl RuntimeState {
             }
             Sexp::Assignment { target, value } => {
                 let EvalFlow::Value(value) = self.eval_flow(value)?;
-                self.assign_local(target.clone(), value.clone());
+                self.assign_local(target.clone(), value.clone())?;
                 EvalFlow::Value(value)
             }
             Sexp::SuperAssignment { target, value } => {
                 let EvalFlow::Value(value) = self.eval_flow(value)?;
-                self.assign_super(target.clone(), value.clone());
+                self.assign_super(target.clone(), value.clone())?;
                 EvalFlow::Value(value)
             }
             Sexp::Subassignment {
@@ -274,7 +279,7 @@ impl RuntimeState {
                 };
                 let current = self.lookup(target)?.unwrap_or(Sexp::Nil);
                 let updated = subassign_value(&current, index.as_ref(), &replacement)?;
-                self.assign_local(target.clone(), updated);
+                self.assign_local(target.clone(), updated)?;
                 EvalFlow::Value(replacement)
             }
             Sexp::MatrixSubassignment {
@@ -301,7 +306,7 @@ impl RuntimeState {
                 let current = self.lookup(target)?.unwrap_or(Sexp::Nil);
                 let updated =
                     matrix_subassign_value(&current, row.as_ref(), col.as_ref(), &replacement)?;
-                self.assign_local(target.clone(), updated);
+                self.assign_local(target.clone(), updated)?;
                 EvalFlow::Value(replacement)
             }
             Sexp::ExtractAssignment {
@@ -313,7 +318,7 @@ impl RuntimeState {
                 let EvalFlow::Value(index) = self.eval_flow(index)?;
                 let current = self.lookup(target)?.unwrap_or(Sexp::Nil);
                 let updated = extract_assign_value(&current, &index, &replacement)?;
-                self.assign_local(target.clone(), updated);
+                self.assign_local(target.clone(), updated)?;
                 EvalFlow::Value(replacement)
             }
             Sexp::DollarAssignment {
@@ -324,14 +329,14 @@ impl RuntimeState {
                 let EvalFlow::Value(replacement) = self.eval_flow(value)?;
                 let current = self.lookup(target)?.unwrap_or(Sexp::Nil);
                 let updated = dollar_assign_value(&current, name, &replacement)?;
-                self.assign_local(target.clone(), updated);
+                self.assign_local(target.clone(), updated)?;
                 EvalFlow::Value(replacement)
             }
             Sexp::NamesAssignment { target, value } => {
                 let EvalFlow::Value(replacement) = self.eval_flow(value)?;
                 let current = self.lookup(target)?.unwrap_or(Sexp::Nil);
                 let updated = names_assign_value(&current, &replacement)?;
-                self.assign_local(target.clone(), updated);
+                self.assign_local(target.clone(), updated)?;
                 EvalFlow::Value(replacement)
             }
             Sexp::Binary { op, left, right } => {
@@ -399,14 +404,6 @@ impl RuntimeState {
         self.output_sink = Some(sink);
     }
 
-    pub fn run_last(&mut self) -> Result<(), EvalError> {
-        let last = self.scopes[0].get(".Last").cloned();
-        if let Some(last @ Sexp::Closure { .. }) = last {
-            self.call_value(last, &[])?;
-        }
-        Ok(())
-    }
-
     /// Sends host output to the installed sink, or buffers it for later collection.
     pub fn emit(&mut self, event: OutputEvent) -> Result<(), EvalError> {
         if let Some(sink) = self.output_sink {
@@ -417,8 +414,12 @@ impl RuntimeState {
         }
     }
 
-    pub fn get(&self, name: &str) -> Option<&Sexp> {
-        self.scopes.iter().rev().find_map(|scope| scope.get(name))
+    /// Returns an owned rooted binding that can outlive this runtime.
+    ///
+    /// # Errors
+    /// Returns a graph error if lexical storage contains an invalid internal edge.
+    pub fn get(&self, name: &str) -> Result<Option<Sexp>, EvalError> {
+        self.raw_lookup(name)
     }
 
     pub fn gc(&self) -> &Gc {
@@ -434,7 +435,7 @@ impl RuntimeState {
         name: &str,
         arguments: &[CallArgument],
     ) -> Result<EvalFlow, EvalError> {
-        let arguments = expand_dots_call_arguments(arguments, &self.visible_environment())?;
+        let arguments = expand_dots_call_arguments(arguments, &self.current)?;
         if arguments.len() > 1 || (name == "withVisible" && arguments.is_empty()) {
             return Err(EvalError::Arity(format!(
                 "{name}() requires {} argument",
@@ -472,7 +473,7 @@ impl RuntimeState {
     }
 
     fn eval_readline(&mut self, arguments: &[CallArgument]) -> Result<EvalFlow, EvalError> {
-        let arguments = expand_dots_call_arguments(arguments, &self.visible_environment())?;
+        let arguments = expand_dots_call_arguments(arguments, &self.current)?;
         let [argument] = bind_named_arguments(&arguments, ["prompt"])?;
         let value = if let Some(argument) =
             argument.filter(|arg| !matches!(arg.value, Sexp::MissingArg(_)))
@@ -524,7 +525,7 @@ impl RuntimeState {
     }
 
     fn eval_command_args(&mut self, arguments: &[CallArgument]) -> Result<EvalFlow, EvalError> {
-        let arguments = expand_dots_call_arguments(arguments, &self.visible_environment())?;
+        let arguments = expand_dots_call_arguments(arguments, &self.current)?;
         let [argument] = bind_named_arguments(&arguments, ["trailingOnly"])?;
         let trailing_only = if let Some(argument) = argument {
             if matches!(argument.value, Sexp::MissingArg(_)) {
@@ -554,53 +555,6 @@ impl RuntimeState {
         )))
     }
 
-    fn eval_quit_call(&mut self, arguments: &[CallArgument]) -> Result<EvalFlow, EvalError> {
-        let arguments = expand_dots_call_arguments(arguments, &self.visible_environment())?;
-        let bound = bind_named_arguments(&arguments, ["save", "status", "runLast"])?;
-        let mut values = [
-            Sexp::String(vec![Some("default".to_string())]),
-            Sexp::Integer(vec![Some(0)]),
-            Sexp::Logical(vec![Some(true)]),
-        ];
-        for (index, argument) in bound.into_iter().enumerate() {
-            if let Some(argument) = argument.filter(|arg| !matches!(arg.value, Sexp::MissingArg(_)))
-            {
-                values[index] = match self.eval_flow(&argument.value)? {
-                    EvalFlow::Value(value) => value,
-                };
-            }
-        }
-        let save = match string_scalar(&values[0], "save")?.as_str() {
-            "default" => SaveAction::Default,
-            "no" => SaveAction::No,
-            "yes" => SaveAction::Yes,
-            "ask" => SaveAction::Ask,
-            _ => {
-                return Err(EvalError::Domain(
-                    "unrecognized value of 'save'".to_string(),
-                ))
-            }
-        };
-        let status = self.scalar_integer_with_warning(&values[1])?;
-        let run_last = coerce_logical_values(&values[2])?
-            .first()
-            .copied()
-            .flatten();
-        for (valid, message) in [
-            (status.is_some(), "invalid 'status', 0 assumed"),
-            (run_last.is_some(), "invalid 'runLast', FALSE assumed"),
-        ] {
-            if !valid {
-                self.record_parse_warnings(&[message.into()])?;
-            }
-        }
-        Err(EvalError::Quit(QuitRequest {
-            save,
-            status: status.unwrap_or(0),
-            run_last: run_last.unwrap_or(false),
-        }))
-    }
-
     fn eval_missing(&self, arguments: &[CallArgument]) -> Result<EvalFlow, EvalError> {
         if arguments.len() != 1 {
             return Err(EvalError::Arity(
@@ -612,11 +566,11 @@ impl RuntimeState {
                 "missing() argument must be a name".to_string(),
             ));
         };
-        let value = self.raw_lookup(name).ok_or_else(|| {
+        let value = self.raw_lookup(name)?.ok_or_else(|| {
             EvalError::Domain("missing() can only inspect visible arguments".to_string())
         })?;
         Ok(EvalFlow::Value(Sexp::Logical(vec![Some(
-            is_missing_binding(value),
+            is_missing_binding(&value)?,
         )])))
     }
 
@@ -658,7 +612,7 @@ impl RuntimeState {
         name: &str,
         arguments: &[CallArgument],
     ) -> Result<Sexp, EvalError> {
-        let arguments = expand_dots_call_arguments(arguments, &self.visible_environment())?;
+        let arguments = expand_dots_call_arguments(arguments, &self.current)?;
         let (x_arg, fun_arg, extra_args, simplify) = self.apply_arguments(name, &arguments)?;
         let x = self.eval_regular_argument(&x_arg.value)?;
         let function = self.resolve_apply_function(&fun_arg.value)?;
@@ -739,7 +693,7 @@ impl RuntimeState {
             return self.resolve_apply_function(expr);
         }
         if let Sexp::Symbol(name) = expr {
-            if self.raw_lookup(name).is_none() && is_builtin(name) {
+            if self.raw_lookup(name)?.is_none() && is_builtin(name) {
                 return Ok(ApplyFunction::Builtin(name.clone()));
             }
         }
@@ -781,7 +735,7 @@ impl RuntimeState {
     }
 
     fn eval_with_call(&mut self, arguments: &[CallArgument]) -> Result<Sexp, EvalError> {
-        let arguments = expand_dots_call_arguments(arguments, &self.visible_environment())?;
+        let arguments = expand_dots_call_arguments(arguments, &self.current)?;
         let data_arg = call_argument(&arguments, 0, &["data"])
             .ok_or_else(|| EvalError::Arity("with() missing data".to_string()))?;
         let expr_arg = call_argument(&arguments, 1, &["expr"])
@@ -791,7 +745,7 @@ impl RuntimeState {
     }
 
     fn eval_subset_call(&mut self, arguments: &[CallArgument]) -> Result<Sexp, EvalError> {
-        let arguments = expand_dots_call_arguments(arguments, &self.visible_environment())?;
+        let arguments = expand_dots_call_arguments(arguments, &self.current)?;
         let x_arg = call_argument(&arguments, 0, &["x"])
             .ok_or_else(|| EvalError::Arity("subset() missing x".to_string()))?;
         let subset_arg = call_argument(&arguments, 1, &["subset"]);
@@ -822,7 +776,7 @@ impl RuntimeState {
     }
 
     fn eval_transform_call(&mut self, arguments: &[CallArgument]) -> Result<Sexp, EvalError> {
-        let arguments = expand_dots_call_arguments(arguments, &self.visible_environment())?;
+        let arguments = expand_dots_call_arguments(arguments, &self.current)?;
         let x_arg = call_argument(&arguments, 0, &["_data", "x"])
             .ok_or_else(|| EvalError::Arity("transform() missing data".to_string()))?;
         let mut out = self.eval_regular_argument(&x_arg.value)?;
@@ -851,16 +805,20 @@ impl RuntimeState {
 
     fn eval_in_data_mask(&mut self, data: &Sexp, expression: &Sexp) -> Result<Sexp, EvalError> {
         let scope = data_mask_scope(data)?;
+        let frame = self.current.child()?;
+        for (name, value) in scope {
+            frame.insert(name, &value)?;
+        }
         let (id, previous) = self.control.enter_return_context()?;
-        self.scopes.push(scope);
+        let saved = std::mem::replace(&mut self.current, frame);
         let result = self.eval_flow(expression);
-        self.scopes.pop();
+        self.current = saved;
         let EvalFlow::Value(value) = self.control.leave_return_context(id, previous, result)?;
         Ok(value)
     }
 
     fn eval_matrix_apply_call(&mut self, arguments: &[CallArgument]) -> Result<Sexp, EvalError> {
-        let arguments = expand_dots_call_arguments(arguments, &self.visible_environment())?;
+        let arguments = expand_dots_call_arguments(arguments, &self.current)?;
         let (x_arg, margin_arg, fun_arg, extra_args) = self.matrix_apply_arguments(&arguments)?;
         let x = self.eval_regular_argument(&x_arg.value)?;
         let margin_value = self.eval_regular_argument(&margin_arg.value)?;
@@ -952,72 +910,6 @@ impl RuntimeState {
             fun_arg.ok_or_else(|| EvalError::Arity("apply() missing FUN".to_string()))?,
             extra,
         ))
-    }
-
-    fn call_closure(
-        &mut self,
-        parameters: &[FunctionParameter],
-        body: &Sexp,
-        environment: &ClosureEnvironment,
-        arguments: &[CallArgument],
-    ) -> Result<EvalFlow, EvalError> {
-        let caller_environment = self.visible_environment();
-        let arguments = expand_dots_call_arguments(arguments, &caller_environment)?;
-        let captured_scope = match environment {
-            ClosureEnvironment::Captured(values) => values.iter().cloned().collect(),
-            ClosureEnvironment::Base => HashMap::new(),
-        };
-        let local_scope =
-            self.bind_supplied_argument_promises(parameters, &arguments, &caller_environment)?;
-
-        let (id, previous) = self.control.enter_return_context()?;
-        let previous_lookup = self.lookup_start;
-        let base = matches!(environment, ClosureEnvironment::Base);
-        if base {
-            self.lookup_start = self.scopes.len();
-            self.base_origins.push(self.control.origin);
-            self.base_scopes
-                .push(self.scopes.len()..self.scopes.len() + 2);
-        }
-        self.scopes.push(captured_scope);
-        self.scopes.push(local_scope);
-        let result = self
-            .bind_missing_default_promises(parameters)
-            .and_then(|()| self.eval_flow(body));
-        self.scopes.pop();
-        self.scopes.pop();
-
-        self.lookup_start = previous_lookup;
-        if base {
-            self.base_origins.pop();
-            self.base_scopes.pop();
-        }
-        self.control.leave_return_context(id, previous, result)
-    }
-
-    fn bind_missing_default_promises(
-        &mut self,
-        parameters: &[FunctionParameter],
-    ) -> Result<(), EvalError> {
-        for parameter in parameters {
-            if self.current_scope_contains(&parameter.name)
-                && !matches!(self.raw_lookup(&parameter.name), Some(Sexp::MissingArg(_)))
-            {
-                continue;
-            }
-            let value = if let Some(default) = &parameter.default {
-                promise(
-                    default.clone(),
-                    self.visible_environment(),
-                    self.control.origin,
-                    false,
-                )
-            } else {
-                Sexp::MissingArg(parameter.name.clone())
-            };
-            self.assign_local(parameter.name.clone(), value);
-        }
-        Ok(())
     }
 }
 
@@ -1289,37 +1181,6 @@ fn condition_truth(value: &Sexp) -> Result<bool, EvalError> {
     }
 }
 
-fn expand_dots_call_arguments(
-    arguments: &[CallArgument],
-    environment: &[(String, Sexp)],
-) -> Result<Vec<CallArgument>, EvalError> {
-    let mut expanded = Vec::new();
-    for argument in arguments {
-        if argument.name.is_none()
-            && matches!(argument.value, Sexp::Symbol(ref name) if name == "...")
-        {
-            let Some(value) = environment
-                .iter()
-                .rev()
-                .find(|(name, _)| name == "...")
-                .map(|(_, value)| value)
-            else {
-                return Err(EvalError::UndefinedSymbol("...".to_string()));
-            };
-            let Sexp::Dots(values) = value else {
-                return Err(EvalError::Type("... is not a dots object".to_string()));
-            };
-            expanded.extend(values.iter().map(|element| CallArgument {
-                name: element.name.clone(),
-                value: element.value.clone(),
-            }));
-        } else {
-            expanded.push(argument.clone());
-        }
-    }
-    Ok(expanded)
-}
-
 fn call_argument<'a>(
     arguments: &'a [CallArgument],
     position: usize,
@@ -1418,35 +1279,6 @@ fn collect_select_names(expr: &Sexp, names: &mut Vec<String>) -> Result<bool, Ev
         }
         _ => Ok(false),
     }
-}
-
-fn promise(
-    expression: Sexp,
-    environment: Vec<(String, Sexp)>,
-    origin: EvaluationOrigin,
-    supplied: bool,
-) -> Sexp {
-    if matches!(expression, Sexp::MissingArg(_)) {
-        return expression;
-    }
-    Sexp::Promise {
-        expression: Box::new(expression),
-        environment,
-        origin,
-        state: Default::default(),
-        supplied,
-    }
-}
-
-fn is_missing_binding(value: &Sexp) -> bool {
-    matches!(value, Sexp::MissingArg(_))
-        || matches!(
-            value,
-            Sexp::Promise {
-                supplied: false,
-                ..
-            }
-        )
 }
 
 fn is_builtin(name: &str) -> bool {
@@ -7498,42 +7330,24 @@ fn sexp_identical(left: &Sexp, right: &Sexp) -> bool {
                 && left_ncol == right_ncol
                 && sexp_identical(left_data, right_data)
         }
-        (
-            Sexp::Promise {
-                expression: left_expression,
-                state: left_state,
-                supplied: left_supplied,
-                ..
-            },
-            Sexp::Promise {
-                expression: right_expression,
-                state: right_state,
-                supplied: right_supplied,
-                ..
-            },
-        ) => {
-            left_supplied == right_supplied
-                && sexp_identical(left_expression, right_expression)
-                && (std::sync::Arc::ptr_eq(left_state, right_state)
-                    || match (left_state.value.get(), right_state.value.get()) {
-                        (Some(left), Some(right)) => sexp_identical(left, right),
-                        (None, None) => true,
-                        _ => false,
-                    })
-        }
+        (Sexp::Promise { state: left }, Sexp::Promise { state: right }) => left == right,
         (
             Sexp::Closure {
                 parameters: left_parameters,
                 body: left_body,
-                ..
+                environment: left_environment,
             },
             Sexp::Closure {
                 parameters: right_parameters,
                 body: right_body,
-                ..
+                environment: right_environment,
             },
-        )
-        | (
+        ) => {
+            left_environment == right_environment
+                && left_parameters == right_parameters
+                && sexp_identical(left_body, right_body)
+        }
+        (
             Sexp::Function {
                 parameters: left_parameters,
                 body: left_body,
@@ -7778,25 +7592,6 @@ enum MatchKey {
     String(String),
 }
 
-fn match_indices(
-    x: &Sexp,
-    table: &Sexp,
-    nomatch: Option<i32>,
-) -> Result<Vec<Option<i32>>, EvalError> {
-    let table = match_keys(table)?;
-    let x = match_keys(x)?;
-    Ok(x.into_iter()
-        .map(|key| {
-            table
-                .iter()
-                .position(|candidate| *candidate == key)
-                .map(|position| position as i32 + 1)
-                .map(Some)
-                .unwrap_or(nomatch)
-        })
-        .collect())
-}
-
 fn match_keys(value: &Sexp) -> Result<Vec<MatchKey>, EvalError> {
     match value {
         Sexp::Nil => Ok(Vec::new()),
@@ -7822,7 +7617,12 @@ fn match_keys(value: &Sexp) -> Result<Vec<MatchKey>, EvalError> {
                 } else if value.is_nan() {
                     MatchKey::Nan
                 } else {
-                    MatchKey::Number(value.to_bits())
+                    let bits = value.to_bits();
+                    MatchKey::Number(if bits & 0x7fff_ffff_ffff_ffff == 0 {
+                        0
+                    } else {
+                        bits
+                    })
                 }
             })
             .collect()),
@@ -9044,8 +8844,8 @@ mod tests {
                 run_last: false
             }))
         );
-        assert!(frontend.runtime().get("local_value").is_none());
-        assert!(frontend.runtime().get("f").is_some());
+        assert!(frontend.runtime().get("local_value").unwrap().is_none());
+        assert!(frontend.runtime().get("f").unwrap().is_some());
         assert_eq!(
             frontend.runtime_mut().take_output(),
             vec![OutputEvent::Stdout("[1] 1\n".to_string())]
@@ -9101,7 +8901,10 @@ mod tests {
         let mut frontend = Frontend::default();
         let values = frontend.eval_source("x <- 1 + 2 * 3; x + 5").unwrap();
         assert_eq!(values, vec![Sexp::Real(vec![7.0]), Sexp::Real(vec![12.0])]);
-        assert_eq!(frontend.runtime().get("x"), Some(&Sexp::Real(vec![7.0])));
+        assert_eq!(
+            frontend.runtime().get("x").unwrap(),
+            Some(Sexp::Real(vec![7.0]))
+        );
     }
 
     #[test]
@@ -9120,7 +8923,10 @@ mod tests {
         assert_eq!(values[5], Sexp::Real(vec![5.0]));
         assert_eq!(values[7], Sexp::Real(vec![9.0]));
         assert_eq!(values[8], Sexp::Real(vec![9.0]));
-        assert_eq!(frontend.runtime().get("x"), Some(&Sexp::Real(vec![9.0])));
+        assert_eq!(
+            frontend.runtime().get("x").unwrap(),
+            Some(Sexp::Real(vec![9.0]))
+        );
     }
 
     #[test]

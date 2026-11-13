@@ -15,6 +15,7 @@ use super::{EvalError, Parser, Sexp};
 // R 4.6.0 src/library/base/R/character.R: Copyright (C) 1995-2025 The R Core Team
 // R 4.6.0 src/library/base/R/raw.R: Copyright (C) 1995-2020 The R Core Team
 // R 4.6.0 src/library/base/R/findInt.R: Copyright (C) 1995-2024 The R Core Team
+// R 4.6.0 src/library/base/R/sets.R: Copyright (C) 1995-2025 The R Core Team
 // Part of the R package, https://www.R-project.org
 //
 // This program is free software; you can redistribute it and/or modify
@@ -30,6 +31,12 @@ use super::{EvalError, Parser, Sexp};
 // A copy of the GNU General Public License is available at
 // https://www.R-project.org/Licenses/
 const DEFINITIONS: &[(&str, &str)] = &[
+    // shortcut: set coercion is lowered into existing match handling for atomic,
+    // factor and matrix values; extend with list matching and S3 support.
+    (
+        "is.element",
+        "function(el, set) { x <- el; y <- set; match(x, y, 0L) > 0L }",
+    ),
     ("utf8ToInt", "function(x) .Internal(utf8ToInt(x))"),
     ("intToUtf8", "function(x, multiple = FALSE, allow_surrogate_pairs = FALSE) .Internal(intToUtf8(x, multiple, allow_surrogate_pairs))"),
     (

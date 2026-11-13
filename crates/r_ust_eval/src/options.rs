@@ -1,9 +1,8 @@
 use std::collections::BTreeMap;
 
 use super::{
-    bind_named_arguments, coerce_logical_values, expand_dots_call_arguments, format_number,
-    value_len, CallArgument, EvalError, EvalFlow, EvaluatedArgument, ListElement, OutputEvent,
-    RuntimeState, Sexp,
+    coerce_logical_values, format_number, value_len, EvalError, EvaluatedArgument, ListElement,
+    OutputEvent, RuntimeState, Sexp,
 };
 
 const MANDATORY: &[&str] = &[
@@ -115,27 +114,6 @@ impl RuntimeState {
         }
         let value = self.normalize_option(name, value)?;
         Ok(self.options.insert(name.into(), value).unwrap_or(Sexp::Nil))
-    }
-
-    pub(super) fn eval_get_option(
-        &mut self,
-        arguments: &[CallArgument],
-    ) -> Result<EvalFlow, EvalError> {
-        let arguments = expand_dots_call_arguments(arguments, &self.visible_environment())?;
-        let [x, default] = bind_named_arguments(&arguments, ["x", "default"])?;
-        let x = x.ok_or_else(|| EvalError::MissingArgument("x".into()))?;
-        let EvalFlow::Value(value) = self.eval_flow(&x.value)?;
-        let name = option_query(&value, true)?;
-        if let Some(value) = self.get_option(name) {
-            let value = value.clone();
-            self.visible = true;
-            return Ok(EvalFlow::Value(value));
-        }
-        if let Some(default) = default.filter(|arg| !matches!(arg.value, Sexp::MissingArg(_))) {
-            return self.eval_flow(&default.value);
-        }
-        self.visible = true;
-        Ok(EvalFlow::Value(Sexp::Nil))
     }
 
     pub(super) fn call_options(&mut self, args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
@@ -409,7 +387,7 @@ fn option_text(value: &Sexp) -> Option<String> {
     }
 }
 
-fn option_query(value: &Sexp, scalar: bool) -> Result<&str, EvalError> {
+pub(super) fn option_query(value: &Sexp, scalar: bool) -> Result<&str, EvalError> {
     let Sexp::String(values) = atomic_data(value) else {
         return Err(EvalError::Type("'x' must be a character string".into()));
     };

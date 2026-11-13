@@ -11,7 +11,7 @@ impl RuntimeState {
         arguments: &[CallArgument],
         empty_is_error: bool,
     ) -> Result<Vec<EvaluatedArgument>, EvalError> {
-        let arguments = expand_dots_call_arguments(arguments, &self.visible_environment())?;
+        let arguments = expand_dots_call_arguments(arguments, &self.current)?;
         let mut values = Vec::with_capacity(arguments.len());
         for (index, argument) in arguments.iter().enumerate() {
             if empty_is_error && matches!(argument.value, Sexp::MissingArg(_)) {

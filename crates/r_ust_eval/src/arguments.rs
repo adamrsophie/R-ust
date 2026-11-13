@@ -14,7 +14,7 @@ impl RuntimeState {
         &mut self,
         parameters: &[FunctionParameter],
         supplied: &[CallArgument],
-        caller_environment: &[(String, Sexp)],
+        caller_environment: &r_ust_sexp::Environment,
     ) -> Result<HashMap<String, Sexp>, EvalError> {
         let dots = parameters
             .iter()
@@ -104,10 +104,10 @@ impl RuntimeState {
                     parameter.name.clone(),
                     promise(
                         argument.value.clone(),
-                        caller_environment.to_vec(),
-                        self.control.origin,
+                        caller_environment.clone(),
+                        self.control.origin.clone(),
                         true,
-                    ),
+                    )?,
                 );
             }
         }
@@ -117,19 +117,21 @@ impl RuntimeState {
                 Sexp::Dots(
                     unused
                         .into_iter()
-                        .map(|argument| ListElement {
-                            name: argument.name.clone(),
-                            value: match &argument.value {
-                                Sexp::MissingArg(_) => Sexp::MissingArg(String::new()),
-                                value => promise(
-                                    value.clone(),
-                                    caller_environment.to_vec(),
-                                    self.control.origin,
-                                    true,
-                                ),
-                            },
+                        .map(|argument| {
+                            Ok(ListElement {
+                                name: argument.name.clone(),
+                                value: match &argument.value {
+                                    Sexp::MissingArg(_) => Sexp::MissingArg(String::new()),
+                                    value => promise(
+                                        value.clone(),
+                                        caller_environment.clone(),
+                                        self.control.origin.clone(),
+                                        true,
+                                    )?,
+                                },
+                            })
                         })
-                        .collect(),
+                        .collect::<Result<Vec<_>, EvalError>>()?,
                 ),
             );
         }

@@ -1,13 +1,15 @@
 #![allow(non_camel_case_types)]
 
+mod graph;
 mod operators;
 mod promise;
 mod value;
 
 pub use value::{ClosureEnvironment, InternalOperation, Sexp};
 
+pub use graph::{Environment, Force, ForceLease, GraphError, PromiseState};
 pub use operators::BinaryOp;
-pub use promise::{EvaluationEnvironmentId, EvaluationOrigin, PromiseState};
+pub use promise::{EvaluationEnvironmentId, EvaluationOrigin, EvaluationSessionId};
 
 pub const R_VERSION: &str = "4.6.0";
 

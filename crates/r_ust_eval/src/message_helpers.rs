@@ -12,7 +12,7 @@ impl RuntimeState {
                 arguments.len()
             )));
         }
-        let Some(Sexp::Dots(values)) = self.raw_lookup("...") else {
+        let Some(Sexp::Dots(values)) = self.raw_lookup("...")? else {
             return Err(EvalError::Domain(
                 "incorrect context: the current call has no '...' to look in".into(),
             ));
@@ -28,7 +28,7 @@ impl RuntimeState {
                 "indexing '...' with non-positive index 0".into(),
             ));
         }
-        let Some(Sexp::Dots(values)) = self.raw_lookup("...") else {
+        let Some(Sexp::Dots(values)) = self.raw_lookup("...")? else {
             return Err(EvalError::Domain(format!(
                 "..{index} used in an incorrect context, no ... to look in"
             )));

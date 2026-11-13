@@ -149,7 +149,7 @@ fn inactive_origins_and_cleanup() {
             "no function to return from, jumping to top level",
             "{source}"
         );
-        assert!(frontend.runtime().get("private").is_none());
+        assert!(frontend.runtime().get("private").unwrap().is_none());
         assert_eq!(
             frontend.eval_source("42L").unwrap(),
             [Sexp::Integer(vec![Some(42)])]
@@ -184,7 +184,7 @@ fn inactive_origins_and_cleanup() {
         frontend.eval_source("f<-function(x){private<-3L;x};f({cat('BEFORE');missing_name})"),
         Err(EvalError::UndefinedSymbol(name)) if name == "missing_name"
     ));
-    assert!(frontend.runtime().get("private").is_none());
+    assert!(frontend.runtime().get("private").unwrap().is_none());
     assert_eq!(
         frontend.runtime_mut().take_output(),
         [OutputEvent::Stdout("BEFORE".into())]
@@ -239,7 +239,7 @@ fn transfers_cross_apply_callbacks_and_cached_closures() {
         .unwrap();
     let value = values.last().unwrap();
     assert_eq!(value, &value.clone());
-    assert!(format!("{value:?}").contains("PromiseState"));
+    assert!(format!("{value:?}").contains("Environment"));
     assert_eq!(
         frontend.runtime_mut().take_output(),
         [OutputEvent::Stdout("ONCE".into())]

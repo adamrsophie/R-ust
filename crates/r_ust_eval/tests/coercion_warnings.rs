@@ -87,7 +87,7 @@ fn promotion_and_sink_failure_stop_delivery() {
             .unwrap_err(),
         EvalError::Domain(format!("(converted from warning) {RANGE}"))
     );
-    assert_eq!(frontend.runtime().get("after"), None);
+    assert_eq!(frontend.runtime().get("after").unwrap(), None);
     assert!(frontend.runtime_mut().take_output().is_empty());
 
     for warn in [0, 1] {

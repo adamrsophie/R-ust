@@ -1,10 +1,10 @@
 use super::{
-    BinaryOp, CallArgument, EvaluationOrigin, FunctionParameter, ListElement, PromiseState, UnaryOp,
+    BinaryOp, CallArgument, Environment, FunctionParameter, ListElement, PromiseState, UnaryOp,
 };
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ClosureEnvironment {
-    Captured(Vec<(String, Sexp)>),
+    Captured(Environment),
     Base,
 }
 
@@ -51,11 +51,7 @@ pub enum Sexp {
     },
     Dots(Vec<ListElement>),
     Promise {
-        expression: Box<Sexp>,
-        environment: Vec<(String, Sexp)>,
-        origin: EvaluationOrigin,
-        state: std::sync::Arc<PromiseState>,
-        supplied: bool,
+        state: PromiseState,
     },
     Closure {
         parameters: Vec<FunctionParameter>,

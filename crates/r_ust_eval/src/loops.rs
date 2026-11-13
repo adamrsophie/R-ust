@@ -12,7 +12,7 @@ impl RuntimeState {
         let values = sequence_elements(&sequence)?;
         self.with_loop(|runtime, id| {
             for value in values {
-                runtime.assign_local(variable.into(), value);
+                runtime.assign_local(variable.into(), value)?;
                 match catch_loop(id, runtime.eval_flow(body))? {
                     LoopFlow::Value(_) | LoopFlow::Next => {}
                     LoopFlow::Break => break,

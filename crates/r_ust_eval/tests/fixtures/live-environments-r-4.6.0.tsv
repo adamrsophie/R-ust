@@ -1,0 +1,21 @@
+# R 4.6.0, JIT disabled, withVisible block evaluated directly at top level.
+sibling	n<-0L;f<-function(el,set){x<-el;y<-set;match(x,y,0L)>0L};f({n<<-n+1L;n},{cat(n);1L})	logical	TRUE	TRUE	31
+counter	make<-function(){n<-0L;function(){n<<-n+1L;n}};f<-make();c(f(),f())	integer	1,2	TRUE	-
+late_global	x<-1L;f<-function()x;x<-2L;f()	integer	2	TRUE	-
+late_local	make<-function(){x<-1L;f<-function()x;x<-2L;f};make()()	integer	2	TRUE	-
+local_force	f<-function(x)x;(function(){n<-0L;f(n<-3L);n})()	integer	3	TRUE	-
+late_default	f<-function(x=y,y=2L)x;f()	integer	2	TRUE	-
+default_local	x<-10L;f<-function(a=x){x<-2L;a};f()	integer	2	TRUE	-
+supplied_global	x<-10L;f<-function(a=x){x<-2L;a};f(x)	integer	10	TRUE	-
+forwarded	n<-0L;g<-function(x)c(x,x);f<-function(...)g(...);f({n<<-n+1L;n});n	integer	1	TRUE	-
+paired	make<-function(){n<-0L;list(function(){n<<-n+1L;n},function()n)};p<-make();p[[1]]();p[[2]]()	integer	1	TRUE	-
+independent	make<-function(){n<-0L;function(){n<<-n+1L;n}};a<-make();b<-make();c(a(),a(),b())	integer	1,2,1	TRUE	-
+lexical	x<-1L;f<-function()x;g<-function(){x<-9L;f()};g()	integer	1	TRUE	-
+nearest	x<-1L;make<-function(){x<-2L;function(){x<<-3L;x}};f<-make();c(f(),x)	integer	3,1	TRUE	-
+reentrant	f<-function(n){x<-n;if(n>0L){f(n-1L);x}else{x}};f(3L)	integer	3	TRUE	-
+recursive	make<-function(){f<-function(n)if(n>0L)f(n-1L)else 7L;f};make()(3L)	integer	7	TRUE	-
+function_mode	f<-function()3L;g<-function(){f<-9L;f()};g()	integer	3	TRUE	-
+identity	make<-function()function()1L;a<-make();b<-make();c(identical(a,b),identical(a,a))	logical	FALSE,TRUE	TRUE	-
+late_promise	n<-1L;make<-function(x)function()x;f<-make(n);n<-2L;a<-f();n<-3L;c(a,f())	integer	2,2	TRUE	-
+same_environment	a<-function()1L;b<-function()1L;identical(a,b)	logical	TRUE	TRUE	-
+global_fallback	make<-function(){function(){newvalue<<-9L}};f<-make();f();newvalue	integer	9	TRUE	-

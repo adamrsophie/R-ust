@@ -4,6 +4,7 @@ use super::{ControlTransfer, QuitRequest};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum EvalError {
+    Graph(r_ust_sexp::GraphError),
     Parse(String),
     UndefinedSymbol(String),
     UndefinedFunction(String),
@@ -30,6 +31,7 @@ pub enum EvalError {
 impl fmt::Display for EvalError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Graph(error) => error.fmt(f),
             Self::Parse(message) => write!(f, "parse error: {message}"),
             Self::UndefinedSymbol(name) => write!(f, "object '{name}' not found"),
             Self::UndefinedFunction(name) => write!(f, "could not find function \"{name}\""),
@@ -63,10 +65,17 @@ impl fmt::Display for EvalError {
     }
 }
 
+impl From<r_ust_sexp::GraphError> for EvalError {
+    fn from(error: r_ust_sexp::GraphError) -> Self {
+        Self::Graph(error)
+    }
+}
+
 impl std::error::Error for EvalError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::WithWarnings { error, .. } => Some(error.as_ref()),
+            Self::Graph(error) => Some(error),
             _ => None,
         }
     }

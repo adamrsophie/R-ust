@@ -23,11 +23,21 @@ impl ControlTransfer {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub(super) struct ControlState {
     pub(super) origin: EvaluationOrigin,
     returns: Vec<EvaluationEnvironmentId>,
     loops: Vec<(LoopId, EvaluationOrigin)>,
+}
+
+impl Default for ControlState {
+    fn default() -> Self {
+        Self {
+            origin: EvaluationOrigin::Session(Default::default()),
+            returns: Vec::new(),
+            loops: Vec::new(),
+        }
+    }
 }
 
 fn next_id() -> Result<u64, EvalError> {
@@ -114,10 +124,10 @@ impl RuntimeState {
         evaluate: impl FnOnce(&mut Self, LoopId) -> Result<EvalFlow, EvalError>,
     ) -> Result<EvalFlow, EvalError> {
         let id = LoopId(next_id()?);
-        self.control.loops.push((id, self.control.origin));
+        self.control.loops.push((id, self.control.origin.clone()));
         let result = evaluate(self, id);
         let removed = self.control.loops.pop();
-        debug_assert_eq!(removed, Some((id, self.control.origin)));
+        debug_assert_eq!(removed, Some((id, self.control.origin.clone())));
         result
     }
 }
@@ -143,6 +153,7 @@ mod tests {
         .enumerate()
         {
             let mut frontend = Frontend::default();
+            let origin = frontend.runtime().control.origin.clone();
             let result = frontend.eval_source(source);
             assert_eq!(result.is_ok(), index < 4, "{source}: {result:?}");
             assert!(
@@ -153,11 +164,11 @@ mod tests {
                 "{source}: {result:?}"
             );
             let runtime = frontend.runtime();
-            assert_eq!(runtime.scopes.len(), 1, "{source}");
-            assert_eq!(runtime.control.origin, EvaluationOrigin::Global, "{source}");
+            assert_eq!(runtime.current, runtime.global, "{source}");
+            assert_eq!(runtime.control.origin, origin, "{source}");
             assert!(runtime.control.returns.is_empty(), "{source}");
             assert!(runtime.control.loops.is_empty(), "{source}");
-            assert!(runtime.get("private").is_none(), "{source}");
+            assert!(runtime.get("private").unwrap().is_none(), "{source}");
             assert_eq!(
                 frontend.eval_source("42L").unwrap(),
                 [Sexp::Integer(vec![Some(42)])]
@@ -193,12 +204,13 @@ mod tests {
                 "{source}"
             );
             assert!(frontend.runtime_mut().take_output().is_empty(), "{source}");
-            assert_eq!(frontend.runtime().scopes.len(), 1);
+            assert_eq!(frontend.runtime().current, frontend.runtime().global);
             assert!(frontend.runtime().control.returns.is_empty());
             assert!(frontend.runtime().control.loops.is_empty());
         }
         for signal in ["break", "next"] {
             let mut frontend = Frontend::default();
+            let origin = frontend.runtime().control.origin.clone();
             let source = format!(
                 "(function(){{for(i in 1:3){{with(list(a=1L),{signal});cat('NO')}};42L}})()"
             );
@@ -209,8 +221,8 @@ mod tests {
                 ))
             );
             assert!(frontend.runtime_mut().take_output().is_empty());
-            assert_eq!(frontend.runtime().scopes.len(), 1);
-            assert_eq!(frontend.runtime().control.origin, EvaluationOrigin::Global);
+            assert_eq!(frontend.runtime().current, frontend.runtime().global);
+            assert_eq!(frontend.runtime().control.origin, origin);
             assert!(frontend.runtime().control.returns.is_empty());
             assert!(frontend.runtime().control.loops.is_empty());
         }

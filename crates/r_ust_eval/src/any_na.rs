@@ -52,20 +52,17 @@ impl RuntimeState {
                 FunctionParameter::required("recursive"),
             ],
             &supplied,
-            &[],
+            &self.current.clone(),
         )?;
         // These promises wrap already evaluated primitive arguments; do not evaluate their expressions again.
-        let Some(Sexp::Promise { expression: x, .. }) = matched.get("x") else {
+        let Some(Sexp::Promise { state }) = matched.get("x") else {
             return Err(EvalError::MissingArgument("x".into()));
         };
-        let Some(Sexp::Promise {
-            expression: recursive,
-            ..
-        }) = matched.get("recursive")
-        else {
-            return contains(x, &default).map(|value| Sexp::Logical(vec![Some(value)]));
+        let x = state.expression()?;
+        let Some(Sexp::Promise { state }) = matched.get("recursive") else {
+            return contains(&x, &default).map(|value| Sexp::Logical(vec![Some(value)]));
         };
-        contains(x, recursive).map(|value| Sexp::Logical(vec![Some(value)]))
+        contains(&x, &state.expression()?).map(|value| Sexp::Logical(vec![Some(value)]))
     }
 }
 
