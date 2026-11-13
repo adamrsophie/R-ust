@@ -3,6 +3,8 @@ use r_ust_sexp::InternalOperation;
 
 pub fn resolve(name: &str) -> Option<InternalOperation> {
     match name {
+        "pmatch" => Some(InternalOperation::Pmatch),
+        "charmatch" => Some(InternalOperation::Charmatch),
         "vector" => Some(InternalOperation::Vector),
         "stop" => Some(InternalOperation::Stop),
         "inherits" => Some(InternalOperation::Inherits),

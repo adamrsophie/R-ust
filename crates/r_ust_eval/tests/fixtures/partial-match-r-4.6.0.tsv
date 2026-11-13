@@ -1,0 +1,66 @@
+# R version 4.6.0 (2026-04-24)
+1	pmatch(c("a","ab"), c("ab","ac"))	integer	2,1	-	-
+2	pmatch(c("a","ab"), c("ab","ac"), duplicates.ok=TRUE)	integer	NA,1	-	-
+3	pmatch(c("ab","ab","a"), c("ab","ab","ac"))	integer	1,2,3	-	-
+4	pmatch(c("ab","ab","a"), c("ab","ab","ac"), duplicates.ok=TRUE)	integer	1,1,NA	-	-
+5	pmatch(c("a","b","z"), c("apple","apricot","banana"), nomatch=-9L)	integer	-9,3,-9	-	-
+6	pmatch(c("","NA",NA), c("",NA,"NA"))	integer	NA,2,3	-	-
+7	pmatch(c(NA,"NA","N"), c("NA","NAB"), duplicates.ok=TRUE)	integer	1,1,NA	-	-
+8	pmatch(c("a","a"), "apple")	integer	1,NA	-	-
+9	pmatch(c("a","a"), "apple", duplicates.ok=TRUE)	integer	1,1	-	-
+10	pmatch(NULL, c("a","b"))	integer	-	-	-
+11	pmatch(c("a",NA,""), NULL)	integer	NA,NA,NA	-	-
+12	charmatch(c("a","ab","z"), c("ab","ac"))	integer	0,1,NA	-	-
+13	charmatch(c("ab","a"), c("ab","ab"))	integer	0,0	-	-
+14	charmatch(c("ab","a"), c("abc","ab"))	integer	2,0	-	-
+15	charmatch(c("","NA",NA), c("",NA,"NA"))	integer	1,0,0	-	-
+16	charmatch("", "abc")	integer	1	-	-
+17	charmatch("", c("abc","def"))	integer	0	-	-
+18	charmatch("", c("",""))	integer	0	-	-
+19	charmatch(c("a","z"), c("ab","ac"), nomatch=-7L)	integer	0,-7	-	-
+20	charmatch(NULL, NULL)	integer	-	-	-
+21	charmatch(c("a",NA,""), NULL)	integer	NA,NA,NA	-	-
+22	pmatch(c("é","ê","東","😀"), c("éclair","être","東京","😀x"))	integer	1,2,3,4	-	-
+23	charmatch(c("é","ê","東","😀"), c("éclair","être","東京","😀x"))	integer	1,2,3,4	-	-
+24	pmatch(c("e","é"), c("éclair","eclair"))	integer	2,1	-	-
+25	pmatch(c(1,2,NA), c("1","2","NA"))	integer	1,2,3	-	-
+26	charmatch(c(TRUE,FALSE,NA), c("TRUE","FALSE","NA"))	integer	1,2,3	-	-
+27	pmatch(list("a",1), c("abc","1"))	integer	1,2	-	-
+28	charmatch(factor(c("a","b")), c("abc","b"))	integer	1,2	-	-
+29	pmatch(c("a","z"), "a", nomatch=c(9.9,8))	integer	1,9	-	-
+30	charmatch(c("a","z"), "a", nomatch="12")	integer	1,12	-	-
+31	pmatch("z", "a", nomatch=NULL)	integer	NA	-	-
+32	charmatch("z", "a", nomatch=list(9L))	integer	NA	-	-
+33	pmatch("z", "a", nomatch="bad")	integer	NA	-	NAs introduced by coercion
+34	charmatch("z", "a", nomatch=2147483648)	integer	NA	-	NAs introduced by coercion to integer range
+35	pmatch(c("a","a"), "a", duplicates.ok=c(TRUE,FALSE))	integer	1,1	-	-
+36	pmatch(c("a","a"), "a", duplicates.ok="true")	integer	1,1	-	-
+37	pmatch("a", "a", duplicates.ok=NA)	error	-	invalid 'duplicates.ok' argument	-
+38	pmatch("a", "a", duplicates.ok=NULL)	error	-	invalid 'duplicates.ok' argument	-
+39	pmatch("a", "a", duplicates.ok=list(TRUE))	error	-	invalid 'duplicates.ok' argument	-
+40	pmatch("a", "a", duplicates.ok="bad")	error	-	invalid 'duplicates.ok' argument	-
+41	pmatch(table=c("abc","a"), x="a", dup=TRUE, no=3L)	integer	2	-	-
+42	charmatch(table="abc", x="a", no=4L)	integer	1	-	-
+43	pmatch("a")	error	-	argument "table" is missing, with no default	-
+44	charmatch(table="a")	error	-	argument "x" is missing, with no default	-
+45	pmatch("a","a",unknown=1)	error	-	unused argument (unknown = 1)	-
+46	charmatch("a","a",1,2)	error	-	unused argument (2)	-
+47	pmatch(x="a",x="b",table="a")	error	-	formal argument "x" matched by multiple actual arguments	-
+48	pmatch(,"a")	error	-	argument "x" is missing, with no default	-
+49	.Internal(pmatch(1,"a",0L,FALSE))	error	-	argument is not of mode character	-
+50	.Internal(charmatch("a",1,0L))	error	-	argument is not of mode character	-
+51	.Internal(pmatch("a","a",0L))	error	-	3 arguments passed to .Internal(pmatch) which requires 4	-
+52	.Internal(charmatch("a","a",0L,FALSE))	error	-	4 arguments passed to .Internal(charmatch) which requires 3	-
+53	pmatch(rep("a",101), c("a","a",rep("z",99)))	integer	1,2,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA	-	-
+54	pmatch(rep("a",100), c("a","a",rep("z",99)))	integer	1,2,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA	-	-
+55	pmatch(rep("a",101), c("a","a","a",rep("z",98)))	integer	1,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA	-	-
+56	pmatch(rep("a",100), c("a","a","a",rep("z",98)))	integer	1,2,3,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA	-	-
+57	pmatch(rep("a",101), c("a","a","a",rep("z",97)))	integer	1,2,3,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA	-	-
+58	pmatch(c(NA,rep("NA",100)), c("NA",NA,rep("z",99)))	integer	2,1,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA	-	-
+59	pmatch(c(NA,rep("NA",100)), c("NA",NA,rep("z",99)), duplicates.ok=TRUE)	integer	2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1	-	-
+60	f <- pmatch; f("a","abc")	integer	1	-	-
+61	f <- charmatch; f("a",c("abc","abd"))	integer	0	-	-
+62	f <- function(...) pmatch(...); f("a","abc")	integer	1	-	-
+63	pmatch("a","a",nomatch="bad",duplicates.ok=NA)	error	-	invalid 'duplicates.ok' argument	NAs introduced by coercion
+64	.Internal(charmatch(1,1,"bad"))	error	-	argument is not of mode character	-
+65	.Internal(pmatch(1,1,"bad",NA))	error	-	invalid 'duplicates.ok' argument	NAs introduced by coercion

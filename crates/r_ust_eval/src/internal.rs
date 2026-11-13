@@ -1,6 +1,7 @@
 mod character;
 mod dispatch;
 mod logical;
+mod partial_match;
 mod vector;
 
 use character::character_values;
@@ -29,6 +30,8 @@ impl RuntimeState {
         args: &[EvaluatedArgument],
     ) -> Result<Sexp, EvalError> {
         let (name, arity) = match operation {
+            InternalOperation::Pmatch => ("pmatch", 4),
+            InternalOperation::Charmatch => ("charmatch", 3),
             InternalOperation::Vector => ("vector", 2),
             InternalOperation::Stop => ("stop", 2),
             InternalOperation::DefaultStop => (".dfltStop", 2),
@@ -46,6 +49,8 @@ impl RuntimeState {
                 true
             }
             InternalOperation::Vector
+            | InternalOperation::Pmatch
+            | InternalOperation::Charmatch
             | InternalOperation::Stop
             | InternalOperation::Inherits
             | InternalOperation::SignalCondition
@@ -59,6 +64,8 @@ impl RuntimeState {
             )));
         }
         match operation {
+            InternalOperation::Pmatch => self.partial_match(args, false),
+            InternalOperation::Charmatch => self.partial_match(args, true),
             InternalOperation::Vector => self.make_vector(&args[0].value, &args[1].value),
             InternalOperation::Stop => {
                 let call_requested = as_logical(&args[0].value).unwrap_or(true);

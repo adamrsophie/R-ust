@@ -11,6 +11,7 @@ use super::{EvalError, Parser, Sexp};
 // R 4.6.0 src/library/base/R/New-Internal.R: Copyright (C) 1995-2023 The R Core Team
 // R 4.6.0 src/library/base/R/vector.R: Copyright (C) 1995-2013 The R Core Team
 // R 4.6.0 src/library/base/R/constants.R: Copyright (C) 1995-2012 The R Core Team
+// R 4.6.0 src/library/base/R/match.R: Copyright (C) 1995-2025 The R Core Team
 // Part of the R package, https://www.R-project.org
 //
 // This program is free software; you can redistribute it and/or modify
@@ -26,6 +27,14 @@ use super::{EvalError, Parser, Sexp};
 // A copy of the GNU General Public License is available at
 // https://www.R-project.org/Licenses/
 const DEFINITIONS: &[(&str, &str)] = &[
+    (
+        "pmatch",
+        "function(x, table, nomatch = NA_integer_, duplicates.ok = FALSE) .Internal(pmatch(as.character(x), as.character(table), nomatch, duplicates.ok))",
+    ),
+    (
+        "charmatch",
+        "function(x, table, nomatch = NA_integer_) .Internal(charmatch(as.character(x), as.character(table), nomatch))",
+    ),
     (
         "vector",
         "function(mode = \"logical\", length = 0L) .Internal(vector(mode, length))",
