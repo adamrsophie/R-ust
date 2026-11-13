@@ -47,7 +47,7 @@ def literal(fingerprint: str) -> str:
             values = [{"T": "TRUE", "F": "FALSE", "NA": "NA"}[value] for value in values]
             empty = "as.logical(NULL)"
         case Storage.INTEGER:
-            values = [str(int(value)) + "L" for value in values]
+            values = ["NA_integer_" if value == "NA" else str(int(value)) + "L" for value in values]
             empty = "as.integer(NULL)"
         case Storage.DOUBLE:
             values = [real_literal(value) for value in values]
@@ -79,6 +79,8 @@ def self_check() -> None:
         ("list|0|", "list()"),
         ("logical|3|T,F,NA", "c(TRUE,FALSE,NA)"),
         ("integer|2|-1,42", "c(-1L,42L)"),
+        ("integer|1|NA", "c(NA_integer_)"),
+        ("integer|3|-1,NA,42", "c(-1L,NA_integer_,42L)"),
         ("double|1|400921fb54442d18", "c(0x1.921fb54442d18p+1)"),
         ("double|1|7ff00000000007a2", "c(NA_real_)"),
         ("double|1|7ff80000000007a2", "c(NA_real_)"),
@@ -95,7 +97,7 @@ def self_check() -> None:
         "raw|0|",
         "NULL|0|",
         "logical|1|X",
-        "integer|1|NA",
+        "integer|1|NaN",
         "double|1|nan",
         "double|1|7ff800000000000g",
         "character|1|x0",
