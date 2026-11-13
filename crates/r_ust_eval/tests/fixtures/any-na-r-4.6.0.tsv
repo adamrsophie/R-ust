@@ -1,0 +1,91 @@
+source	kind	result
+anyNA(NULL)	value	FALSE
+anyNA(logical(0))	value	FALSE
+anyNA(integer(0))	value	FALSE
+anyNA(numeric(0))	value	FALSE
+anyNA(character(0))	value	FALSE
+anyNA(c(TRUE,FALSE))	value	FALSE
+anyNA(c(TRUE,NA))	value	TRUE
+anyNA(c(1L,NA_integer_))	value	TRUE
+anyNA(c(1L,2L))	value	FALSE
+anyNA(c(1,NA_real_))	value	TRUE
+anyNA(c(1,NaN))	value	TRUE
+anyNA(c(Inf,-Inf))	value	FALSE
+anyNA(c('NA','NaN'))	value	FALSE
+anyNA(c('a',NA_character_))	value	TRUE
+anyNA(list())	value	FALSE
+anyNA(list(NA))	value	TRUE
+anyNA(list(NA_integer_))	value	TRUE
+anyNA(list(NA_real_))	value	TRUE
+anyNA(list(NaN))	value	TRUE
+anyNA(list(NA_character_))	value	TRUE
+anyNA(list(c(NA,NA)))	value	FALSE
+anyNA(list(c(1,NA)))	value	FALSE
+anyNA(list(list(NA)))	value	FALSE
+anyNA(list(NULL))	value	FALSE
+anyNA(list(list(NA)),TRUE)	value	TRUE
+anyNA(list(c(1,NA)),TRUE)	value	TRUE
+anyNA(list(list(1)),TRUE)	value	FALSE
+anyNA(list(NULL),TRUE)	value	FALSE
+anyNA(factor(c('a',NA)))	value	TRUE
+anyNA(ordered(c('a','b')))	value	FALSE
+anyNA(list(factor(NA)))	value	TRUE
+anyNA(list(factor(c(NA,NA))))	value	FALSE
+anyNA(matrix(c(1,NA),nrow=1))	value	TRUE
+anyNA(list(matrix(NA)))	value	TRUE
+anyNA(list(matrix(c(1,NA))))	value	FALSE
+anyNA(matrix(list(NA),nrow=1))	value	TRUE
+anyNA(matrix(list(list(NA)),nrow=1))	value	FALSE
+anyNA(matrix(list(list(NA)),nrow=1),TRUE)	value	TRUE
+anyNA(data.frame(x=c(1,NA)))	value	TRUE
+anyNA(data.frame(x=c(1,2)))	value	FALSE
+anyNA(data.frame(x=c(1,NA)),NA)	value	TRUE
+anyNA(list(data.frame(x=NA)))	value	FALSE
+anyNA(list(data.frame(x=NA)),TRUE)	value	TRUE
+anyNA(NA,NA)	value	TRUE
+anyNA(NA,list(TRUE))	value	TRUE
+anyNA(NULL,NA)	value	FALSE
+anyNA(factor(NA),NA)	value	TRUE
+anyNA(list(NA),TRUE)	value	TRUE
+anyNA(list(NA),FALSE)	value	TRUE
+anyNA(list(list(NA)),FALSE)	value	FALSE
+anyNA(list(list(NA)),'TRUE')	value	TRUE
+anyNA(list(list(NA)),1L)	value	TRUE
+anyNA(list(list(NA)),factor(1))	value	TRUE
+anyNA(list(list(NA)),matrix(TRUE))	value	TRUE
+anyNA(list(NA),NA)	error	NA in coercion to boolean
+anyNA(list(NA),NaN)	error	NA in coercion to boolean
+anyNA(list(NA),NULL)	error	NA in coercion to boolean
+anyNA(list(NA),logical(0))	error	NA in coercion to boolean
+anyNA(list(NA),'bad')	error	NA in coercion to boolean
+anyNA(list(NA),list(TRUE))	error	NA in coercion to boolean
+anyNA(list(NA),c(TRUE,FALSE))	error	'length = 2' in coercion to 'logical(1)'
+anyNA(function() 1)	error	anyNA() applied to non-(list or vector) of type 'closure'
+anyNA(list(function() 1))	value	FALSE
+anyNA(list(function() 1),TRUE)	error	anyNA() applied to non-(list or vector) of type 'closure'
+anyNA(list(NA,function() 1),TRUE)	value	TRUE
+anyNA()	error	anyNA takes 1 or 2 arguments
+anyNA(1,2,3)	error	anyNA takes 1 or 2 arguments
+anyNA(NA,)	error	argument 2 is empty
+anyNA(,TRUE)	error	argument 1 is empty
+anyNA(y=NA)	error	supplied argument name 'y' does not match 'x'
+anyNA(rec=TRUE)	error	supplied argument name 'rec' does not match 'x'
+anyNA(x=NA)	value	TRUE
+anyNA(x=NA,r=TRUE)	value	TRUE
+anyNA(recursive=TRUE,NA)	value	TRUE
+anyNA(rec=TRUE,x=list(list(NA)))	value	TRUE
+anyNA(recursive=TRUE,recursive=FALSE)	error	formal argument "recursive" matched by multiple actual arguments
+anyNA(x=NA,x=1)	error	formal argument "x" matched by multiple actual arguments
+anyNA(rec=TRUE,r=FALSE)	error	formal argument "recursive" matched by multiple actual arguments
+anyNA(x=1,y=2)	error	unused argument (y = 2)
+anyNA(x=1,xx=2)	error	unused argument (xx = 2)
+anyNA(rec=TRUE,recursive=FALSE)	error	unused argument (rec = TRUE)
+f<-function(...) anyNA(...); f(list(list(NA)),recursive=TRUE)	value	TRUE
+f<-function(...) anyNA(...); f(NA,)	error	argument is missing, with no default
+anyNA<-function(x) FALSE; anyNA(NA)	value	FALSE
+d<-data.frame(x=1); d$x<-list(list(NA)); anyNA(d,TRUE)	value	FALSE
+d<-data.frame(x=1); d$x<-list(list(NA)); anyNA(d,NA)	value	FALSE
+d<-data.frame(x=1); d$x<-list(NA); anyNA(d,NA)	value	TRUE
+identical(lapply(list(NA_real_,1,list(NA)),anyNA),list(TRUE,FALSE,TRUE))	value	TRUE
+identical(sapply(list(NA_real_,1,NaN),anyNA),c(TRUE,FALSE,TRUE))	value	TRUE
+identical(lapply(list(list(list(NA)),list(1)),anyNA,recursive=TRUE),list(TRUE,FALSE))	value	TRUE

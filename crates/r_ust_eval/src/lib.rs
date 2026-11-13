@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+mod any_na;
 mod arguments;
 mod base;
 mod calls;
@@ -1567,6 +1568,7 @@ fn is_builtin(name: &str) -> bool {
             | "which.max"
             | "match"
             | "identical"
+            | "anyNA"
             | "is.na"
             | "is.nan"
             | "is.finite"

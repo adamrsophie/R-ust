@@ -26,6 +26,9 @@ impl RuntimeState {
                 return self.eval_dots_length(arguments).map(EvalFlow::Value);
             }
             if is_builtin(name) {
+                if name == "anyNA" {
+                    return self.eval_any_na(arguments).map(EvalFlow::Value);
+                }
                 if matches!(name.as_str(), "q" | "quit") {
                     return self.eval_quit_call(arguments);
                 }

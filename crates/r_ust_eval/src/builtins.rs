@@ -50,6 +50,7 @@ impl RuntimeState {
                 let EvalFlow::Value(value) = result?;
                 return Ok(value);
             }
+            "anyNA" => return self.call_any_na(args),
             "options" => return self.call_options(args),
             "as.numeric" | "as.double" | "as.real" | "as.integer" => {
                 self.call_numeric_coercion(name, args)?
