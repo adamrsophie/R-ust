@@ -14,6 +14,7 @@ mod closure_calls;
 mod coercion;
 mod control;
 mod dots;
+mod encode_string;
 mod environment;
 mod promises;
 use dots::expand_dots_call_arguments;
@@ -21,9 +22,12 @@ use promises::{is_missing_binding, promise};
 mod formatting;
 mod loops;
 mod matching;
+mod matrix_storage;
 mod options;
 mod ordering;
 mod parse_warnings;
+mod rowsum;
+mod run_length;
 mod session_calls;
 mod summary;
 mod unused_arguments;
@@ -32,6 +36,7 @@ use coercion::coerce_integer_values;
 pub use control::{ControlTransfer, LoopId};
 use formatting::{format_line, format_numeric_line};
 use matching::match_indices;
+use matrix_storage::{matrix_column_values, matrix_data, matrix_row_values};
 use ordering::call_is_unsorted;
 
 use r_ust_gc::{Gc, GcConfig};
@@ -89,6 +94,7 @@ pub struct RuntimeState {
     console_prompt: String,
     options: std::collections::BTreeMap<String, Sexp>,
     warned_strings_as_factors: bool,
+    warned_sequence_recycle: bool,
     pending_parse_warnings: Vec<String>,
 }
 
@@ -116,6 +122,7 @@ impl RuntimeState {
             console_prompt: String::new(),
             options: options::defaults(),
             warned_strings_as_factors: false,
+            warned_sequence_recycle: false,
             pending_parse_warnings: Vec::new(),
         }
     }
@@ -1581,7 +1588,7 @@ fn dispatch_call(name: &str, args: &[EvaluatedArgument]) -> Result<Sexp, EvalErr
         "lengths" => call_lengths(args),
         "as.logical" => {
             let value = positional(args, 0, "x")?;
-            Ok(Sexp::Logical(coerce_logical_values(value)?))
+            Ok(Sexp::Logical(coercion::logical::convert(value)?))
         }
         "as.character" => {
             let value = positional(args, 0, "x")?;
@@ -6280,49 +6287,6 @@ fn matrix_dim(value: f64, label: &str) -> Result<usize, EvalError> {
         )));
     }
     Ok(value.trunc() as usize)
-}
-
-fn matrix_data(data: &Sexp, nrow: usize, ncol: usize, byrow: bool) -> Result<Sexp, EvalError> {
-    let total = nrow.saturating_mul(ncol);
-    if total == 0 {
-        return Ok(Sexp::Logical(Vec::new()));
-    }
-    let mut elements = sequence_elements(data)?;
-    if elements.is_empty() {
-        elements.push(Sexp::Logical(vec![None]));
-    }
-    let mut out = vec![Sexp::Nil; total];
-    for row in 0..nrow {
-        for col in 0..ncol {
-            let storage_index = row + col * nrow;
-            let source_index = if byrow {
-                row * ncol + col
-            } else {
-                storage_index
-            };
-            out[storage_index] = elements[source_index % elements.len()].clone();
-        }
-    }
-    scalar_elements_to_vector(&out)
-}
-
-fn matrix_column_values(data: &Sexp, nrow: usize, col: usize) -> Result<Vec<Sexp>, EvalError> {
-    let values = sequence_elements(data)?;
-    Ok((0..nrow)
-        .map(|row| values.get(row + col * nrow).cloned().unwrap_or(Sexp::Nil))
-        .collect())
-}
-
-fn matrix_row_values(
-    data: &Sexp,
-    nrow: usize,
-    ncol: usize,
-    row: usize,
-) -> Result<Vec<Sexp>, EvalError> {
-    let values = sequence_elements(data)?;
-    Ok((0..ncol)
-        .map(|col| values.get(row + col * nrow).cloned().unwrap_or(Sexp::Nil))
-        .collect())
 }
 
 fn scalar_elements_to_vector(values: &[Sexp]) -> Result<Sexp, EvalError> {

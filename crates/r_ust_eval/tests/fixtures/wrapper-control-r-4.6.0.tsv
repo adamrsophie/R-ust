@@ -1,0 +1,38 @@
+owner	id	source	type	value	visible	stdout_hex	stderr_hex
+encode_string	x_return	(function(){encodeString(x={cat("X");return("done")},width={cat("W");0L},quote={cat("Q");""},na.encode={cat("N");TRUE},justify={cat("J");"left"});"bad"})()	character	character|1|646f6e65	TRUE	58	-
+encode_string	x_invisible_return	(function(){encodeString(x={cat("X");return(invisible("done"))},width={cat("W");0L},quote={cat("Q");""},na.encode={cat("N");TRUE},justify={cat("J");"left"});"bad"})()	character	character|1|646f6e65	FALSE	58	-
+encode_string	x_break	n<-0L;for(i in 1:2){encodeString(x={cat("X");break},width={cat("W");0L},quote={cat("Q");""},na.encode={cat("N");TRUE},justify={cat("J");"left"});n<-n+1L;cat("BAD")};c(n,i)	integer	integer|2|0,1	TRUE	58	-
+encode_string	x_next	n<-0L;for(i in 1:2){encodeString(x={cat("X");next},width={cat("W");0L},quote={cat("Q");""},na.encode={cat("N");TRUE},justify={cat("J");"left"});n<-n+1L;cat("BAD")};c(n,i)	integer	integer|2|0,2	TRUE	5858	-
+encode_string	justify_return	(function(){encodeString(x={cat("X");"x"},width={cat("W");0L},quote={cat("Q");""},na.encode={cat("N");TRUE},justify={cat("J");return("done")});"bad"})()	character	character|1|646f6e65	TRUE	584a	-
+encode_string	justify_invisible_return	(function(){encodeString(x={cat("X");"x"},width={cat("W");0L},quote={cat("Q");""},na.encode={cat("N");TRUE},justify={cat("J");return(invisible("done"))});"bad"})()	character	character|1|646f6e65	FALSE	584a	-
+encode_string	justify_break	n<-0L;for(i in 1:2){encodeString(x={cat("X");"x"},width={cat("W");0L},quote={cat("Q");""},na.encode={cat("N");TRUE},justify={cat("J");break});n<-n+1L;cat("BAD")};c(n,i)	integer	integer|2|0,1	TRUE	584a	-
+encode_string	justify_next	n<-0L;for(i in 1:2){encodeString(x={cat("X");"x"},width={cat("W");0L},quote={cat("Q");""},na.encode={cat("N");TRUE},justify={cat("J");next});n<-n+1L;cat("BAD")};c(n,i)	integer	integer|2|0,2	TRUE	584a584a	-
+encode_string	width_return	(function(){encodeString(x={cat("X");"x"},width={cat("W");return("done")},quote={cat("Q");""},na.encode={cat("N");TRUE},justify={cat("J");"left"});"bad"})()	character	character|1|646f6e65	TRUE	584a57	-
+encode_string	width_invisible_return	(function(){encodeString(x={cat("X");"x"},width={cat("W");return(invisible("done"))},quote={cat("Q");""},na.encode={cat("N");TRUE},justify={cat("J");"left"});"bad"})()	character	character|1|646f6e65	FALSE	584a57	-
+encode_string	width_break	n<-0L;for(i in 1:2){encodeString(x={cat("X");"x"},width={cat("W");break},quote={cat("Q");""},na.encode={cat("N");TRUE},justify={cat("J");"left"});n<-n+1L;cat("BAD")};c(n,i)	integer	integer|2|0,1	TRUE	584a57	-
+encode_string	width_next	n<-0L;for(i in 1:2){encodeString(x={cat("X");"x"},width={cat("W");next},quote={cat("Q");""},na.encode={cat("N");TRUE},justify={cat("J");"left"});n<-n+1L;cat("BAD")};c(n,i)	integer	integer|2|0,2	TRUE	584a57584a57	-
+encode_string	quote_return	(function(){encodeString(x={cat("X");"x"},width={cat("W");0L},quote={cat("Q");return("done")},na.encode={cat("N");TRUE},justify={cat("J");"left"});"bad"})()	character	character|1|646f6e65	TRUE	584a5751	-
+encode_string	quote_invisible_return	(function(){encodeString(x={cat("X");"x"},width={cat("W");0L},quote={cat("Q");return(invisible("done"))},na.encode={cat("N");TRUE},justify={cat("J");"left"});"bad"})()	character	character|1|646f6e65	FALSE	584a5751	-
+encode_string	quote_break	n<-0L;for(i in 1:2){encodeString(x={cat("X");"x"},width={cat("W");0L},quote={cat("Q");break},na.encode={cat("N");TRUE},justify={cat("J");"left"});n<-n+1L;cat("BAD")};c(n,i)	integer	integer|2|0,1	TRUE	584a5751	-
+encode_string	quote_next	n<-0L;for(i in 1:2){encodeString(x={cat("X");"x"},width={cat("W");0L},quote={cat("Q");next},na.encode={cat("N");TRUE},justify={cat("J");"left"});n<-n+1L;cat("BAD")};c(n,i)	integer	integer|2|0,2	TRUE	584a5751584a5751	-
+encode_string	na_encode_return	(function(){encodeString(x={cat("X");"x"},width={cat("W");0L},quote={cat("Q");""},na.encode={cat("N");return("done")},justify={cat("J");"left"});"bad"})()	character	character|1|646f6e65	TRUE	584a57514e	-
+encode_string	na_encode_invisible_return	(function(){encodeString(x={cat("X");"x"},width={cat("W");0L},quote={cat("Q");""},na.encode={cat("N");return(invisible("done"))},justify={cat("J");"left"});"bad"})()	character	character|1|646f6e65	FALSE	584a57514e	-
+encode_string	na_encode_break	n<-0L;for(i in 1:2){encodeString(x={cat("X");"x"},width={cat("W");0L},quote={cat("Q");""},na.encode={cat("N");break},justify={cat("J");"left"});n<-n+1L;cat("BAD")};c(n,i)	integer	integer|2|0,1	TRUE	584a57514e	-
+encode_string	na_encode_next	n<-0L;for(i in 1:2){encodeString(x={cat("X");"x"},width={cat("W");0L},quote={cat("Q");""},na.encode={cat("N");next},justify={cat("J");"left"});n<-n+1L;cat("BAD")};c(n,i)	integer	integer|2|0,2	TRUE	584a57514e584a57514e	-
+encode_string	literal_return	(function(){encodeString(return("done"));"bad"})()	character	character|1|646f6e65	TRUE	-	-
+encode_string	alias_quote_return	f<-encodeString;(function(){f("x",quote={cat("Q");return("done")});"bad"})()	character	character|1|646f6e65	TRUE	51	-
+encode_string	default_width_invisible_return	(function(w=return(invisible("done"))){encodeString("x",width=w);"bad"})()	character	character|1|646f6e65	FALSE	-	-
+encode_string	invisible_around_return	(function(){encodeString(invisible(return("done")));"bad"})()	character	character|1|646f6e65	TRUE	-	-
+encode_string	success_invisible_formals	encodeString(x=invisible("a"),justify=invisible("left"),width=invisible(0L),quote=invisible(""),na.encode=invisible(TRUE))	character	character|1|61	TRUE	-	-
+run_length	rle_return	(function(){rle({cat("X");return("done")});"bad"})()	character	character|1|646f6e65	TRUE	58	-
+run_length	inverse_invisible_return	(function(){inverse.rle({cat("X");return(invisible("done"))},stop("unused"));"bad"})()	character	character|1|646f6e65	FALSE	58	-
+run_length	rle_break	n<-0L;for(i in 1:2){rle({cat("X");break});n<-n+1L};c(n,i)	integer	integer|2|0,1	TRUE	58	-
+run_length	inverse_next	n<-0L;for(i in 1:2){inverse.rle({cat("X");next},stop("unused"));n<-n+1L};c(n,i)	integer	integer|2|0,2	TRUE	5858	-
+rowsum	generic_return	(function(){rowsum({cat("X");return("done")},stop("unused"));"bad"})()	character	character|1|646f6e65	TRUE	58	-
+rowsum	default_group_invisible_return	(function(){rowsum.default(matrix(1L,1),{cat("G");return(invisible("done"))});"bad"})()	character	character|1|646f6e65	FALSE	47	-
+rowsum	group_break	n<-0L;for(i in 1:2){rowsum(matrix(1L,1),{cat("G");break});n<-n+1L};c(n,i)	integer	integer|2|0,1	TRUE	47	-
+rowsum	na_rm_next	n<-0L;for(i in 1:2){rowsum(matrix(1L,1),1L,na.rm={cat("A");next});n<-n+1L};c(n,i)	integer	integer|2|0,2	TRUE	4141	-
+sequence	generic_return	(function(){sequence({cat("N");return("done")},from=stop("unused"));"bad"})()	character	character|1|646f6e65	TRUE	4e	-
+sequence	default_from_invisible_return	(function(){sequence.default(1L,from={cat("F");return(invisible("done"))});"bad"})()	character	character|1|646f6e65	FALSE	46	-
+sequence	from_break	n<-0L;for(i in 1:2){sequence(1L,from={cat("F");break});n<-n+1L};c(n,i)	integer	integer|2|0,1	TRUE	46	-
+sequence	by_next	n<-0L;for(i in 1:2){sequence.default(1L,by={cat("B");next});n<-n+1L};c(n,i)	integer	integer|2|0,2	TRUE	4242	-

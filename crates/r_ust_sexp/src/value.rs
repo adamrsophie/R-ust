@@ -10,6 +10,13 @@ pub enum ClosureEnvironment {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum InternalOperation {
+    RunLengthEncode,
+    RunLengthDecode,
+    RowsumValidate,
+    RowsumAggregate,
+    EncodeString,
+    EncodeStringWrapper,
+    Sequence,
     Utf8ToInt,
     IntToUtf8,
     FindInterval,

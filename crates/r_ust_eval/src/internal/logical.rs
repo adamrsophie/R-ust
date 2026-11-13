@@ -1,6 +1,6 @@
 use r_ust_sexp::Sexp;
 
-pub(super) fn as_logical(value: &Sexp) -> Option<bool> {
+pub(crate) fn as_logical(value: &Sexp) -> Option<bool> {
     match value {
         Sexp::String(values) => {
             values

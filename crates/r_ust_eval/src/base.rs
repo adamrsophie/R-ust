@@ -1,4 +1,9 @@
 mod constants;
+mod definitions;
+mod encode_string;
+mod rowsum;
+mod run_length;
+mod sequence;
 
 use std::sync::OnceLock;
 
@@ -6,131 +11,30 @@ use r_ust_sexp::ClosureEnvironment;
 
 use super::{EvalError, Parser, Sexp};
 
-// R 4.6.0 src/library/base/R/stop.R: Copyright (C) 1995-2025 The R Core Team
-// R 4.6.0 src/library/base/R/message.R: Copyright (C) 1995-2021 The R Core Team
-// R 4.6.0 src/library/base/R/New-Internal.R: Copyright (C) 1995-2023 The R Core Team
-// R 4.6.0 src/library/base/R/vector.R: Copyright (C) 1995-2013 The R Core Team
-// R 4.6.0 src/library/base/R/constants.R: Copyright (C) 1995-2012 The R Core Team
-// R 4.6.0 src/library/base/R/match.R: Copyright (C) 1995-2025 The R Core Team
-// R 4.6.0 src/library/base/R/character.R: Copyright (C) 1995-2025 The R Core Team
-// R 4.6.0 src/library/base/R/raw.R: Copyright (C) 1995-2020 The R Core Team
-// R 4.6.0 src/library/base/R/findInt.R: Copyright (C) 1995-2024 The R Core Team
-// R 4.6.0 src/library/base/R/sets.R: Copyright (C) 1995-2025 The R Core Team
-// Part of the R package, https://www.R-project.org
-//
-// This program is free software; you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation; either version 2 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// A copy of the GNU General Public License is available at
-// https://www.R-project.org/Licenses/
-const DEFINITIONS: &[(&str, &str)] = &[
-    // shortcut: set coercion is lowered into existing match handling for atomic,
-    // factor and matrix values; extend with list matching and S3 support.
-    (
-        "is.element",
-        "function(el, set) { x <- el; y <- set; match(x, y, 0L) > 0L }",
-    ),
-    ("utf8ToInt", "function(x) .Internal(utf8ToInt(x))"),
-    ("intToUtf8", "function(x, multiple = FALSE, allow_surrogate_pairs = FALSE) .Internal(intToUtf8(x, multiple, allow_surrogate_pairs))"),
-    (
-        "findInterval",
-        r#"function(x, vec, rightmost.closed = FALSE, all.inside = FALSE,
-                   left.open = FALSE, checkSorted = TRUE, checkNA = TRUE) {
-    if(checkSorted && !identical(FALSE, is.unsorted(vec)))
-        stop("'vec' must be sorted non-decreasingly and not contain NAs")
-    .Internal(findInterval(as.double(vec), as.double(x),
-                           rightmost.closed, all.inside, left.open, checkNA))
-}"#,
-    ),
-    (
-        "strtoi",
-        "function(x, base = 0L) .Internal(strtoi(as.character(x), as.integer(base)))",
-    ),
-    (
-        "pmatch",
-        "function(x, table, nomatch = NA_integer_, duplicates.ok = FALSE) .Internal(pmatch(as.character(x), as.character(table), nomatch, duplicates.ok))",
-    ),
-    (
-        "charmatch",
-        "function(x, table, nomatch = NA_integer_) .Internal(charmatch(as.character(x), as.character(table), nomatch))",
-    ),
-    (
-        "vector",
-        "function(mode = \"logical\", length = 0L) .Internal(vector(mode, length))",
-    ),
-    (
-        "logical",
-        "function(length = 0L) .Internal(vector(\"logical\", length))",
-    ),
-    (
-        "integer",
-        "function(length = 0L) .Internal(vector(\"integer\", length))",
-    ),
-    (
-        "double",
-        "function(length = 0L) .Internal(vector(\"double\", length))",
-    ),
-    (
-        "numeric",
-        "function(length = 0L) .Internal(vector(\"double\", length))",
-    ),
-    (
-        "character",
-        "function(length = 0L) .Internal(vector(\"character\", length))",
-    ),
-    (
-        "stop",
-        r#"function(..., call. = TRUE, domain = NULL)
-{
-    if (...length() == 1L && inherits(..1, "condition")) {
-        cond <- ..1
-        if(nargs() > 1L)
-            warning("additional arguments ignored in stop()")
-        message <- conditionMessage(cond)
-        call <- conditionCall(cond)
-        .Internal(.signalCondition(cond, message, call))
-        .Internal(.dfltStop(message, call))
-    } else
-        .Internal(stop(call., .makeMessage(..., domain = domain)))
-}"#,
-    ),
-    (
-        ".makeMessage",
-        r#"function(..., domain = NULL, appendLF = FALSE)
- {
-    msg <- if(...length()) {
-        args <- lapply(list(...), as.character)
-        if(is.null(domain) || !is.na(domain))
-            args <- .Internal(gettext(domain, unlist(args), TRUE))
-        paste(args, collapse = "")
-    } else ""
-    if(appendLF) paste0(msg, "\n") else msg
-}"#,
-    ),
-    (
-        "inherits",
-        "function(x, what, which = FALSE) .Internal(inherits(x, what, which))",
-    ),
+const SEQUENCE_DEFINITIONS: &[(&str, &str)] = &[
+    ("sequence", sequence::GENERIC),
+    ("sequence.default", sequence::DEFAULT),
 ];
+
+fn definitions() -> impl Iterator<Item = &'static (&'static str, &'static str)> {
+    definitions::DEFINITIONS
+        .iter()
+        .chain(run_length::DEFINITIONS.iter())
+        .chain(rowsum::DEFINITIONS.iter())
+        .chain(encode_string::DEFINITIONS.iter())
+        .chain(SEQUENCE_DEFINITIONS.iter())
+}
 
 pub(super) fn lookup(name: &str) -> Result<Option<Sexp>, EvalError> {
     static BASE: OnceLock<Result<Vec<(String, Sexp)>, EvalError>> = OnceLock::new();
     if let Some(value) = constants::lookup(name) {
         return Ok(Some(value));
     }
-    if !DEFINITIONS.iter().any(|(key, _)| *key == name) {
+    if !definitions().any(|(key, _)| *key == name) {
         return Ok(None);
     }
     let registry = BASE.get_or_init(|| {
-        DEFINITIONS
-            .iter()
+        definitions()
             .map(|(name, source)| {
                 let parsed = Parser.parse_all(source).map_err(|error| {
                     EvalError::Parse(format!("base bootstrap: {}", error.message))
@@ -139,7 +43,19 @@ pub(super) fn lookup(name: &str) -> Result<Option<Sexp>, EvalError> {
                     return Err(EvalError::NotImplemented("base closure bootstrap shape"));
                 };
                 let mut body = body.clone();
-                lower(&mut body)?;
+                if *name == "sequence" {
+                    sequence::lower_generic(&mut body);
+                }
+                if let Some(kernel) = run_length::lower(name) {
+                    *body = kernel;
+                } else if *name == "encodeString" {
+                    *body = Sexp::InternalCall {
+                        operation: r_ust_sexp::InternalOperation::EncodeStringWrapper,
+                        arguments: Vec::new(),
+                    };
+                } else {
+                    lower(&mut body)?;
+                }
                 Ok((
                     (*name).into(),
                     Sexp::Closure {
@@ -166,6 +82,18 @@ fn lower(value: &mut Sexp) -> Result<(), EvalError> {
             function,
             arguments,
         } => {
+            if let Sexp::Symbol(name) = function.as_ref() {
+                if let Some(operation) = rowsum::resolve(name) {
+                    for argument in arguments.iter_mut() {
+                        lower(&mut argument.value)?;
+                    }
+                    *value = Sexp::InternalCall {
+                        operation,
+                        arguments: std::mem::take(arguments),
+                    };
+                    return Ok(());
+                }
+            }
             if matches!(function.as_ref(), Sexp::Symbol(name) if name == ".Internal") {
                 let [argument] = arguments.as_mut_slice() else {
                     return Err(EvalError::Arity("invalid base .Internal call".into()));

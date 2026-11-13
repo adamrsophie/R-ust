@@ -2,6 +2,7 @@ use super::{EvalError, Sexp};
 
 mod atomic;
 mod lists;
+pub(super) mod logical;
 mod runtime;
 mod strings;
 mod vector;

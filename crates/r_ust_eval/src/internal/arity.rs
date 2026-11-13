@@ -3,6 +3,13 @@ use r_ust_sexp::InternalOperation;
 
 pub(super) fn check(operation: InternalOperation, count: usize) -> Result<(), EvalError> {
     let (name, arity) = match operation {
+        InternalOperation::RunLengthEncode => ("rle", 1),
+        InternalOperation::RunLengthDecode => ("inverse.rle", 1),
+        InternalOperation::RowsumValidate => ("rowsum validation", 2),
+        InternalOperation::RowsumAggregate => ("rowsum aggregation", 4),
+        InternalOperation::EncodeString => ("encodeString", 5),
+        InternalOperation::EncodeStringWrapper => ("encodeString wrapper", 0),
+        InternalOperation::Sequence => ("sequence", 4),
         InternalOperation::Utf8ToInt => ("utf8ToInt", 1),
         InternalOperation::IntToUtf8 => ("intToUtf8", 3),
         InternalOperation::FindInterval => ("findInterval", 6),
@@ -25,7 +32,14 @@ pub(super) fn check(operation: InternalOperation, count: usize) -> Result<(), Ev
             }
             true
         }
-        InternalOperation::Vector
+        InternalOperation::RunLengthEncode
+        | InternalOperation::RunLengthDecode
+        | InternalOperation::RowsumValidate
+        | InternalOperation::RowsumAggregate
+        | InternalOperation::EncodeString
+        | InternalOperation::EncodeStringWrapper
+        | InternalOperation::Sequence
+        | InternalOperation::Vector
         | InternalOperation::Utf8ToInt
         | InternalOperation::IntToUtf8
         | InternalOperation::FindInterval

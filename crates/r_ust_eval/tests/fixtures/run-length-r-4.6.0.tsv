@@ -1,0 +1,50 @@
+# R version 4.6.0 (2026-04-24); class rle omitted from canonical representation
+rle(c(1L,1L,2L,2L,2L,1L))	OK	list:lengths=integer:2,3,1;values=integer:1,2,1	
+rle(c(TRUE,TRUE,FALSE,NA,NA,TRUE))	OK	list:lengths=integer:2,1,1,1,1;values=logical:TRUE,FALSE,NA,NA,TRUE	
+rle(c(NA_integer_,NA_integer_,2L,2L))	OK	list:lengths=integer:1,1,2;values=integer:NA,NA,2	
+rle(c(0,-0,Inf,Inf,-Inf,-Inf))	OK	list:lengths=integer:2,2,2;values=double:0000000000000080,000000000000f07f,000000000000f0ff	
+rle(c(NA_real_,NaN,NaN,NA_real_,1,1))	OK	list:lengths=integer:1,1,1,1,2;values=double:NA,NaN,NaN,NA,000000000000f03f	
+rle(c('a','a',NA_character_,NA_character_,'b'))	OK	list:lengths=integer:2,1,1,1;values=character:"a",NA,NA,"b"	
+rle(integer())	OK	list:lengths=integer:;values=integer:	
+rle(numeric())	OK	list:lengths=integer:;values=double:	
+rle(logical())	OK	list:lengths=integer:;values=logical:	
+rle(character())	OK	list:lengths=integer:;values=character:	
+rle(7L)	OK	list:lengths=integer:1;values=integer:7	
+rle(list())	OK	list:lengths=integer:;values=list:	
+rle(list(a=1L))	OK	list:lengths=integer:1;values=list:a=integer:1	
+rle(list(NULL))	OK	list:lengths=integer:1;values=list:=null	
+rle(NULL)	ERR	'x' must be a vector of an atomic type	
+rle(list(1,1))	ERR	comparison of these types is not implemented	
+rle(factor('a'))	ERR	'x' must be a vector of an atomic type	
+rle(matrix(1:4,2))	ERR	'x' must be a vector of an atomic type	
+inverse.rle(rle(c(1L,1L,2L)))	OK	integer:1,1,2	
+inverse.rle(rle(c(NA_real_,NaN,1)))	OK	double:NA,NaN,000000000000f03f	
+inverse.rle(list(lengths=c(2L,0L,3L),values=c('a','b','c')))	OK	character:"a","a","c","c","c"	
+inverse.rle(list(values=c(TRUE,NA,FALSE),lengths=c(2,1,0)))	OK	logical:TRUE,TRUE,NA	
+inverse.rle(list(lengths=c(1.9,0.8,-0.8),values=1:3))	OK	integer:1	
+inverse.rle(list(lengths=c(TRUE,FALSE),values=c(3,4)))	OK	double:0000000000000840	
+inverse.rle(list(lengths=c('2','0'),values=c(3L,4L)))	OK	integer:3,3	
+inverse.rle(list(lengths=list(2L,1L),values=list(a=3,b='x')))	OK	list:=double:0000000000000840;=double:0000000000000840;=character:"x"	
+inverse.rle(list(lengths=c(0L,2L),values=list(NULL,TRUE)))	OK	list:=logical:TRUE;=logical:TRUE	
+inverse.rle(list(lengths=2L,values=factor('a')))	OK	factor:integer:1,1:character:"a"	
+inverse.rle(list(lengths=integer(),values=integer()))	OK	integer:	
+inverse.rle(list(lengths=integer(),values=character()))	OK	character:	
+inverse.rle(list(lengths=integer(),values=list()))	OK	list:	
+inverse.rle(list(lengths=character(),values=integer()))	OK	integer:	
+inverse.rle(list(lengths=-1L,values=1))	ERR	invalid 'times' value	
+inverse.rle(list(lengths=NA_integer_,values=1))	ERR	invalid 'times' value	
+inverse.rle(list(lengths=NaN,values=1))	ERR	invalid 'times' value	
+inverse.rle(list(lengths=Inf,values=1))	ERR	invalid 'times' value	
+inverse.rle(list(lengths=1e100,values=1))	ERR	invalid 'times' value	
+inverse.rle(list(lengths=-Inf,values=1))	ERR	invalid 'times' value	
+inverse.rle(list(lengths='NaN',values=1))	ERR	invalid 'times' value	
+inverse.rle(list(lengths=1:2,values=1))	ERR	invalid 'rle' structure	
+inverse.rle(list(values=1))	ERR	invalid 'rle' structure	
+inverse.rle(list(lengths=1))	ERR	invalid 'rle' structure	
+inverse.rle(list(lengths=integer(),values=NULL))	ERR	invalid 'rle' structure	
+inverse.rle(NULL)	ERR	invalid 'rle' structure	
+inverse.rle(1)	ERR	$ operator is invalid for atomic vectors	
+inverse.rle(list(lengths='bad',values=1))	ERR	invalid 'times' value	NAs introduced by coercion
+inverse.rle(list(lengths=list(1:2),values=1))	ERR	'list' object cannot be coerced to type 'double'	
+rle(x=c(2L,2L))	OK	list:lengths=integer:2;values=integer:2	
+inverse.rle(x=list(lengths=2L,values=3L),unused=TRUE)	OK	integer:3,3	

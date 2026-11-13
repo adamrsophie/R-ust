@@ -55,7 +55,7 @@ pub(super) fn convert(
     }
 }
 
-fn vectorizable(value: &Sexp) -> bool {
+pub(super) fn vectorizable(value: &Sexp) -> bool {
     matches!(
         value,
         Sexp::Logical(_)

@@ -1,0 +1,25 @@
+# R version 4.6.0 (2026-04-24) aarch64-apple-darwin23 JIT 0
+1	as.logical(list())	logical	-	-	-
+2	as.logical(list(TRUE))	logical	T	-	-
+3	as.logical(list(FALSE,TRUE,NA))	logical	F,T,NA	-	-
+4	as.logical(list(0L,1L,-1L,NA_integer_))	logical	F,T,T,NA	-	-
+5	as.logical(list(0,NaN,Inf,-Inf))	logical	F,NA,T,T	-	-
+6	as.logical(list('TRUE','FALSE','T','F','true','True','false','False'))	logical	T,F,T,F,T,T,F,F	-	-
+7	as.logical(list('bad','',NA_character_))	logical	NA,NA,NA	-	-
+8	as.logical(list(logical(0)))	logical	NA	-	-
+9	as.logical(list(integer(0),numeric(0),character(0)))	logical	NA,NA,NA	-	-
+10	as.logical(list(NULL))	error	-	276c69737427206f626a6563742063616e6e6f7420626520636f657263656420746f207479706520276c6f676963616c27	-
+11	as.logical(list(c(TRUE,FALSE)))	error	-	276c69737427206f626a6563742063616e6e6f7420626520636f657263656420746f207479706520276c6f676963616c27	-
+12	as.logical(list(list(TRUE)))	logical	NA	-	-
+13	as.logical(list(list()))	logical	NA	-	-
+14	as.logical(list(list(TRUE,FALSE)))	error	-	276c69737427206f626a6563742063616e6e6f7420626520636f657263656420746f207479706520276c6f676963616c27	-
+15	as.logical(list(function() 1))	error	-	276c69737427206f626a6563742063616e6e6f7420626520636f657263656420746f207479706520276c6f676963616c27	-
+16	as.logical(list(factor('x')))	logical	T	-	-
+17	as.logical(list(factor(character(0))))	logical	NA	-	-
+18	as.logical(list(matrix(1L,1)))	logical	T	-	-
+19	as.logical(list(matrix('TRUE',1)))	logical	T	-	-
+20	as.logical(list(matrix(c(1,2),1)))	error	-	276c69737427206f626a6563742063616e6e6f7420626520636f657263656420746f207479706520276c6f676963616c27	-
+21	as.logical(list(a=TRUE,b=FALSE))	logical	T,F	-	-
+22	as.logical(data.frame(a=1,b=0))	logical	T,F	-	-
+23	as.logical(data.frame(a=c(1,2)))	error	-	276c69737427206f626a6563742063616e6e6f7420626520636f657263656420746f207479706520276c6f676963616c27	-
+24	as.logical(matrix('TRUE',1))	logical	T	-	-

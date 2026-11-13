@@ -1,0 +1,61 @@
+# R 4.6.0 en_US.UTF-8 encodeString v1
+1	encodeString(c("a", "", NA))	61,-,3c4e413e	-	-	-
+2	encodeString(c("a", "", NA), quote="\"")	226122,2222,4e41	-	-	-
+3	encodeString(c("a", "", NA), quote="\"", width=NA)	22612220,22222020,4e412020	-	-	-
+4	encodeString(c("a", "abcd", NA), width=NULL)	61202020,61626364,3c4e413e	-	-	-
+5	encodeString(c("a", "abcd", NA), width=NA, na.encode=FALSE)	61202020,61626364,NA	-	-	-
+6	encodeString(c("a", "abcd", NA), width=8)	6120202020202020,6162636420202020,3c4e413e20202020	-	-	-
+7	encodeString(c("a", "abcd", NA), width=8, justify="right")	2020202020202061,2020202061626364,202020203c4e413e	-	-	-
+8	encodeString(c("a", "abcd", NA), width=8, justify="centre")	2020206120202020,2020616263642020,20203c4e413e2020	-	-	-
+9	encodeString(c("a", "abcd", NA), width=8, justify="none")	61,61626364,3c4e413e	-	-	-
+10	encodeString(c("a", "abcd", NA), width=8, quote="\"", justify="c")	2020226122202020,2022616263642220,2020204e41202020	-	-	-
+11	encodeString(c("a", "abcd", NA), width=NA, quote="\"", na.encode=FALSE)	226122202020,226162636422,NA	-	-	-
+12	encodeString(c("a\\b", "\n\t\r\a\b\f\v", "\001\002\037\177"))	615c5c62,5c6e5c745c725c615c625c665c76,5c3030315c3030325c3033375c313737	-	-	-
+13	encodeString(c("a\"b", "a'b", "a`b"), quote="\"")	22615c226222,2261276222,2261606222	-	-	-
+14	encodeString(c("a\"b", "a'b", "a`b"), quote="'")	2761226227,27615c276227,2761606227	-	-	-
+15	encodeString(c("a\"b", "a'b", "a`b"), quote="`")	6061226260,6061276260,60615c606260	-	-	-
+16	encodeString(c("é", "界", "🙂", "é", ""), width=5, justify="right")	2020202065cc81,202020e7958c,202020f09f9982,20202020c3a9,2020202020	-	-	-
+17	encodeString(c("é", "界", "🙂", "é", ""), width=NA, quote="\"")	2265cc812220,22e7958c22,22f09f998222,22c3a92220,22222020	-	-	-
+18	encodeString(c("\u0085", "\u200b", "\u0378"), width=10)	5c753030383520202020,e2808b20202020202020202020,5c753033373820202020	-	-	-
+19	encodeString(NULL)	EMPTY	-	-	-
+20	encodeString(character())	EMPTY	-	-	-
+21	encodeString(c(1, 2, NA))	31,32,3c4e413e	-	-	-
+22	encodeString(c(TRUE,FALSE,NA))	54525545,46414c5345,3c4e413e	-	-	-
+23	encodeString(NA, width=NA, quote="\"")	4e412020	-	-	-
+24	encodeString(NA, width=NA, quote="\"", na.encode=FALSE)	NA	-	-	-
+25	encodeString("a", width=2.9)	6120	-	-	-
+26	encodeString("a", width=c(4,2))	61202020	-	-	-
+27	encodeString("a", width="bad")	61	-	4e417320696e74726f647563656420627920636f657263696f6e	-
+28	encodeString("a", width=-1)	-	696e76616c696420277769647468272076616c7565	-	-
+29	encodeString("a", width=Inf)	61	-	4e417320696e74726f647563656420627920636f657263696f6e20746f20696e74656765722072616e6765	-
+30	encodeString("a", width=numeric())	61	-	-	-
+31	encodeString("a", quote="xy")	786178	-	6f6e6c792074686520666972737420636861726163746572206f66202771756f7465272077696c6c2062652075736564	-
+32	encodeString("a", quote=NA_character_)	4e614e	-	6f6e6c792074686520666972737420636861726163746572206f66202771756f7465272077696c6c2062652075736564	-
+33	encodeString("a", quote=1)	-	696e76616c6964202771756f7465272076616c7565	-	-
+34	encodeString("a", quote=character())	-	696e76616c6964202771756f7465272076616c7565	-	-
+35	encodeString("a", quote=c("a","b"))	-	696e76616c6964202771756f7465272076616c7565	-	-
+36	encodeString("a", na.encode=NA)	-	696e76616c696420276e612e656e636f6465272076616c7565	-	-
+37	encodeString("a", na.encode="TRUE")	61	-	-	-
+38	encodeString("a", na.encode=NULL)	-	696e76616c696420276e612e656e636f6465272076616c7565	-	-
+39	encodeString("a", na.encode=c(FALSE,TRUE))	61	-	-	-
+40	encodeString("a", justify=NULL)	61	-	-	-
+41	encodeString("a", justify="r", width=3)	202061	-	-	-
+42	encodeString("a", justify="n", width=3)	61	-	-	-
+43	encodeString("a", justify="")	-	27617267272073686f756c64206265206f6e65206f6620e2809c6c656674e2809d2c20e2809c7269676874e2809d2c20e2809c63656e747265e2809d2c20e2809c6e6f6e65e2809d	-	-
+44	encodeString("a", justify=NA)	-	2761726727206d757374206265204e554c4c206f7220612063686172616374657220766563746f72	-	-
+45	encodeString("a", justify=NA_character_)	-	27617267272073686f756c64206265206f6e65206f6620e2809c6c656674e2809d2c20e2809c7269676874e2809d2c20e2809c63656e747265e2809d2c20e2809c6e6f6e65e2809d	-	-
+46	encodeString("a", justify=c("left","right"))	-	2761726727206d757374206265206f66206c656e6774682031	-	-
+47	encodeString("a", justify=c("left","right","centre","none"))	61	-	-	-
+48	encodeString("a", justify=character())	-	2761726727206d757374206265206f66206c656e6774682031	-	-
+49	encodeString(wid=3, x="a", just="r", na.e=TRUE, qu="\"")	226122	-	-	-
+50	encodeString()	-	617267756d656e7420227822206973206d697373696e672c2077697468206e6f2064656661756c74	-	-
+51	encodeString("a", bogus=1)	-	756e7573656420617267756d656e742028626f677573203d203129	-	-
+52	encodeString(x="a", x="b")	-	666f726d616c20617267756d656e7420227822206d617463686564206279206d756c7469706c652061637475616c20617267756d656e7473	-	-
+53	encodeString(x={cat("x\n");"a"}, width={cat("width\n");3}, quote={cat("quote\n");""}, na.encode={cat("na\n");TRUE}, justify={cat("justify\n");"left"})	612020	-	-	780a6a7573746966790a77696474680a71756f74650a6e610a
+54	encodeString(x={cat("x\n");"a"}, width={cat("width\n");3}, justify="invalid")	-	27617267272073686f756c64206265206f6e65206f6620e2809c6c656674e2809d2c20e2809c7269676874e2809d2c20e2809c63656e747265e2809d2c20e2809c6e6f6e65e2809d	-	780a
+55	encodeString(x=stop("x-first"), justify=stop("justify-second"))	-	782d6669727374	-	-
+56	encodeString("a", width=-1, quote={cat("quote\n");""}, na.encode={cat("na\n");TRUE})	-	696e76616c696420277769647468272076616c7565	-	71756f74650a6e610a
+57	.Internal(encodeString(c("a",NA), NA, "\"", 1L, TRUE))	20226122,20204e41	-	-	-
+58	.Internal(encodeString(1, -1, 1, 9, NA))	-	612063686172616374657220766563746f7220617267756d656e74206578706563746564	-	-
+59	.Internal(encodeString("a", 1, "", 9, TRUE))	-	696e76616c696420276a757374696679272076616c7565	-	-
+60	.Internal(encodeString("a", 1, "", 0, TRUE, 1))	-	3620617267756d656e74732070617373656420746f202e496e7465726e616c28656e636f6465537472696e67292077686963682072657175697265732035	-	-

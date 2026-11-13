@@ -1,0 +1,45 @@
+id	source	value	error	warning
+1	rowsum(matrix(1:6,3),c(2,1,2))	integer:2,2:2,4,5,10	-	-
+2	rowsum(matrix(1:6,3),c(2,1,2),FALSE)	integer:2,2:4,2,10,5	-	-
+3	rowsum(matrix(c(1,2,4,8,16,32),3),c('b','a','b'))	double:2,2:2,5,16,40	-	-
+4	rowsum(matrix(1:6,3),factor(c('a','b','a'),levels=c('b','a')))	integer:2,2:2,4,5,10	-	-
+5	rowsum(1:4,c(2,NA,1,NA))	integer:3,1:3,1,6	-	missing values for 'group'
+6	rowsum(1:4,c(2,NA,1,NA),FALSE)	integer:3,1:1,6,3	-	missing values for 'group'
+7	rowsum(c(1,NaN,NA_real_,4),c(1,1,2,2))	double:2,1:NaN,NA	-	-
+8	rowsum(c(1,NaN,NA_real_,4),c(1,1,2,2),na.rm=TRUE)	double:2,1:1,4	-	-
+9	rowsum(c(1L,NA_integer_,3L),c(1,1,2))	integer:2,1:NA,3	-	-
+10	rowsum(c(1L,NA_integer_,3L),c(1,1,2),na.rm=TRUE)	integer:2,1:1,3	-	-
+11	rowsum(c(2147483647L,1L,-1L),c(1,1,1))	integer:1,1:NA	-	-
+12	rowsum(c(-2147483647L,-1L,1L),c(1,1,1))	integer:1,1:NA	-	-
+13	rowsum(data.frame(a=1:3,b=c(1,2,4)),c(2,1,2))	df:2:integer:2,4;double:2,5	-	-
+14	rowsum(data.frame(a=1:3,b=c(1,2,4)),c(2,1,2),FALSE)	df:2:integer:4,2;double:5,2	-	-
+15	rowsum(matrix(integer(0),0,2),integer(0))	integer:0,2:	-	-
+16	rowsum(matrix(integer(0),3,0),1:3)	integer:3,0:	-	-
+17	rowsum(1:3,c(TRUE,FALSE,TRUE))	integer:2,1:2,4	-	-
+18	rowsum(1:3,c(Inf,-Inf,Inf))	integer:2,1:2,4	-	-
+19	rowsum(1:4,c(NA_real_,NaN,NA_real_,NaN))	integer:2,1:4,6	-	missing values for 'group'
+20	rowsum(x=1:3,gr=c(2,1,2),re=FALSE)	integer:2,1:4,2	-	-
+21	rowsum(1:3,c(2,1,2),unused=stop('unused forced'))	integer:2,1:2,4	-	-
+22	rowsum(c(1L,NA_integer_,3L),c(2,1,2),na.r=TRUE)	integer:2,1:0,4	-	-
+23	rowsum.default(TRUE,stop('group forced'))	-	'x' must be numeric	-
+24	rowsum(1:3,1:2,reorder=stop('reorder forced'))	-	incorrect length for 'group'	-
+25	rowsum(1:3,1:3,reorder=NA)	-	missing value where TRUE/FALSE needed	-
+26	rowsum(1:3,1:3,na.rm=NA)	-	'na.rm' must be TRUE or FALSE	-
+27	rowsum(1:3,1:3,na.rm=logical(0))	-	'na.rm' must be TRUE or FALSE	-
+28	rowsum(1:3,1:3,na.rm=c(TRUE,FALSE))	integer:3,1:1,2,3	-	-
+29	rowsum(data.frame(a=letters[1:3]),1:3)	-	non-numeric data frame in rowsum	-
+30	rowsum.data.frame(1:3,stop('group forced'))	-	not a data frame	-
+31	rowsum(x=1:3,x=2:4,group=1:3)	-	formal argument "x" matched by multiple actual arguments	-
+32	rowsum(1:3)	-	argument "group" is missing, with no default	-
+33	rowsum()	-	argument "x" is missing, with no default	-
+34	rowsum(1:4,c('Z','a','ä','A'))	integer:4,1:4,1,2,3	-	-
+35	rowsum(1:4,c('Z','a','ä','A'),FALSE)	integer:4,1:1,2,3,4	-	-
+36	.rowsum.check(1,1)	-	could not find function ".rowsum.check"	-
+37	.Internal(.rowsum.sum(1,1,TRUE,FALSE))	-	there is no .Internal function '.rowsum.sum'	-
+38	matrix(NULL,0,2)	-	'data' must be of a vector type, was 'NULL'	-
+39	matrix(logical(0),0,2)	logical:0,2:	-	-
+40	matrix(integer(0),0,2)	integer:0,2:	-	-
+41	matrix(double(0),0,2)	double:0,2:	-	-
+42	matrix(character(0),0,2)	character:0,2:	-	-
+43	matrix(list(),0,2)	list:0,2:	-	-
+44	matrix(factor(character(0)),0,2)	character:0,2:	-	-

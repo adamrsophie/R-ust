@@ -1,0 +1,4 @@
+# R version 4.6.0 (2026-04-24) LC_COLLATE=C rowsum column names
+id	source	names
+13	rowsum(data.frame(a=1:3,b=c(1,2,4)),c(2,1,2))	character|2|x61,x62
+14	rowsum(data.frame(a=1:3,b=c(1,2,4)),c(2,1,2),FALSE)	character|2|x61,x62
