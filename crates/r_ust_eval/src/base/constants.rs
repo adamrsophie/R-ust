@@ -4,6 +4,8 @@ use crate::Sexp;
 
 pub(super) fn lookup(name: &str) -> Option<Sexp> {
     let value = match name {
+        "T" => Sexp::Logical(vec![Some(true)]),
+        "F" => Sexp::Logical(vec![Some(false)]),
         "pi" => Sexp::Real(vec![std::f64::consts::PI]),
         "letters" => alphabet('a'..='z'),
         "LETTERS" => alphabet('A'..='Z'),

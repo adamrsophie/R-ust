@@ -172,7 +172,8 @@ Interactive embedded hosts install a console reader through `RuntimeState::set_i
 
 **Syntax and evaluation**
 
-- Double, integer (`1L`), logical, character, and `NULL` literals
+- Double, integer (`1L`), logical (`TRUE`/`FALSE`), character, and `NULL` literals
+- Logical aliases `T` and `F` are ordinary bindings that can be assigned, passed as formals, or replaced by user functions
 - Hexadecimal numbers with `0x`/`0X`, fractions, `p`/`P` binary exponents, and `L` qualifiers, following the reference R conversion arithmetic
 - R's UTF-8 blank class plus form feed, with LF and CRLF line endings. Bare CR, vertical tab, and nonbreaking spaces are not whitespace separators.
 - Single- and double-quoted strings with R control escapes, octal/hex bytes, Unicode escapes (including braced forms and paired surrogates), and escaped newlines; unknown escapes and mixed Unicode/byte escapes are errors

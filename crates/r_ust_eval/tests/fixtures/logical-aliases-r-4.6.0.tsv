@@ -1,0 +1,55 @@
+# R version 4.6.0 (2026-04-24) aarch64-apple-darwin23 LDOUBLE 8 JIT 0 DIRECT_TOP_LEVEL
+1	T	logical	logical|1|T	-	-	-
+2	typeof(T)	character	character|1|x6c6f676963616c	-	-	-
+3	T<-42L;T	integer	integer|1|42	-	-	-
+4	T<-NULL;T	NULL	NULL	-	-	-
+5	f<-function(T)T;f(42L)	integer	integer|1|42	-	-	-
+6	f<-function(T=42L)T;f()	integer	integer|1|42	-	-	-
+7	f<-function(T)T+1L;f(42L)	integer	integer|1|43	-	-	-
+8	T<-function(x)x+1L;T(42L)	integer	integer|1|43	-	-	-
+9	f<-function(T)T(42L);f(function(x)x+1L)	integer	integer|1|43	-	-	-
+10	T()	error	-	636f756c64206e6f742066696e642066756e6374696f6e20225422	-	-
+11	`T`	logical	logical|1|T	-	-	-
+12	`T`<-42L;T	integer	integer|1|42	-	-	-
+13	T<-42L;`T`	integer	integer|1|42	-	-	-
+14	f<-T;T<-42L;f	logical	logical|1|T	-	-	-
+15	f<-function()T;T<-42L;f()	integer	integer|1|42	-	-	-
+16	f<-function(T=42L)c(missing(T),T);f()	integer	integer|2|1,42	-	-	-
+17	f<-function(T)T;f()	error	-	617267756d656e7420225422206973206d697373696e672c2077697468206e6f2064656661756c74	-	-
+18	for(T in 1L:2L){};T	integer	integer|1|2	-	-	-
+19	T<-FALSE;if(T)1L else 2L	integer	integer|1|2	-	-	-
+20	T<-TRUE;if(T)1L else 2L	integer	integer|1|1	-	-	-
+21	list(T=42L)$T	integer	integer|1|42	-	-	-
+22	f<-function(x=T){T<-42L;x};f()	integer	integer|1|42	-	-	-
+23	T<-NA;T	logical	logical|1|NA	-	-	-
+24	T<-'x';T	character	character|1|x78	-	-	-
+25	F	logical	logical|1|F	-	-	-
+26	typeof(F)	character	character|1|x6c6f676963616c	-	-	-
+27	F<-42L;F	integer	integer|1|42	-	-	-
+28	F<-NULL;F	NULL	NULL	-	-	-
+29	f<-function(F)F;f(42L)	integer	integer|1|42	-	-	-
+30	f<-function(F=42L)F;f()	integer	integer|1|42	-	-	-
+31	f<-function(F)F+1L;f(42L)	integer	integer|1|43	-	-	-
+32	F<-function(x)x+1L;F(42L)	integer	integer|1|43	-	-	-
+33	f<-function(F)F(42L);f(function(x)x+1L)	integer	integer|1|43	-	-	-
+34	F()	error	-	636f756c64206e6f742066696e642066756e6374696f6e20224622	-	-
+35	`F`	logical	logical|1|F	-	-	-
+36	`F`<-42L;F	integer	integer|1|42	-	-	-
+37	F<-42L;`F`	integer	integer|1|42	-	-	-
+38	f<-F;F<-42L;f	logical	logical|1|F	-	-	-
+39	f<-function()F;F<-42L;f()	integer	integer|1|42	-	-	-
+40	f<-function(F=42L)c(missing(F),F);f()	integer	integer|2|1,42	-	-	-
+41	f<-function(F)F;f()	error	-	617267756d656e7420224622206973206d697373696e672c2077697468206e6f2064656661756c74	-	-
+42	for(F in 1L:2L){};F	integer	integer|1|2	-	-	-
+43	F<-FALSE;if(F)1L else 2L	integer	integer|1|2	-	-	-
+44	F<-TRUE;if(F)1L else 2L	integer	integer|1|1	-	-	-
+45	list(F=42L)$F	integer	integer|1|42	-	-	-
+46	f<-function(x=F){F<-42L;x};f()	integer	integer|1|42	-	-	-
+47	F<-NA;F	logical	logical|1|NA	-	-	-
+48	F<-'x';F	character	character|1|x78	-	-	-
+49	TRUE	logical	logical|1|T	-	-	-
+50	FALSE	logical	logical|1|F	-	-	-
+51	c(TRUE,FALSE,T,F)	logical	logical|4|T,F,T,F	-	-	-
+52	T<-FALSE;F<-TRUE;c(T,F,TRUE,FALSE)	logical	logical|4|F,T,T,F	-	-	-
+53	f<-function(T,F)c(T,F);f(T=1L,F=2L)	integer	integer|2|1,2	-	-	-
+54	f<-function(T,F)c(T,F);f(1L,2L)	integer	integer|2|1,2	-	-	-
