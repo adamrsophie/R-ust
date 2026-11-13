@@ -2,6 +2,7 @@ mod character;
 mod dispatch;
 mod logical;
 mod partial_match;
+mod strtoi;
 mod vector;
 
 use character::character_values;
@@ -30,6 +31,7 @@ impl RuntimeState {
         args: &[EvaluatedArgument],
     ) -> Result<Sexp, EvalError> {
         let (name, arity) = match operation {
+            InternalOperation::Strtoi => ("strtoi", 2),
             InternalOperation::Pmatch => ("pmatch", 4),
             InternalOperation::Charmatch => ("charmatch", 3),
             InternalOperation::Vector => ("vector", 2),
@@ -49,6 +51,7 @@ impl RuntimeState {
                 true
             }
             InternalOperation::Vector
+            | InternalOperation::Strtoi
             | InternalOperation::Pmatch
             | InternalOperation::Charmatch
             | InternalOperation::Stop
@@ -64,6 +67,7 @@ impl RuntimeState {
             )));
         }
         match operation {
+            InternalOperation::Strtoi => strtoi::convert(&args[0].value, &args[1].value),
             InternalOperation::Pmatch => self.partial_match(args, false),
             InternalOperation::Charmatch => self.partial_match(args, true),
             InternalOperation::Vector => self.make_vector(&args[0].value, &args[1].value),

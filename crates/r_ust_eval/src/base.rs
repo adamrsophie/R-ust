@@ -12,6 +12,7 @@ use super::{EvalError, Parser, Sexp};
 // R 4.6.0 src/library/base/R/vector.R: Copyright (C) 1995-2013 The R Core Team
 // R 4.6.0 src/library/base/R/constants.R: Copyright (C) 1995-2012 The R Core Team
 // R 4.6.0 src/library/base/R/match.R: Copyright (C) 1995-2025 The R Core Team
+// R 4.6.0 src/library/base/R/character.R: Copyright (C) 1995-2025 The R Core Team
 // Part of the R package, https://www.R-project.org
 //
 // This program is free software; you can redistribute it and/or modify
@@ -27,6 +28,10 @@ use super::{EvalError, Parser, Sexp};
 // A copy of the GNU General Public License is available at
 // https://www.R-project.org/Licenses/
 const DEFINITIONS: &[(&str, &str)] = &[
+    (
+        "strtoi",
+        "function(x, base = 0L) .Internal(strtoi(as.character(x), as.integer(base)))",
+    ),
     (
         "pmatch",
         "function(x, table, nomatch = NA_integer_, duplicates.ok = FALSE) .Internal(pmatch(as.character(x), as.character(table), nomatch, duplicates.ok))",
