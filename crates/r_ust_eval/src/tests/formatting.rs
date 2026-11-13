@@ -30,7 +30,7 @@ fn distinguishes_missing_doubles_from_nan() {
         ("duplicated(c(NA_real_, NaN, NA_real_, NaN))", "[1] FALSE FALSE  TRUE  TRUE"),
         ("unique(c(NA_real_, NaN, NA_real_, NaN))", "[1]  NA NaN"),
         ("c(NA_real_ %in% NaN, NaN %in% NA_real_)", "[1] FALSE FALSE"),
-        ("c(sum(NaN, NA_real_), sum(NA_real_, NaN), prod(NaN, NA_real_))", "[1] NA NA NA"),
+        ("c(sum(NaN, NA_real_), sum(NA_real_, NaN), prod(NaN, NA_real_))", "[1] NaN  NA NaN"),
         ("c(min(NaN, NA_real_), max(NA_real_, NaN))", "[1] NA NA"),
         ("range(c(NA_real_, NaN))", "[1] NA NA"),
         ("c(median(NaN), median(as.double(NULL)), var(1), sd(NaN))", "[1] NA NA NA NA"),

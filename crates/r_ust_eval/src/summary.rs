@@ -1,7 +1,15 @@
-use super::{
-    coerce_logical_values, data_args, is_na_real, numeric_result, numeric_values, preserve_na,
-    real_to_integer, typeof_value, value_len, EvalError, EvaluatedArgument, Sexp,
-};
+// Adapted from R 4.6.0 src/main/summary.c.
+// Copyright (C) 1997-2025 The R Core Team
+// Copyright (C) 1995, 1996 Robert Gentleman and Ross Ihaka
+// SPDX-License-Identifier: GPL-2.0-or-later
+
+mod arithmetic;
+mod input;
+mod integer_sum;
+mod product;
+mod sum;
+
+use super::{coerce_logical_values, typeof_value, value_len, EvalError, EvaluatedArgument, Sexp};
 
 fn arguments(args: &[EvaluatedArgument], operation: &str) -> Result<bool, EvalError> {
     let mut flags = args
@@ -62,44 +70,10 @@ fn storage(value: &Sexp) -> &Sexp {
     }
 }
 
-fn values(args: &[EvaluatedArgument], remove_missing: bool) -> Result<Vec<f64>, EvalError> {
-    let mut values = Vec::new();
-    for arg in data_args(args, &["na.rm"]) {
-        let value = storage(&arg.value);
-        if !matches!(
-            typeof_value(value),
-            "NULL" | "logical" | "integer" | "double"
-        ) {
-            return Err(EvalError::Type(format!(
-                "invalid 'type' ({}) of argument",
-                typeof_value(value)
-            )));
-        }
-        values.extend(
-            numeric_values(value)?
-                .into_iter()
-                .filter(|value| !(remove_missing && value.is_nan())),
-        );
-    }
-    Ok(values)
-}
-
 pub(super) fn sum(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
-    let remove_missing = arguments(args, "sum")?;
-    let values = values(args, remove_missing)?;
-    let value = preserve_na(values.iter().fold(0.0, |sum, value| sum + value), &values);
-    let integer = data_args(args, &["na.rm"])
-        .iter()
-        .all(|arg| matches!(typeof_value(&arg.value), "NULL" | "logical" | "integer"))
-        && (is_na_real(value) || real_to_integer(value).is_some());
-    Ok(numeric_result(vec![value], integer))
+    sum::evaluate(args, arguments(args, "sum")?)
 }
 
 pub(super) fn product(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
-    let remove_missing = arguments(args, "prod")?;
-    let values = values(args, remove_missing)?;
-    Ok(Sexp::Real(vec![preserve_na(
-        values.iter().product(),
-        &values,
-    )]))
+    product::evaluate(args, arguments(args, "prod")?)
 }
