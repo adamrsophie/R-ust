@@ -36,7 +36,10 @@ impl RuntimeState {
     ) -> Result<(), EvalError> {
         for parameter in parameters {
             if self.current.contains_local(&parameter.name)?
-                && !matches!(self.raw_lookup(&parameter.name)?, Some(Sexp::MissingArg(_)))
+                && !matches!(
+                    self.raw_lookup(&parameter.name)?,
+                    Some(Sexp::MissingArg(_) | Sexp::MissingValue)
+                )
             {
                 continue;
             }

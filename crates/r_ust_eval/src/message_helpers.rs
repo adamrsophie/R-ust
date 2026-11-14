@@ -45,7 +45,7 @@ impl RuntimeState {
             })?
             .value
             .clone();
-        if matches!(value, Sexp::MissingArg(_)) {
+        if matches!(value, Sexp::MissingArg(_) | Sexp::MissingValue) {
             return Err(EvalError::MissingArgument(format!("..{index}")));
         }
         self.force_value(value)

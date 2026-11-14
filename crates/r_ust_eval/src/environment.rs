@@ -7,6 +7,9 @@ impl RuntimeState {
         while let Some(frame) = current {
             if let Some(value) = frame.get_local(name)? {
                 let value = self.force_value(value)?;
+                if matches!(value, Sexp::MissingValue) {
+                    return Err(EvalError::MissingArgument(name.into()));
+                }
                 if matches!(value, Sexp::Closure { .. } | Sexp::Primitive(_)) {
                     return Ok(Some(value));
                 }
@@ -26,6 +29,7 @@ impl RuntimeState {
             return self.lookup_dot(index).map(Some);
         }
         match self.raw_lookup(name)? {
+            Some(Sexp::MissingValue) => Err(EvalError::MissingArgument(name.into())),
             Some(value) => self.force_value(value).map(Some),
             None => Ok(super::base::lookup(name)?
                 .or_else(|| PrimitiveId::from_name(name).map(Sexp::Primitive))),

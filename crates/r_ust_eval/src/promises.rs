@@ -43,7 +43,7 @@ pub(super) fn promise(
     origin: EvaluationOrigin,
     supplied: bool,
 ) -> Result<Sexp, EvalError> {
-    if matches!(expression, Sexp::MissingArg(_)) {
+    if matches!(expression, Sexp::MissingArg(_) | Sexp::MissingValue) {
         return Ok(expression);
     }
     Ok(Sexp::Promise {
@@ -63,7 +63,7 @@ fn forwarded_binding_missing(
     visited: &mut Vec<PromiseState>,
 ) -> Result<bool, EvalError> {
     match value {
-        Sexp::MissingArg(_) => Ok(true),
+        Sexp::MissingArg(_) | Sexp::MissingValue => Ok(true),
         Sexp::Promise { state } => {
             if visited.contains(state) {
                 return Ok(true);
@@ -86,7 +86,7 @@ fn forwarded_binding_missing(
                                     forwarded_binding_missing(&value.value, visited)
                                 })
                             }
-                            Some(Sexp::MissingArg(_)) => Ok(true),
+                            Some(Sexp::MissingArg(_) | Sexp::MissingValue) => Ok(true),
                             _ => Ok(false),
                         };
                     }

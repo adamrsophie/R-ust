@@ -80,7 +80,9 @@ impl RuntimeState {
             .zip(&mut actual_use)
             .filter(|(argument, used)| **used == MatchUse::Unused && argument.name.is_none());
         for slot in matched.iter_mut().take(dots.unwrap_or(parameters.len())) {
-            if slot.is_some_and(|argument| !matches!(argument.value, Sexp::MissingArg(_))) {
+            if slot.is_some_and(|argument| {
+                !matches!(argument.value, Sexp::MissingArg(_) | Sexp::MissingValue)
+            }) {
                 continue;
             }
             let Some((argument, used)) = positional.next() else {
@@ -121,7 +123,9 @@ impl RuntimeState {
                             Ok(ListElement {
                                 name: argument.name.clone(),
                                 value: match &argument.value {
-                                    Sexp::MissingArg(_) => Sexp::MissingArg(String::new()),
+                                    Sexp::MissingArg(_) | Sexp::MissingValue => {
+                                        Sexp::MissingArg(String::new())
+                                    }
                                     value => promise(
                                         value.clone(),
                                         caller_environment.clone(),
