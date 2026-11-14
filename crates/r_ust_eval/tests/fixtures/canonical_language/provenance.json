@@ -1,0 +1,58 @@
+[
+  {
+    "path": "crates/r_ust_eval/tests/fixtures/canonical_language/metadata.tsv",
+    "sha256": "72fdb631947bfcae7f9844beb6d6743b8d1efbbd544a6cd66e1959a16ea9ce91",
+    "producer": "independent R reference 2026-11-13",
+    "oracle": "scripts/canonical-language-oracle.R",
+    "oracle_sha256": "6846e15c4a0703111f993c758f827e2a7b3cc5762abbc10466db09e5fb0030e6"
+  },
+  {
+    "path": "crates/r_ust_eval/tests/fixtures/canonical_language/projections.tsv",
+    "sha256": "bcf3c47c0a0d6246d4c01c1e96295fc492cdd1190026ff6d76862afda1066dab",
+    "producer": "independent R reference 2026-11-13",
+    "oracle": "scripts/canonical-language-oracle.R",
+    "oracle_sha256": "6846e15c4a0703111f993c758f827e2a7b3cc5762abbc10466db09e5fb0030e6"
+  },
+  {
+    "path": "crates/r_ust_eval/tests/fixtures/canonical_language/equalities.tsv",
+    "sha256": "2bc1994097508b0e20fab4367c58fbd79dbd9536cdc81ad904b7046c3fcb7acc",
+    "producer": "independent R reference 2026-11-13",
+    "oracle": "scripts/canonical-language-oracle.R",
+    "oracle_sha256": "6846e15c4a0703111f993c758f827e2a7b3cc5762abbc10466db09e5fb0030e6"
+  },
+  {
+    "path": "crates/r_ust_eval/tests/fixtures/canonical_language/runtime.tsv",
+    "sha256": "51a3c3c2e75d4bbd6dc7fe8bc215008f0d5e1b0dad6bfe24f56ddaaa744ac1ed",
+    "producer": "independent R reference 2026-11-13",
+    "oracle": "scripts/canonical-language-oracle.R",
+    "oracle_sha256": "6846e15c4a0703111f993c758f827e2a7b3cc5762abbc10466db09e5fb0030e6"
+  },
+  {
+    "path": "crates/r_ust_eval/tests/fixtures/canonical_language/assignment-equalities.tsv",
+    "sha256": "c0488b42382b2a31b7ee5307d63e3fa4b4e122f7d290a80d6f11340521a3919f",
+    "producer": "independent parent R reference 2026-11-13",
+    "oracle": "scripts/canonical-language-assignment-oracle.R",
+    "oracle_sha256": "80e21762eabdc9faccec2002201b299eeaacb5d2dd40768370a0c6e6958e7886"
+  },
+  {
+    "path": "crates/r_ust_eval/tests/fixtures/canonical_language/nested-identity-equalities.tsv",
+    "sha256": "72bc6ef970670c1327eb0cac4cd2ce1219292ad67750e0d04923281879bcf51e",
+    "producer": "independent parent R reference 2026-11-13",
+    "oracle": "scripts/canonical-language-nested-identity-oracle.R",
+    "oracle_sha256": "d3f9d31284f87f02f73b6040086a8826307514d29fd472456e7378cb0354da4b"
+  },
+  {
+    "path": "crates/r_ust_eval/tests/fixtures/canonical_language/replacement-equalities.tsv",
+    "sha256": "fe2e852ea74a66d171b6a7f54f23971fe74f34a63e9ed9ace8d190e64e500ec9",
+    "producer": "actual R 4.6.0 parsed-language identity, two exact runs 2026-11-13",
+    "oracle": "scripts/canonical-language-replacement-oracle.R",
+    "oracle_sha256": "c840fe416d3a735704563469e563b34a0662aa368aa41e9b23dca28fad58e2d3"
+  },
+  {
+    "path": "crates/r_ust_eval/tests/fixtures/canonical_language/modes.tsv",
+    "sha256": "7f4617528c36ab90c9f7a4989a3724dac8c72346e58b49f4ac8085a72f3684a1",
+    "producer": "independent parent actual R 4.6.0 mode reference 2026-11-13",
+    "oracle": "scripts/canonical-language-mode-oracle.R",
+    "oracle_sha256": "f4b474e702a7d99748a6ef8ff2a4fdde01d95fda8786b4f5104ad28ad20b7c49"
+  }
+]

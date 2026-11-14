@@ -164,6 +164,9 @@ impl Store {
 }
 
 #[cfg(test)]
+#[path = "language_tests.rs"]
+mod language_tests;
+#[cfg(test)]
 #[path = "nested_tests.rs"]
 mod nested_tests;
 #[cfg(test)]

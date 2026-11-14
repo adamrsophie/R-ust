@@ -1,0 +1,6 @@
+id	source	typeof	class	length	integer_value
+runtime_access	list(a = 1L)$"a"	integer	integer	1	1
+runtime_assignment	x <- list(a = 1L); x$"a" <- 2L; x$a	integer	integer	1	2
+runtime_nonsyntactic	list(`a b` = 3L)$"a b"	integer	integer	1	3
+runtime_escaped	list(a = 1L)$"\x61"	integer	integer	1	1
+runtime_nonsyntactic_assignment	x <- list(`a b` = 1L); x$"a b" <- 4L; x$`a b`	integer	integer	1	4

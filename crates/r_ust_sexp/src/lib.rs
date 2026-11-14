@@ -1,11 +1,15 @@
 #![allow(non_camel_case_types)]
 
 mod graph;
+mod language;
+mod language_types;
 mod operators;
 mod primitive;
 mod promise;
 mod value;
 
+pub use language::canonical_language;
+pub use language_types::{AssignmentOperator, LanguageError, MemberName, PairList};
 pub use primitive::PrimitiveId;
 pub use value::{ClosureEnvironment, InternalOperation, Sexp};
 
@@ -196,13 +200,13 @@ impl Sexp {
             Self::Nil => SexpType::Nil,
             Self::Primitive(id) => id.sexptype(),
             Self::MissingArg(_) => SexpType::Promise,
-            Self::Symbol(_) => SexpType::Symbol,
+            Self::Symbol(_) | Self::MissingValue => SexpType::Symbol,
             Self::Logical(_) => SexpType::Logical,
             Self::Integer(_) => SexpType::Integer,
             Self::Real(_) => SexpType::Real,
             Self::String(_) => SexpType::String,
             Self::Vector(_) => SexpType::Vector,
-            Self::List(_) => SexpType::List,
+            Self::List(_) | Self::PairList(_) => SexpType::List,
             Self::Factor { .. } => SexpType::Integer,
             Self::DataFrame { .. } => SexpType::List,
             Self::Matrix { .. } => SexpType::Vector,

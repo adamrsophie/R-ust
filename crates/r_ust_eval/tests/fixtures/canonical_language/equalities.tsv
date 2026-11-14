@@ -1,0 +1,21 @@
+id	left_source	right_source	identical
+eq_binary	x + y	`+`(x, y)	TRUE
+eq_unary	-x	`-`(x)	TRUE
+ne_unary_arity	-x	`-`(x, y)	FALSE
+eq_right_assignment	1L -> x	x <- 1L	TRUE
+eq_right_super	1L ->> x	x <<- 1L	TRUE
+ne_assignment_operator	{ x = 1L }	{ x <- 1L }	FALSE
+ne_dollar_member	x$a	x$"a"	FALSE
+eq_dollar_escape	x$"\x61"	x$"a"	TRUE
+ne_dollar_assignment	x$a <- y	x$"a" <- y	FALSE
+ne_tags	f(a = x)	f(x)	FALSE
+ne_tag_order	f(a = x, b = y)	f(b = y, a = x)	FALSE
+eq_holes	f(, x, )	f(, x, )	TRUE
+ne_hole_null	f(, x)	f(NULL, x)	FALSE
+ne_parentheses	(x)	x	FALSE
+eq_nested_nan	f(NaN)	f(NaN)	TRUE
+ne_nan_na	f(NaN)	f(NA_real_)	FALSE
+ne_default_null	function(x) x	function(x = NULL) x	FALSE
+eq_function	function(x, y = 1L) x	function(x, y = 1L) x	TRUE
+ne_formal_order	function(x, y) x	function(y, x) x	FALSE
+eq_string_head	"sum"(1L)	sum(1L)	TRUE

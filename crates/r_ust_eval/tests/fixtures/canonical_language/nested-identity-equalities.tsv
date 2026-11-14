@@ -1,0 +1,5 @@
+id	left_source	right_source	identical
+eq_nested_operator	f(x + y)	f(`+`(x, y))	TRUE
+eq_default_operator	function(a = x + y) a	function(a = `+`(x, y)) a	TRUE
+eq_default_nan	function(a = NaN) a	function(a = NaN) a	TRUE
+ne_default_nan_na	function(a = NaN) a	function(a = NA_real_) a	FALSE

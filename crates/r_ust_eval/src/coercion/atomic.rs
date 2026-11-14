@@ -87,6 +87,8 @@ pub(super) fn scalar_real(value: &Sexp, policy: BlankPolicy) -> (f64, Warnings) 
         | Sexp::DataFrame { .. }
         | Sexp::MissingArg(_)
         | Sexp::Symbol(_)
+        | Sexp::MissingValue
+        | Sexp::PairList(_)
         | Sexp::Dots(_)
         | Sexp::Promise { .. }
         | Sexp::Closure { .. }

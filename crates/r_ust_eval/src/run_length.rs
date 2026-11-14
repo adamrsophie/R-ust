@@ -40,6 +40,8 @@ pub(super) fn encode(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
         | Sexp::Matrix { .. }
         | Sexp::MissingArg(_)
         | Sexp::Symbol(_)
+        | Sexp::MissingValue
+        | Sexp::PairList(_)
         | Sexp::Dots(_)
         | Sexp::Promise { .. }
         | Sexp::Closure { .. }

@@ -1,4 +1,12 @@
+#[cfg(test)]
+mod canonical_language_tests;
+mod identity;
+mod metadata;
+mod value_length;
+use identity::sexp_identical;
+use metadata::{class_value, mode_value, typeof_value};
 use std::collections::HashMap;
+use value_length::value_len;
 
 mod any_na;
 mod arguments;
@@ -166,6 +174,8 @@ impl RuntimeState {
             | Sexp::String(_)
             | Sexp::Vector(_)
             | Sexp::List(_)
+            | Sexp::PairList(_)
+            | Sexp::MissingValue
             | Sexp::Factor { .. }
             | Sexp::DataFrame { .. }
             | Sexp::Matrix { .. }
@@ -262,9 +272,9 @@ impl RuntimeState {
             }
             Sexp::Dollar { value, name } => {
                 let EvalFlow::Value(value) = self.eval_flow(value)?;
-                EvalFlow::Value(dollar_value(&value, name)?)
+                EvalFlow::Value(dollar_value(&value, name.as_str())?)
             }
-            Sexp::Assignment { target, value } => {
+            Sexp::Assignment { target, value, .. } => {
                 let EvalFlow::Value(value) = self.eval_flow(value)?;
                 self.assign_local(target.clone(), value.clone())?;
                 EvalFlow::Value(value)
@@ -278,6 +288,7 @@ impl RuntimeState {
                 target,
                 index,
                 value,
+                ..
             } => {
                 let EvalFlow::Value(replacement) = self.eval_flow(value)?;
                 let index = if let Some(index) = index {
@@ -297,6 +308,7 @@ impl RuntimeState {
                 row,
                 col,
                 value,
+                ..
             } => {
                 let EvalFlow::Value(replacement) = self.eval_flow(value)?;
                 let row = if let Some(row) = row {
@@ -323,6 +335,7 @@ impl RuntimeState {
                 target,
                 index,
                 value,
+                ..
             } => {
                 let EvalFlow::Value(replacement) = self.eval_flow(value)?;
                 let EvalFlow::Value(index) = self.eval_flow(index)?;
@@ -335,14 +348,15 @@ impl RuntimeState {
                 target,
                 name,
                 value,
+                ..
             } => {
                 let EvalFlow::Value(replacement) = self.eval_flow(value)?;
                 let current = self.lookup(target)?.unwrap_or(Sexp::Nil);
-                let updated = dollar_assign_value(&current, name, &replacement)?;
+                let updated = dollar_assign_value(&current, name.as_str(), &replacement)?;
                 self.assign_local(target.clone(), updated)?;
                 EvalFlow::Value(replacement)
             }
-            Sexp::NamesAssignment { target, value } => {
+            Sexp::NamesAssignment { target, value, .. } => {
                 let EvalFlow::Value(replacement) = self.eval_flow(value)?;
                 let current = self.lookup(target)?.unwrap_or(Sexp::Nil);
                 let updated = names_assign_value(&current, &replacement)?;
@@ -1807,7 +1821,7 @@ fn dispatch_call(name: &str, args: &[EvaluatedArgument]) -> Result<Sexp, EvalErr
             let value = positional(args, 0, "x")?;
             Ok(Sexp::Logical(vec![Some(matches!(
                 value,
-                Sexp::List(_) | Sexp::DataFrame { .. }
+                Sexp::List(_) | Sexp::PairList(_) | Sexp::DataFrame { .. }
             ))]))
         }
         "is.atomic" => {
@@ -5774,64 +5788,6 @@ fn levels_value(value: &Sexp) -> Sexp {
     }
 }
 
-fn class_value(value: &Sexp) -> Sexp {
-    let values = match value {
-        Sexp::Nil => vec!["NULL".to_string()],
-        Sexp::Logical(_) => vec!["logical".to_string()],
-        Sexp::Integer(_) => vec!["integer".to_string()],
-        Sexp::Real(_) => vec!["numeric".to_string()],
-        Sexp::String(_) => vec!["character".to_string()],
-        Sexp::Factor { ordered: true, .. } => {
-            vec!["ordered".to_string(), "factor".to_string()]
-        }
-        Sexp::Factor { .. } => vec!["factor".to_string()],
-        Sexp::DataFrame { .. } => vec!["data.frame".to_string()],
-        Sexp::Matrix { .. } => vec!["matrix".to_string(), "array".to_string()],
-        Sexp::List(_) | Sexp::Dots(_) | Sexp::Vector(_) => vec!["list".to_string()],
-        Sexp::Closure { .. } | Sexp::Function { .. } | Sexp::Primitive(_) => {
-            vec!["function".to_string()]
-        }
-        _ => vec![typeof_value(value).to_string()],
-    };
-    Sexp::String(values.into_iter().map(Some).collect())
-}
-
-fn typeof_value(value: &Sexp) -> &'static str {
-    match value {
-        Sexp::Nil => "NULL",
-        Sexp::Logical(_) => "logical",
-        Sexp::Integer(_) | Sexp::Factor { .. } => "integer",
-        Sexp::Real(_) => "double",
-        Sexp::String(_) => "character",
-        Sexp::DataFrame { .. } | Sexp::List(_) | Sexp::Vector(_) => "list",
-        Sexp::Matrix { data, .. } => typeof_value(data),
-        Sexp::Dots(_) => "...",
-        Sexp::Promise { .. } => "promise",
-        Sexp::Closure { .. } | Sexp::Function { .. } => "closure",
-        Sexp::Primitive(id) => match id {
-            r_ust_sexp::PrimitiveId::Sum
-            | r_ust_sexp::PrimitiveId::Length
-            | r_ust_sexp::PrimitiveId::Invisible => "builtin",
-            r_ust_sexp::PrimitiveId::Return | r_ust_sexp::PrimitiveId::Missing => "special",
-        },
-        Sexp::Symbol(_) => "symbol",
-        _ => "language",
-    }
-}
-
-fn mode_value(value: &Sexp) -> &'static str {
-    match value {
-        Sexp::Nil => "NULL",
-        Sexp::Logical(_) => "logical",
-        Sexp::Integer(_) | Sexp::Real(_) | Sexp::Factor { .. } => "numeric",
-        Sexp::String(_) => "character",
-        Sexp::DataFrame { .. } | Sexp::List(_) | Sexp::Vector(_) => "list",
-        Sexp::Matrix { data, .. } => mode_value(data),
-        Sexp::Closure { .. } | Sexp::Function { .. } | Sexp::Primitive(_) => "function",
-        _ => typeof_value(value),
-    }
-}
-
 fn is_numeric_value(value: &Sexp) -> bool {
     matches!(value, Sexp::Real(_) | Sexp::Integer(_))
         || matches!(value, Sexp::Matrix { data, .. } if is_numeric_value(data))
@@ -7188,114 +7144,6 @@ fn sample_atomic_vector(values: &[Sexp]) -> Result<Sexp, EvalError> {
     scalar_elements_to_vector(values)
 }
 
-fn sexp_identical(left: &Sexp, right: &Sexp) -> bool {
-    match (left, right) {
-        (Sexp::Nil, Sexp::Nil) => true,
-        (Sexp::Primitive(left), Sexp::Primitive(right)) => left == right,
-        (Sexp::MissingArg(left), Sexp::MissingArg(right)) => left == right,
-        (Sexp::Symbol(left), Sexp::Symbol(right)) => left == right,
-        (Sexp::Logical(left), Sexp::Logical(right)) => left == right,
-        (Sexp::Integer(left), Sexp::Integer(right)) => left == right,
-        (Sexp::Real(left), Sexp::Real(right)) => real_values_identical(left, right),
-        (Sexp::String(left), Sexp::String(right)) => left == right,
-        (Sexp::Vector(left), Sexp::Vector(right)) => {
-            left.len() == right.len()
-                && left
-                    .iter()
-                    .zip(right)
-                    .all(|(left, right)| sexp_identical(left, right))
-        }
-        (Sexp::List(left), Sexp::List(right)) | (Sexp::Dots(left), Sexp::Dots(right)) => {
-            list_elements_identical(left, right)
-        }
-        (
-            Sexp::Factor {
-                codes: left_codes,
-                levels: left_levels,
-                ordered: left_ordered,
-            },
-            Sexp::Factor {
-                codes: right_codes,
-                levels: right_levels,
-                ordered: right_ordered,
-            },
-        ) => {
-            left_codes == right_codes
-                && left_levels == right_levels
-                && left_ordered == right_ordered
-        }
-        (
-            Sexp::DataFrame {
-                columns: left_columns,
-                nrow: left_nrow,
-            },
-            Sexp::DataFrame {
-                columns: right_columns,
-                nrow: right_nrow,
-            },
-        ) => left_nrow == right_nrow && list_elements_identical(left_columns, right_columns),
-        (
-            Sexp::Matrix {
-                data: left_data,
-                nrow: left_nrow,
-                ncol: left_ncol,
-            },
-            Sexp::Matrix {
-                data: right_data,
-                nrow: right_nrow,
-                ncol: right_ncol,
-            },
-        ) => {
-            left_nrow == right_nrow
-                && left_ncol == right_ncol
-                && sexp_identical(left_data, right_data)
-        }
-        (Sexp::Promise { state: left }, Sexp::Promise { state: right }) => left == right,
-        (
-            Sexp::Closure {
-                parameters: left_parameters,
-                body: left_body,
-                environment: left_environment,
-            },
-            Sexp::Closure {
-                parameters: right_parameters,
-                body: right_body,
-                environment: right_environment,
-            },
-        ) => {
-            left_environment == right_environment
-                && left_parameters == right_parameters
-                && sexp_identical(left_body, right_body)
-        }
-        (
-            Sexp::Function {
-                parameters: left_parameters,
-                body: left_body,
-            },
-            Sexp::Function {
-                parameters: right_parameters,
-                body: right_body,
-            },
-        ) => left_parameters == right_parameters && sexp_identical(left_body, right_body),
-        _ => left == right,
-    }
-}
-
-fn real_values_identical(left: &[f64], right: &[f64]) -> bool {
-    left.len() == right.len()
-        && left.iter().zip(right).all(|(left, right)| {
-            left == right
-                || (left.is_nan() && right.is_nan() && is_na_real(*left) == is_na_real(*right))
-        })
-}
-
-fn list_elements_identical(left: &[ListElement], right: &[ListElement]) -> bool {
-    left.len() == right.len()
-        && left.iter().zip(right).all(|(left, right)| {
-            left.name == right.name && sexp_identical(&left.value, &right.value)
-        })
-}
-
 fn call_which_min_max(args: &[EvaluatedArgument], mode: MinMax) -> Result<Sexp, EvalError> {
     let value = positional(args, 0, "x")?;
     let values = numeric_values(value)?;
@@ -8322,51 +8170,6 @@ fn coerce_logical_values(value: &Sexp) -> Result<Vec<Option<bool>>, EvalError> {
     }
 }
 
-fn value_len(value: &Sexp) -> usize {
-    match value {
-        Sexp::Nil => 0,
-        Sexp::MissingArg(_) => 1,
-        Sexp::Primitive(_) => 1,
-        Sexp::Symbol(_) => 1,
-        Sexp::Logical(values) => values.len(),
-        Sexp::Integer(values) => values.len(),
-        Sexp::Real(values) => values.len(),
-        Sexp::String(values) => values.len(),
-        Sexp::Vector(values) => values.len(),
-        Sexp::List(values) => values.len(),
-        Sexp::Factor { codes, .. } => codes.len(),
-        Sexp::DataFrame { columns, .. } => columns.len(),
-        Sexp::Matrix { data, .. } => value_len(data),
-        Sexp::Dots(values) => values.len(),
-        Sexp::Promise { .. } => 1,
-        Sexp::Closure { .. }
-        | Sexp::Function { .. }
-        | Sexp::If { .. }
-        | Sexp::For { .. }
-        | Sexp::While { .. }
-        | Sexp::Repeat { .. }
-        | Sexp::Break
-        | Sexp::Next
-        | Sexp::Block(_)
-        | Sexp::Subset { .. }
-        | Sexp::Subset2D { .. }
-        | Sexp::Extract { .. }
-        | Sexp::Dollar { .. }
-        | Sexp::Call { .. }
-        | Sexp::InternalCall { .. }
-        | Sexp::Assignment { .. }
-        | Sexp::SuperAssignment { .. }
-        | Sexp::Subassignment { .. }
-        | Sexp::MatrixSubassignment { .. }
-        | Sexp::ExtractAssignment { .. }
-        | Sexp::DollarAssignment { .. }
-        | Sexp::NamesAssignment { .. }
-        | Sexp::Binary { .. }
-        | Sexp::Unary { .. }
-        | Sexp::Parenthesized(_) => 1,
-    }
-}
-
 fn preserve_na(result: f64, inputs: &[f64]) -> f64 {
     if result.is_nan() && inputs.iter().any(|value| is_na_real(*value)) {
         NA_REAL
@@ -8453,6 +8256,8 @@ fn recycled_len(lengths: &[usize]) -> usize {
 
 pub fn format_sexp(value: &Sexp) -> String {
     match value {
+        Sexp::MissingValue => String::new(),
+        Sexp::PairList(_) => "<pairlist>".to_string(),
         Sexp::Nil => "NULL".to_string(),
         Sexp::MissingArg(name) => format!("<missing {name}>"),
         Sexp::Primitive(id) => primitive_calls::format_primitive(*id),

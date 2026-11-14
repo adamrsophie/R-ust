@@ -42,7 +42,7 @@ impl RuntimeState {
     ) -> Result<String, EvalError> {
         match expression {
             Sexp::Nil => Ok("NULL".into()),
-            Sexp::MissingArg(_) => Ok(String::new()),
+            Sexp::MissingArg(_) | Sexp::MissingValue => Ok(String::new()),
             Sexp::Symbol(name) => Ok(symbol(name)),
             Sexp::Integer(values) if values.len() == 1 => {
                 Ok(values[0].map_or_else(|| "NA".into(), |value| value.to_string()))
@@ -98,6 +98,7 @@ impl RuntimeState {
             | Sexp::String(_)
             | Sexp::Vector(_)
             | Sexp::List(_)
+            | Sexp::PairList(_)
             | Sexp::Factor { .. }
             | Sexp::DataFrame { .. }
             | Sexp::Matrix { .. }

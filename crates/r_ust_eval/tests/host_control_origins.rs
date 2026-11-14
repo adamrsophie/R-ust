@@ -22,6 +22,7 @@ fn foreign_global_promises_cannot_target_destination_global_loops() {
         destination
             .runtime_mut()
             .eval(&Sexp::Assignment {
+                operator: r_ust_sexp::AssignmentOperator::Left,
                 target: "foreign".into(),
                 value: Box::new(escaped),
             })
@@ -60,6 +61,7 @@ fn legacy_global_host_origin_is_detached_from_runtime_loops() {
         frontend
             .runtime_mut()
             .eval(&Sexp::Assignment {
+                operator: r_ust_sexp::AssignmentOperator::Left,
                 target: "host".into(),
                 value: Box::new(closure),
             })

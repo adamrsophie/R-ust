@@ -23,6 +23,8 @@ pub(crate) fn as_logical(value: &Sexp) -> Option<bool> {
         Sexp::Nil
         | Sexp::MissingArg(_)
         | Sexp::Symbol(_)
+        | Sexp::MissingValue
+        | Sexp::PairList(_)
         | Sexp::Vector(_)
         | Sexp::List(_)
         | Sexp::DataFrame { .. }

@@ -1,5 +1,6 @@
 use r_ust_sexp::{BinaryOp, CallArgument, FunctionParameter, Sexp, UnaryOp};
 
+mod assignment;
 mod decimal;
 mod hex;
 mod numeric;
@@ -758,134 +759,6 @@ impl SyntaxParser {
         self.parse_assignment()
     }
 
-    fn parse_assignment(&mut self) -> Result<Sexp, ParseError> {
-        let left = self.parse_binary(0)?;
-        match self.peek() {
-            Token::AssignLeft | Token::AssignEqual | Token::AssignLeftSuper => {
-                let is_super = matches!(self.peek(), Token::AssignLeftSuper);
-                self.advance();
-                let value = self.parse_assignment()?;
-                return Self::assignment_from_target(left, value, is_super);
-            }
-            Token::AssignRight | Token::AssignRightSuper => {
-                let is_super = matches!(self.peek(), Token::AssignRightSuper);
-                self.advance();
-                let target = self.parse_assignment()?;
-                return Self::assignment_from_target(target, left, is_super);
-            }
-            _ => {}
-        }
-        Ok(left)
-    }
-
-    fn assignment_from_target(
-        target_expr: Sexp,
-        value: Sexp,
-        is_super: bool,
-    ) -> Result<Sexp, ParseError> {
-        if is_super {
-            return match target_expr {
-                Sexp::Symbol(target) => Ok(Sexp::SuperAssignment {
-                    target,
-                    value: Box::new(value),
-                }),
-                _ => Err(ParseError::new(
-                    "superassignment currently supports only symbol targets",
-                )),
-            };
-        }
-
-        match target_expr {
-            Sexp::Symbol(target) => Ok(Sexp::Assignment {
-                target,
-                value: Box::new(value),
-            }),
-            Sexp::Subset {
-                value: target,
-                index,
-            } => match *target {
-                Sexp::Symbol(target) => Ok(Sexp::Subassignment {
-                    target,
-                    index,
-                    value: Box::new(value),
-                }),
-                _ => Err(ParseError::new(
-                    "left side of subset assignment must target a name",
-                )),
-            },
-            Sexp::Subset2D {
-                value: target,
-                row,
-                col,
-            } => match *target {
-                Sexp::Symbol(target) => Ok(Sexp::MatrixSubassignment {
-                    target,
-                    row,
-                    col,
-                    value: Box::new(value),
-                }),
-                _ => Err(ParseError::new(
-                    "left side of matrix assignment must target a name",
-                )),
-            },
-            Sexp::Extract {
-                value: target,
-                index,
-            } => match *target {
-                Sexp::Symbol(target) => Ok(Sexp::ExtractAssignment {
-                    target,
-                    index,
-                    value: Box::new(value),
-                }),
-                _ => Err(ParseError::new(
-                    "left side of extract assignment must target a name",
-                )),
-            },
-            Sexp::Dollar {
-                value: target,
-                name,
-            } => match *target {
-                Sexp::Symbol(target) => Ok(Sexp::DollarAssignment {
-                    target,
-                    name,
-                    value: Box::new(value),
-                }),
-                _ => Err(ParseError::new(
-                    "left side of dollar assignment must target a name",
-                )),
-            },
-            Sexp::Call {
-                function,
-                arguments,
-            } => match *function {
-                Sexp::Symbol(function) if function == "names" => {
-                    let mut arguments = arguments.into_iter();
-                    let Some(argument) = arguments.next() else {
-                        return Err(ParseError::new("names assignment needs a target"));
-                    };
-                    if arguments.next().is_some() || argument.name.is_some() {
-                        return Err(ParseError::new(
-                            "names assignment must target one positional name",
-                        ));
-                    }
-                    match argument.value {
-                        Sexp::Symbol(target) => Ok(Sexp::NamesAssignment {
-                            target,
-                            value: Box::new(value),
-                        }),
-                        _ => Err(ParseError::new("names assignment must target a name")),
-                    }
-                }
-                _ => Err(ParseError::new(
-                    "left side of assignment must be a name, subset, or replacement call",
-                )),
-            },
-            _ => Err(ParseError::new(
-                "left side of assignment must be a name or subset",
-            )),
-        }
-    }
-
     fn parse_binary(&mut self, min_precedence: u8) -> Result<Sexp, ParseError> {
         let mut expr = self.parse_unary()?;
         while let Some((op, precedence)) = self.binary_operator()? {
@@ -980,7 +853,7 @@ impl SyntaxParser {
                 }
                 Token::Dollar => {
                     self.advance();
-                    let name = self.parse_name("expected name after $")?;
+                    let name = self.parse_member()?;
                     expr = Sexp::Dollar {
                         value: Box::new(expr),
                         name,
@@ -1173,6 +1046,18 @@ impl SyntaxParser {
     fn consume_newlines(&mut self) {
         while matches!(self.peek(), Token::Newline) {
             self.advance();
+        }
+    }
+
+    fn parse_member(&mut self) -> Result<r_ust_sexp::MemberName, ParseError> {
+        self.consume_newlines();
+        match self.advance().clone() {
+            Token::Ident(name) | Token::QuotedIdent(name) => {
+                Ok(r_ust_sexp::MemberName::Symbol(name))
+            }
+            Token::String(name) => Ok(r_ust_sexp::MemberName::String(name)),
+            Token::Eof => Err(ParseError::incomplete("expected name after $")),
+            _ => Err(ParseError::new("expected name after $")),
         }
     }
 
@@ -1409,7 +1294,7 @@ mod tests {
         let parsed = Parser.parse_all("x <- 1 + 2 * 3").unwrap();
         assert_eq!(parsed.status, ParseStatus::Ok);
         assert_eq!(parsed.expressions.len(), 1);
-        let Sexp::Assignment { target, value } = &parsed.expressions[0] else {
+        let Sexp::Assignment { target, value, .. } = &parsed.expressions[0] else {
             panic!("expected assignment");
         };
         assert_eq!(target, "x");
@@ -1471,6 +1356,7 @@ mod tests {
             target,
             index,
             value,
+            ..
         } = &parsed.expressions[0]
         else {
             panic!("expected subset assignment");
@@ -1500,7 +1386,7 @@ mod tests {
         let Sexp::Dollar { name, .. } = &parsed.expressions[1] else {
             panic!("expected dollar expression");
         };
-        assert_eq!(name, "name");
+        assert_eq!(name, &r_ust_sexp::MemberName::Symbol("name".into()));
     }
 
     #[test]
@@ -1522,7 +1408,7 @@ mod tests {
         let Sexp::DollarAssignment { name, .. } = &parsed.expressions[1] else {
             panic!("expected dollar assignment");
         };
-        assert_eq!(name, "name");
+        assert_eq!(name, &r_ust_sexp::MemberName::Symbol("name".into()));
     }
 
     #[test]
@@ -1543,7 +1429,7 @@ mod tests {
     #[test]
     fn parses_names_assignment() {
         let parsed = Parser.parse_all("names(x) <- c(\"a\", \"b\")").unwrap();
-        let Sexp::NamesAssignment { target, value } = &parsed.expressions[0] else {
+        let Sexp::NamesAssignment { target, value, .. } = &parsed.expressions[0] else {
             panic!("expected names assignment");
         };
         assert_eq!(target, "x");
@@ -1553,7 +1439,7 @@ mod tests {
     #[test]
     fn parses_right_and_super_assignment() {
         let parsed = Parser.parse_all("1 + 2 -> x; x <<- 4; 5 ->> y").unwrap();
-        let Sexp::Assignment { target, value } = &parsed.expressions[0] else {
+        let Sexp::Assignment { target, value, .. } = &parsed.expressions[0] else {
             panic!("expected right assignment");
         };
         assert_eq!(target, "x");

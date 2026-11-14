@@ -7,6 +7,8 @@ pub(super) fn stop(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
         Sexp::Nil => String::new(),
         value @ (Sexp::MissingArg(_)
         | Sexp::Symbol(_)
+        | Sexp::MissingValue
+        | Sexp::PairList(_)
         | Sexp::Logical(_)
         | Sexp::Integer(_)
         | Sexp::Real(_)
@@ -113,6 +115,8 @@ pub(super) fn gettext(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
         Sexp::Logical(values) if values.as_slice() == [None] => false,
         Sexp::MissingArg(_)
         | Sexp::Symbol(_)
+        | Sexp::MissingValue
+        | Sexp::PairList(_)
         | Sexp::Logical(_)
         | Sexp::Integer(_)
         | Sexp::Real(_)

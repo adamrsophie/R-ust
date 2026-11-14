@@ -1,0 +1,15 @@
+# Independent canonical mode oracle, R 4.6.0.
+# Rscript --vanilla scripts/canonical-language-mode-oracle.R
+options(keep.source=FALSE, warn=1)
+cat("id\tsource\tpath\tmode\n")
+cat("symbol\tx\t-\t", mode(quote(expr=x)), "\n", sep="")
+cat("call\tf()\t-\t", mode(quote(expr=f())), "\n", sep="")
+cat("operator\tx + y\t-\t", mode(quote(expr=x + y)), "\n", sep="")
+cat("function_syntax\tfunction() NULL\t-\t", mode(quote(expr=function() NULL)), "\n", sep="")
+cat("pairlist\tfunction(a = 1L) a\t2\t", mode(quote(expr=function(a = 1L) a)[[2]]), "\n", sep="")
+cat("missing\tf(,)\t2\t", mode(quote(expr=f(,))[[2]]), "\n", sep="")
+cat("integer\t1L\t-\t", mode(quote(expr=1L)), "\n", sep="")
+cat("double\t1\t-\t", mode(quote(expr=1)), "\n", sep="")
+cat("logical\tTRUE\t-\t", mode(quote(expr=TRUE)), "\n", sep="")
+cat("string\t\"abc\"\t-\t", mode(quote(expr="abc")), "\n", sep="")
+cat("null\tNULL\t-\t", mode(quote(expr=NULL)), "\n", sep="")

@@ -25,6 +25,8 @@ impl RuntimeState {
             Sexp::Nil
             | Sexp::MissingArg(_)
             | Sexp::Symbol(_)
+            | Sexp::MissingValue
+            | Sexp::PairList(_)
             | Sexp::Logical(_)
             | Sexp::Vector(_)
             | Sexp::List(_)

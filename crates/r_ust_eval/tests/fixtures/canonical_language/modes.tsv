@@ -1,0 +1,12 @@
+id	source	path	mode
+symbol	x	-	name
+call	f()	-	call
+operator	x + y	-	call
+function_syntax	function() NULL	-	call
+pairlist	function(a = 1L) a	2	pairlist
+missing	f(,)	2	name
+integer	1L	-	numeric
+double	1	-	numeric
+logical	TRUE	-	logical
+string	"abc"	-	character
+null	NULL	-	NULL

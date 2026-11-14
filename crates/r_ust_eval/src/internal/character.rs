@@ -10,6 +10,8 @@ pub(super) fn character_values(value: &Sexp) -> Result<Vec<Option<String>>, Eval
         Sexp::Nil
         | Sexp::MissingArg(_)
         | Sexp::Symbol(_)
+        | Sexp::MissingValue
+        | Sexp::PairList(_)
         | Sexp::Logical(_)
         | Sexp::Integer(_)
         | Sexp::Real(_)

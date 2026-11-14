@@ -153,6 +153,8 @@ fn lower(value: &mut Sexp) -> Result<(), EvalError> {
         }
         Sexp::Nil | Sexp::Symbol(_) | Sexp::Logical(_) | Sexp::Integer(_) | Sexp::String(_) => {}
         Sexp::MissingArg(_)
+        | Sexp::MissingValue
+        | Sexp::PairList(_)
         | Sexp::Real(_)
         | Sexp::Vector(_)
         | Sexp::List(_)

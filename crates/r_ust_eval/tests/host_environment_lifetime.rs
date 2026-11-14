@@ -37,6 +37,7 @@ fn retained_counter_outlives_originating_frontend_and_runtimes_are_isolated() {
     other
         .runtime_mut()
         .eval(&Sexp::Assignment {
+            operator: r_ust_sexp::AssignmentOperator::Left,
             target: "foreign".into(),
             value: Box::new(function.clone()),
         })
@@ -63,6 +64,7 @@ fn exchanged_closures_keep_each_lexical_global_and_dead_origins_stay_dead() {
         .unwrap();
     left.runtime_mut()
         .eval(&Sexp::Assignment {
+            operator: r_ust_sexp::AssignmentOperator::Left,
             target: "foreign".into(),
             value: Box::new(right_fn.clone()),
         })
@@ -70,6 +72,7 @@ fn exchanged_closures_keep_each_lexical_global_and_dead_origins_stay_dead() {
     right
         .runtime_mut()
         .eval(&Sexp::Assignment {
+            operator: r_ust_sexp::AssignmentOperator::Left,
             target: "foreign".into(),
             value: Box::new(left_fn.clone()),
         })

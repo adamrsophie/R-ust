@@ -62,6 +62,7 @@ fn visit(
         Sexp::Nil
         | Sexp::Primitive(_)
         | Sexp::MissingArg(_)
+        | Sexp::MissingValue
         | Sexp::Symbol(_)
         | Sexp::Logical(_)
         | Sexp::Integer(_)
@@ -98,6 +99,11 @@ fn visit(
         Sexp::Vector(values) | Sexp::Block(values) => {
             for value in values {
                 visit(value, map)?;
+            }
+        }
+        Sexp::PairList(values) => {
+            for value in values.elements_mut() {
+                visit(&mut value.value, map)?;
             }
         }
         Sexp::List(values)

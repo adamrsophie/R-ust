@@ -15,6 +15,15 @@ fn removing_last_stored_edge_collects_without_another_root_drop() {
             environment: ClosureEnvironment::Captured(child.clone()),
         };
         child.insert("self".into(), &value).unwrap();
+        let value = Sexp::Call {
+            function: Box::new(Sexp::Symbol("f".into())),
+            arguments: vec![crate::CallArgument::positional(Sexp::pairlist(vec![
+                crate::ListElement {
+                    name: Some("default".into()),
+                    value,
+                },
+            ]))],
+        };
         parent.insert("f".into(), &value).unwrap();
         drop(value);
         drop(child);

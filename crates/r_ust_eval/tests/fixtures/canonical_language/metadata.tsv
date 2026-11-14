@@ -1,0 +1,49 @@
+id	source	typeof	class	length
+symbol	x	symbol	name	1
+operator_symbol	`+`	symbol	name	1
+non_syntactic_symbol	`a b`	symbol	name	1
+integer	1L	integer	integer	1
+double	1	double	numeric	1
+logical	TRUE	logical	logical	1
+missing_integer	NA_integer_	integer	integer	1
+nan	NaN	double	numeric	1
+null	NULL	NULL	NULL	0
+string	"abc"	character	character	1
+empty_call	f()	language	call	1
+tagged_call	f(a = x, b = 1L)	language	call	3
+missing_call	f(, y, )	language	call	4
+named_missing	f(a = , b = y)	language	call	3
+dots_call	f(..., ..1)	language	call	3
+binary	x + y	language	call	3
+prefix_binary	`+`(x, y)	language	call	3
+unary	-x	language	call	2
+negative_integer	-1L	language	call	2
+parentheses	(x)	language	(	2
+empty_block	{}	language	{	1
+block	{ x <- 1L; x + y }	language	{	3
+if	if (x) y	language	if	3
+if_else	if (x) y else z	language	if	4
+while	while (x) y	language	while	3
+for	for (x in y) z	language	for	4
+repeat	repeat break	language	call	2
+break	break	language	call	1
+next	next	language	call	1
+return	return(x)	language	call	2
+subset_empty	x[]	language	call	3
+subset_2d	x[, y]	language	call	4
+extract	x[[1L]]	language	call	3
+dollar_symbol	x$a	language	call	3
+dollar_string	x$"a"	language	call	3
+assignment	x <- 1L	language	<-	3
+right_assignment	1L -> x	language	<-	3
+super_assignment	x <<- 1L	language	call	3
+equals_block	{ x = 1L }	language	{	2
+equals_parentheses	(x = 1L)	language	(	2
+subset_assignment	x[1L] <- y	language	<-	3
+extract_assignment	x[[1L]] <- y	language	<-	3
+dollar_assignment	x$"a" <- y	language	<-	3
+names_assignment	names(x) <- y	language	<-	3
+empty_function	function() NULL	language	call	4
+function_defaults	function(x, y = NULL, z = 1L, ...) { x; y }	language	call	4
+string_head	"sum"(1L)	language	call	2
+parenthesized_head	(f)(x)	language	call	2

@@ -1,6 +1,6 @@
 use super::{
-    BinaryOp, CallArgument, Environment, FunctionParameter, ListElement, PrimitiveId, PromiseState,
-    UnaryOp,
+    AssignmentOperator, BinaryOp, CallArgument, Environment, FunctionParameter, ListElement,
+    MemberName, PairList, PrimitiveId, PromiseState, UnaryOp,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -43,6 +43,7 @@ pub enum Sexp {
     Nil,
     Primitive(PrimitiveId),
     MissingArg(String),
+    MissingValue,
     Symbol(String),
     Logical(Vec<Option<bool>>),
     Integer(Vec<Option<i32>>),
@@ -50,6 +51,7 @@ pub enum Sexp {
     String(Vec<Option<String>>),
     Vector(Vec<Sexp>),
     List(Vec<ListElement>),
+    PairList(PairList),
     Factor {
         codes: Vec<Option<usize>>,
         levels: Vec<String>,
@@ -116,13 +118,14 @@ pub enum Sexp {
     },
     Dollar {
         value: Box<Sexp>,
-        name: String,
+        name: MemberName,
     },
     Call {
         function: Box<Sexp>,
         arguments: Vec<CallArgument>,
     },
     Assignment {
+        operator: AssignmentOperator,
         target: String,
         value: Box<Sexp>,
     },
@@ -131,27 +134,32 @@ pub enum Sexp {
         value: Box<Sexp>,
     },
     Subassignment {
+        operator: AssignmentOperator,
         target: String,
         index: Option<Box<Sexp>>,
         value: Box<Sexp>,
     },
     MatrixSubassignment {
+        operator: AssignmentOperator,
         target: String,
         row: Option<Box<Sexp>>,
         col: Option<Box<Sexp>>,
         value: Box<Sexp>,
     },
     ExtractAssignment {
+        operator: AssignmentOperator,
         target: String,
         index: Box<Sexp>,
         value: Box<Sexp>,
     },
     DollarAssignment {
+        operator: AssignmentOperator,
         target: String,
-        name: String,
+        name: MemberName,
         value: Box<Sexp>,
     },
     NamesAssignment {
+        operator: AssignmentOperator,
         target: String,
         value: Box<Sexp>,
     },

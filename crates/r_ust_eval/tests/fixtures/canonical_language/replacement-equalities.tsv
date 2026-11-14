@@ -1,0 +1,7 @@
+id	left_source	right_source	identical
+subset_lhs	x[1L] <- y	`<-`(`[`(x, 1L), y)	TRUE
+matrix_lhs	x[,1L] <- y	`<-`(`[`(x, , 1L), y)	TRUE
+extract_lhs	x[[1L]] <- y	`<-`(`[[`(x, 1L), y)	TRUE
+dollar_symbol_lhs	x$a <- y	`<-`(`$`(x, a), y)	TRUE
+dollar_string_lhs	x$"a" <- y	`<-`(`$`(x, "a"), y)	TRUE
+names_lhs	names(x) <- y	`<-`(names(x), y)	TRUE

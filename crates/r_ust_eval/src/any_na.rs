@@ -86,6 +86,8 @@ fn recursive_flag(value: &Sexp) -> Result<bool, EvalError> {
         Sexp::Nil
         | Sexp::MissingArg(_)
         | Sexp::Symbol(_)
+        | Sexp::MissingValue
+        | Sexp::PairList(_)
         | Sexp::List(_)
         | Sexp::Vector(_)
         | Sexp::DataFrame { .. }
@@ -166,6 +168,8 @@ fn contains(value: &Sexp, recursive: &Sexp) -> Result<bool, EvalError> {
         }
         Sexp::MissingArg(_)
         | Sexp::Symbol(_)
+        | Sexp::MissingValue
+        | Sexp::PairList(_)
         | Sexp::Dots(_)
         | Sexp::Promise { .. }
         | Sexp::Closure { .. }
@@ -213,6 +217,8 @@ fn scalar_missing(value: &Sexp) -> bool {
         Sexp::Nil
         | Sexp::MissingArg(_)
         | Sexp::Symbol(_)
+        | Sexp::MissingValue
+        | Sexp::PairList(_)
         | Sexp::List(_)
         | Sexp::Vector(_)
         | Sexp::DataFrame { .. }

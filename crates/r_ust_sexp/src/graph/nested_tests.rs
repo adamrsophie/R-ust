@@ -20,6 +20,11 @@ fn every_nested_value_edge_retains_and_releases_its_capture() {
     let wrappers: &[fn(Sexp) -> Sexp] = &[
         |v| Sexp::Vector(vec![v]),
         |v| Sexp::List(vec![element(v)]),
+        |v| Sexp::pairlist(vec![element(v)]),
+        |v| Sexp::Call {
+            function: Box::new(Sexp::Symbol("f".into())),
+            arguments: vec![CallArgument::positional(Sexp::pairlist(vec![element(v)]))],
+        },
         |v| Sexp::Dots(vec![element(v)]),
         |v| Sexp::DataFrame {
             columns: vec![element(v)],
@@ -116,7 +121,7 @@ fn every_nested_value_edge_retains_and_releases_its_capture() {
         },
         |v| Sexp::Dollar {
             value: Box::new(v),
-            name: "x".into(),
+            name: crate::MemberName::Symbol("x".into()),
         },
         |v| Sexp::Call {
             function: Box::new(v),
@@ -131,6 +136,7 @@ fn every_nested_value_edge_retains_and_releases_its_capture() {
             arguments: vec![CallArgument::positional(v)],
         },
         |v| Sexp::Assignment {
+            operator: crate::AssignmentOperator::Left,
             target: "x".into(),
             value: Box::new(v),
         },
@@ -139,49 +145,58 @@ fn every_nested_value_edge_retains_and_releases_its_capture() {
             value: Box::new(v),
         },
         |v| Sexp::Subassignment {
+            operator: crate::AssignmentOperator::Left,
             target: "x".into(),
             value: Box::new(v),
             index: None,
         },
         |v| Sexp::Subassignment {
+            operator: crate::AssignmentOperator::Left,
             target: "x".into(),
             value: Box::new(Sexp::Nil),
             index: Some(Box::new(v)),
         },
         |v| Sexp::MatrixSubassignment {
+            operator: crate::AssignmentOperator::Left,
             target: "x".into(),
             value: Box::new(v),
             row: None,
             col: None,
         },
         |v| Sexp::MatrixSubassignment {
+            operator: crate::AssignmentOperator::Left,
             target: "x".into(),
             value: Box::new(Sexp::Nil),
             row: Some(Box::new(v)),
             col: None,
         },
         |v| Sexp::MatrixSubassignment {
+            operator: crate::AssignmentOperator::Left,
             target: "x".into(),
             value: Box::new(Sexp::Nil),
             row: None,
             col: Some(Box::new(v)),
         },
         |v| Sexp::ExtractAssignment {
+            operator: crate::AssignmentOperator::Left,
             target: "x".into(),
             value: Box::new(v),
             index: Box::new(Sexp::Nil),
         },
         |v| Sexp::ExtractAssignment {
+            operator: crate::AssignmentOperator::Left,
             target: "x".into(),
             value: Box::new(Sexp::Nil),
             index: Box::new(v),
         },
         |v| Sexp::DollarAssignment {
+            operator: crate::AssignmentOperator::Left,
             target: "x".into(),
-            name: "y".into(),
+            name: crate::MemberName::Symbol("y".into()),
             value: Box::new(v),
         },
         |v| Sexp::NamesAssignment {
+            operator: crate::AssignmentOperator::Left,
             target: "x".into(),
             value: Box::new(v),
         },
@@ -215,7 +230,10 @@ fn every_nested_value_edge_retains_and_releases_its_capture() {
         let exported = container.get("value").unwrap().unwrap();
         drop(container);
         assert!(heap.lock().node(ids[1]).is_ok(), "export wrapper {index}");
+        let alias = exported.clone();
         drop(exported);
+        assert!(heap.lock().node(ids[1]).is_ok(), "alias wrapper {index}");
+        drop(alias);
         for id in ids {
             assert!(
                 matches!(heap.lock().node(id), Err(GraphError::StaleNode)),
