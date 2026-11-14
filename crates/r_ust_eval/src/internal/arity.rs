@@ -3,6 +3,9 @@ use r_ust_sexp::InternalOperation;
 
 pub(super) fn check(operation: InternalOperation, count: usize) -> Result<(), EvalError> {
     let (name, arity) = match operation {
+        InternalOperation::ParentEnvironment => ("parent.env", 1),
+        InternalOperation::EnvironmentName => ("environmentName", 1),
+        InternalOperation::Formals => ("formals", 1),
         InternalOperation::BitwiseNot => ("bitwiseNot", 1),
         InternalOperation::BitwiseAnd => ("bitwiseAnd", 2),
         InternalOperation::BitwiseOr => ("bitwiseOr", 2),
@@ -39,6 +42,9 @@ pub(super) fn check(operation: InternalOperation, count: usize) -> Result<(), Ev
             true
         }
         InternalOperation::BitwiseNot
+        | InternalOperation::ParentEnvironment
+        | InternalOperation::EnvironmentName
+        | InternalOperation::Formals
         | InternalOperation::BitwiseAnd
         | InternalOperation::BitwiseOr
         | InternalOperation::BitwiseXor

@@ -3,6 +3,9 @@ use r_ust_sexp::InternalOperation;
 
 pub fn resolve(name: &str) -> Option<InternalOperation> {
     match name {
+        "parent.env" => Some(InternalOperation::ParentEnvironment),
+        "environmentName" => Some(InternalOperation::EnvironmentName),
+        "formals" => Some(InternalOperation::Formals),
         "bitwiseNot" => Some(InternalOperation::BitwiseNot),
         "bitwiseAnd" => Some(InternalOperation::BitwiseAnd),
         "bitwiseOr" => Some(InternalOperation::BitwiseOr),

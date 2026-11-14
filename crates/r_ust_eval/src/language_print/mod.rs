@@ -4,6 +4,7 @@ mod control;
 mod infix;
 mod layout;
 mod names;
+pub(super) use names::{check_text, valid_name};
 mod operators;
 use crate::primitive_calls::names as primitives;
 #[cfg(test)]

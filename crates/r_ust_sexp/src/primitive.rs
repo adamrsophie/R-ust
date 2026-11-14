@@ -18,6 +18,10 @@ pub enum PrimitiveId {
     Colon,
     Quote,
     Primitive,
+    GlobalEnv,
+    BaseEnv,
+    EmptyEnv,
+    IsEnvironment,
 }
 
 impl PrimitiveId {
@@ -30,6 +34,10 @@ impl PrimitiveId {
             "missing" => Some(Self::Missing),
             "quote" => Some(Self::Quote),
             ".Primitive" => Some(Self::Primitive),
+            "globalenv" => Some(Self::GlobalEnv),
+            "baseenv" => Some(Self::BaseEnv),
+            "emptyenv" => Some(Self::EmptyEnv),
+            "is.environment" => Some(Self::IsEnvironment),
             "+" => Some(Self::Add),
             "-" => Some(Self::Subtract),
             "*" => Some(Self::Multiply),
@@ -51,6 +59,10 @@ impl PrimitiveId {
             Self::Missing => "missing",
             Self::Quote => "quote",
             Self::Primitive => ".Primitive",
+            Self::GlobalEnv => "globalenv",
+            Self::BaseEnv => "baseenv",
+            Self::EmptyEnv => "emptyenv",
+            Self::IsEnvironment => "is.environment",
             Self::Add => "+",
             Self::Subtract => "-",
             Self::Multiply => "*",
@@ -65,6 +77,10 @@ impl PrimitiveId {
     pub const fn sexptype(self) -> SexpType {
         match self {
             Self::Sum
+            | Self::GlobalEnv
+            | Self::BaseEnv
+            | Self::EmptyEnv
+            | Self::IsEnvironment
             | Self::Primitive
             | Self::Length
             | Self::Invisible

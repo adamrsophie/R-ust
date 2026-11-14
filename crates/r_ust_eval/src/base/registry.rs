@@ -3,8 +3,8 @@ use std::sync::OnceLock;
 use r_ust_sexp::{ClosureEnvironment, PrimitiveId};
 
 use super::{
-    bitwise, constants, definitions, encode_string, evaluation, lower, rowsum, run_length,
-    sequence, EvalError, Parser, Sexp,
+    bitwise, constants, definitions, encode_string, environments, evaluation, formals, lower,
+    rowsum, run_length, sequence, EvalError, Parser, Sexp,
 };
 
 const SEQUENCE_DEFINITIONS: &[(&str, &str)] = &[
@@ -20,6 +20,8 @@ fn definitions() -> impl Iterator<Item = &'static (&'static str, &'static str)> 
         .chain(rowsum::DEFINITIONS.iter())
         .chain(encode_string::DEFINITIONS.iter())
         .chain(evaluation::DEFINITIONS.iter())
+        .chain(environments::DEFINITIONS.iter())
+        .chain(formals::DEFINITIONS.iter())
         .chain(SEQUENCE_DEFINITIONS.iter())
 }
 

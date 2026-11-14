@@ -50,6 +50,10 @@ pub(super) fn typeof_value(value: &Sexp) -> &'static str {
         Sexp::Closure { .. } | Sexp::Function { .. } => "closure",
         Sexp::Primitive(id) => match id {
             r_ust_sexp::PrimitiveId::Sum
+            | r_ust_sexp::PrimitiveId::GlobalEnv
+            | r_ust_sexp::PrimitiveId::BaseEnv
+            | r_ust_sexp::PrimitiveId::EmptyEnv
+            | r_ust_sexp::PrimitiveId::IsEnvironment
             | r_ust_sexp::PrimitiveId::Primitive
             | r_ust_sexp::PrimitiveId::Length
             | r_ust_sexp::PrimitiveId::Invisible

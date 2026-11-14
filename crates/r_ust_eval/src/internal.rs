@@ -43,6 +43,11 @@ impl RuntimeState {
     ) -> Result<Sexp, EvalError> {
         arity::check(operation, args.len())?;
         match operation {
+            InternalOperation::ParentEnvironment => {
+                crate::environment_values::parent(&args[0].value)
+            }
+            InternalOperation::EnvironmentName => crate::environment_values::name(&args[0].value),
+            InternalOperation::Formals => self.formals(&args[0].value),
             InternalOperation::BitwiseNot => self.bitwise_not(&args[0].value),
             InternalOperation::BitwiseAnd => self.bitwise_binary(bitwise::Binary::And, args),
             InternalOperation::BitwiseOr => self.bitwise_binary(bitwise::Binary::Or, args),

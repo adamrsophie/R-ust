@@ -101,6 +101,10 @@ impl RuntimeState {
             PrimitiveId::IntegerDivide => BinaryOp::IntegerDivide,
             PrimitiveId::Colon => BinaryOp::Sequence,
             PrimitiveId::Sum
+            | PrimitiveId::GlobalEnv
+            | PrimitiveId::BaseEnv
+            | PrimitiveId::EmptyEnv
+            | PrimitiveId::IsEnvironment
             | PrimitiveId::Primitive
             | PrimitiveId::Length
             | PrimitiveId::Invisible
@@ -131,6 +135,10 @@ impl RuntimeState {
                     Err(EvalError::Type("invalid unary operator".into()))
                 }
                 PrimitiveId::Colon
+                | PrimitiveId::GlobalEnv
+                | PrimitiveId::BaseEnv
+                | PrimitiveId::EmptyEnv
+                | PrimitiveId::IsEnvironment
                 | PrimitiveId::Sum
                 | PrimitiveId::Primitive
                 | PrimitiveId::Length

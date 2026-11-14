@@ -26,6 +26,7 @@ mod dots;
 mod encode_string;
 mod environment;
 mod environment_values;
+mod formals;
 use atomic_values::{coerce_logical_values, string_values};
 mod primitive_calls;
 mod promises;

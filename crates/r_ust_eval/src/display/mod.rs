@@ -14,7 +14,7 @@ use scalars::{format_factor, format_function_signature};
 pub fn format_sexp(value: &Sexp) -> Result<String, EvalError> {
     Ok(match value {
         Sexp::MissingValue => String::new(),
-        Sexp::PairList(_) => return Err(EvalError::NotImplemented("pairlist display")),
+        Sexp::PairList(values) => lists::format_pairlist(values.as_slice())?,
         Sexp::Environment(frame) => crate::environment_values::format(frame)?,
         Sexp::Nil => "NULL".to_string(),
         Sexp::MissingArg(name) => format!("<missing {name}>"),

@@ -1,5 +1,5 @@
 use super::LanguagePrintError;
-pub(super) fn check_text(text: &str) -> Result<(), LanguagePrintError> {
+pub(crate) fn check_text(text: &str) -> Result<(), LanguagePrintError> {
     if text.contains('\0') {
         Err(LanguagePrintError::InvalidText)
     }
@@ -10,7 +10,7 @@ pub(super) fn check_text(text: &str) -> Result<(), LanguagePrintError> {
         Ok(())
     }
 }
-pub(super) fn valid_name(text: &str) -> bool {
+pub(crate) fn valid_name(text: &str) -> bool {
     let mut bytes = text.bytes();
     let Some(first) = bytes.next() else {
         return false;

@@ -114,6 +114,10 @@ impl RuntimeState {
             PrimitiveId::Missing => self.eval_missing(arguments),
             PrimitiveId::Quote => self.eval_quote(arguments),
             PrimitiveId::Sum
+            | PrimitiveId::GlobalEnv
+            | PrimitiveId::BaseEnv
+            | PrimitiveId::EmptyEnv
+            | PrimitiveId::IsEnvironment
             | PrimitiveId::Primitive
             | PrimitiveId::Length
             | PrimitiveId::Invisible
@@ -140,6 +144,16 @@ impl RuntimeState {
         arguments: &[EvaluatedArgument],
     ) -> Result<Sexp, EvalError> {
         match id {
+            PrimitiveId::GlobalEnv => {
+                self.environment_root(id.name(), r_ust_sexp::EnvironmentRole::Global, arguments)
+            }
+            PrimitiveId::BaseEnv => {
+                self.environment_root(id.name(), r_ust_sexp::EnvironmentRole::Base, arguments)
+            }
+            PrimitiveId::EmptyEnv => {
+                self.environment_root(id.name(), r_ust_sexp::EnvironmentRole::Empty, arguments)
+            }
+            PrimitiveId::IsEnvironment => self.is_environment(arguments),
             PrimitiveId::Primitive => {
                 let value = accessor::lookup(arguments)?;
                 self.visible = true;
@@ -192,7 +206,8 @@ impl RuntimeState {
 pub(super) fn format_primitive(id: PrimitiveId) -> String {
     let signature = match id {
         PrimitiveId::Sum => "function (..., na.rm = FALSE)  ",
-        PrimitiveId::Length | PrimitiveId::Missing => "function (x)  ",
+        PrimitiveId::Length | PrimitiveId::Missing | PrimitiveId::IsEnvironment => "function (x)  ",
+        PrimitiveId::GlobalEnv | PrimitiveId::BaseEnv | PrimitiveId::EmptyEnv => "function ()  ",
         PrimitiveId::Quote => "function (expr)  ",
         PrimitiveId::Primitive => "function (name)  ",
         PrimitiveId::Invisible => "function (x = NULL)  ",
