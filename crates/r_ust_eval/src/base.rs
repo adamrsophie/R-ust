@@ -3,82 +3,14 @@ mod constants;
 mod definitions;
 mod encode_string;
 mod evaluation;
+mod registry;
 mod rowsum;
 mod run_length;
 mod sequence;
 
-use std::sync::OnceLock;
-
-use r_ust_sexp::ClosureEnvironment;
-
 use super::{EvalError, Parser, Sexp};
 
-const SEQUENCE_DEFINITIONS: &[(&str, &str)] = &[
-    ("sequence", sequence::GENERIC),
-    ("sequence.default", sequence::DEFAULT),
-];
-
-fn definitions() -> impl Iterator<Item = &'static (&'static str, &'static str)> {
-    definitions::DEFINITIONS
-        .iter()
-        .chain(bitwise::DEFINITIONS.iter())
-        .chain(run_length::DEFINITIONS.iter())
-        .chain(rowsum::DEFINITIONS.iter())
-        .chain(encode_string::DEFINITIONS.iter())
-        .chain(evaluation::DEFINITIONS.iter())
-        .chain(SEQUENCE_DEFINITIONS.iter())
-}
-
-pub(super) fn lookup(name: &str) -> Result<Option<Sexp>, EvalError> {
-    static BASE: OnceLock<Result<Vec<(String, Sexp)>, EvalError>> = OnceLock::new();
-    if let Some(value) = constants::lookup(name) {
-        return Ok(Some(value));
-    }
-    if !definitions().any(|(key, _)| *key == name) {
-        return Ok(None);
-    }
-    let registry = BASE.get_or_init(|| {
-        definitions()
-            .map(|(name, source)| {
-                let parsed = Parser.parse_all(source).map_err(|error| {
-                    EvalError::Parse(format!("base bootstrap: {}", error.message))
-                })?;
-                let [Sexp::Function { parameters, body }] = parsed.expressions.as_slice() else {
-                    return Err(EvalError::NotImplemented("base closure bootstrap shape"));
-                };
-                let mut body = body.clone();
-                if *name == "sequence" {
-                    sequence::lower_generic(&mut body);
-                }
-                if let Some(kernel) = run_length::lower(name) {
-                    *body = kernel;
-                } else if *name == "encodeString" {
-                    *body = Sexp::InternalCall {
-                        operation: r_ust_sexp::InternalOperation::EncodeStringWrapper,
-                        arguments: Vec::new(),
-                    };
-                } else {
-                    lower(&mut body)?;
-                }
-                Ok((
-                    (*name).into(),
-                    Sexp::Closure {
-                        parameters: parameters.clone(),
-                        body,
-                        environment: ClosureEnvironment::Base,
-                    },
-                ))
-            })
-            .collect()
-    });
-    match registry {
-        Ok(values) => Ok(values
-            .iter()
-            .find(|(key, _)| key == name)
-            .map(|(_, value)| value.clone())),
-        Err(error) => Err(error.clone()),
-    }
-}
+pub(super) use registry::{iter, lookup};
 
 fn lower(value: &mut Sexp) -> Result<(), EvalError> {
     match value {

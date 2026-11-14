@@ -2,14 +2,16 @@ use std::ops::RangeInclusive;
 
 use crate::Sexp;
 
-pub(super) fn lookup(name: &str) -> Option<Sexp> {
-    let value = match name {
-        "T" => Sexp::Logical(vec![Some(true)]),
-        "F" => Sexp::Logical(vec![Some(false)]),
-        "pi" => Sexp::Real(vec![std::f64::consts::PI]),
-        "letters" => alphabet('a'..='z'),
-        "LETTERS" => alphabet('A'..='Z'),
-        "month.name" => strings(&[
+type Constant = (&'static str, fn() -> Sexp);
+
+const CONSTANTS: &[Constant] = &[
+    ("T", || Sexp::Logical(vec![Some(true)])),
+    ("F", || Sexp::Logical(vec![Some(false)])),
+    ("pi", || Sexp::Real(vec![std::f64::consts::PI])),
+    ("letters", || alphabet('a'..='z')),
+    ("LETTERS", || alphabet('A'..='Z')),
+    ("month.name", || {
+        strings(&[
             "January",
             "February",
             "March",
@@ -22,13 +24,24 @@ pub(super) fn lookup(name: &str) -> Option<Sexp> {
             "October",
             "November",
             "December",
-        ]),
-        "month.abb" => strings(&[
+        ])
+    }),
+    ("month.abb", || {
+        strings(&[
             "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-        ]),
-        _ => return None,
-    };
-    Some(value)
+        ])
+    }),
+];
+
+pub(super) fn lookup(name: &str) -> Option<Sexp> {
+    CONSTANTS
+        .iter()
+        .find(|(key, _)| *key == name)
+        .map(|(_, value)| value())
+}
+
+pub(super) fn iter() -> impl Iterator<Item = (&'static str, Sexp)> {
+    CONSTANTS.iter().map(|(name, value)| (*name, value()))
 }
 
 fn alphabet(range: RangeInclusive<char>) -> Sexp {
