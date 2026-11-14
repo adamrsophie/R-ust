@@ -24,6 +24,7 @@ from scripts.environment_values_reference import (
     live_profile, native_matches, read_reference, reference_matches,
 )
 from scripts.environment_values_self_check import self_check
+from scripts.environment_values_capture import reference_capture
 from scripts.stop_capture import MODES, Invocation, Mode, Run, digest, encode_bytes, invocation
 from scripts.stop_report import reference_inputs
 
@@ -32,6 +33,7 @@ class Action(StrEnum):
     BASELINE = "baseline"
     COMPARE = "compare"
     SELF_CHECK = "self-check"
+    REFERENCE = "reference"
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,6 +68,9 @@ def source_inputs() -> tuple[Path, ...]:
         Path(__file__), ROOT / "scripts/environment_values_reference.py",
         ROOT / "scripts/environment_values_self_check.py", ROOT / "scripts/stop_capture.py",
         ROOT / "scripts/stop_report.py", ROOT / "scripts/stop_reference.py",
+        ROOT / "scripts/environment_values_capture.py", ROOT / "scripts/environment-values-cases.tsv",
+        ROOT / "scripts/environment-values-oracle.R",
+        ROOT / "crates/r_ust_eval/tests/fixtures/environment-values-README.md",
     )))
 
 
@@ -156,15 +161,21 @@ def compare(binary: Path, output: Path, action: Action) -> int:
 def main() -> int:
     if sys.flags.optimize:
         raise SystemExit("verification requires assertions (do not use -O)")
-    assert len(sys.argv) in (2, 4), "Usage: check-environment-values.py self-check | [baseline|compare] BINARY NEW_OUTPUT"
+    usage = "Usage: check-environment-values.py self-check | reference NEW_OUTPUT | [baseline|compare] BINARY NEW_OUTPUT"
+    assert len(sys.argv) in (2, 3, 4), usage
+    assert sys.argv[1] in tuple(action.value for action in Action), usage
     action = Action(sys.argv[1])
     match action:
         case Action.SELF_CHECK:
-            assert len(sys.argv) == 2
+            assert len(sys.argv) == 2, usage
             self_check()
             return 0
+        case Action.REFERENCE:
+            assert len(sys.argv) == 3, usage
+            reference_capture(Path(sys.argv[2]).resolve(), source_inputs())
+            return 0
         case Action.BASELINE | Action.COMPARE:
-            assert len(sys.argv) == 4
+            assert len(sys.argv) == 4, usage
             passes = compare(Path(sys.argv[2]).resolve(), Path(sys.argv[3]).resolve(), action)
             return int(action == Action.COMPARE and passes != 485)
         case _:

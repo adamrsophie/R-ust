@@ -16,6 +16,7 @@ from scripts.environment_values_reference import (
 )
 from scripts.stop_capture import Invocation, Run, encode_bytes
 from scripts.stop_report import json_decoder, read_run
+from scripts.environment_values_capture import observations, typed_matches
 
 
 def streams(run: Run, stdout: str, stderr: str) -> Run:
@@ -40,6 +41,26 @@ def synthetic(row: Reference, reference: tuple[Run, Run]) -> tuple[Run, Run]:
 def self_check() -> None:
     """Guard comparison permissiveness with independent frozen R records, not native success claims."""
     checks: list[tuple[str, str]] = []
+    for row in observations():
+        text = "\t".join((*row.fields, (row.reference.error or "").encode().hex())) + "\n"
+        blank = Run(Invocation(("synthetic-typed-self-check",), b""), 0, "", "", "", "")
+        good = streams(blank, text, "")
+        assert typed_matches(row, good)
+        for index in range(13):
+            fields = text[:-1].split("\t")
+            fields[index] += "58" if 9 <= index <= 11 else "X"
+            changed = streams(blank, "\t".join(fields) + "\n", "")
+            assert not typed_matches(row, changed), (row.reference.identifier, index)
+        assert not typed_matches(row, replace(good, status=1))
+        assert not typed_matches(row, streams(blank, text, "unexpected diagnostic"))
+        for malformed in (text[:-1], text + "\n", text.replace("\t", "", 1)):
+            try:
+                _ = typed_matches(row, streams(blank, malformed, ""))
+            except AssertionError:
+                checks.append((row.reference.identifier, "malformed-typed-record-rejected"))
+            else:
+                raise AssertionError((row.reference.identifier, "malformed typed record accepted"))
+        checks.append((row.reference.identifier, "all-typed-fields-status-diagnostics-guarded"))
     for row in cli_rows(read_reference()):
         blank = Run(Invocation(("synthetic-self-check",), row.source), row.status, "", "", "", "")
         reference = streams(blank, row.streams.stdout, row.streams.stderr), streams(blank, row.streams.merged, "")
