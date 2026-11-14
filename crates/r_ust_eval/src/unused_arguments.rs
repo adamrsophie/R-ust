@@ -47,7 +47,9 @@ impl RuntimeState {
             Sexp::Integer(values) if values.len() == 1 => {
                 Ok(values[0].map_or_else(|| "NA".into(), |value| value.to_string()))
             }
-            Sexp::Real(values) if values.len() == 1 => Ok(real(values[0])),
+            Sexp::Real(values) if values.len() == 1 => {
+                Ok(super::real_literal::format_real(values[0], false))
+            }
             Sexp::Logical(values) if values.len() == 1 => Ok(match values[0] {
                 Some(true) => "TRUE",
                 Some(false) => "FALSE",
@@ -128,24 +130,6 @@ impl RuntimeState {
             )),
         }
     }
-}
-
-fn real(value: f64) -> String {
-    if r_ust_sexp::is_na_real(value) {
-        return "NA".into();
-    }
-    if value.is_nan() {
-        return "NaN".into();
-    }
-    if value.is_infinite() {
-        return if value.is_sign_negative() {
-            "-Inf"
-        } else {
-            "Inf"
-        }
-        .into();
-    }
-    value.to_string()
 }
 
 fn symbol(name: &str) -> String {

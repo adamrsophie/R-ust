@@ -35,6 +35,7 @@ mod matrix_storage;
 mod options;
 mod ordering;
 mod parse_warnings;
+mod real_literal;
 mod rowsum;
 mod run_length;
 mod session_calls;
