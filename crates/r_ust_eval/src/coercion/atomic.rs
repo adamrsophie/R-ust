@@ -7,6 +7,7 @@ use crate::{factor_numbers, numeric_values, real_to_integer, EvalError};
 pub(super) fn reals(value: &Sexp, policy: BlankPolicy) -> Result<(Vec<f64>, Warnings), EvalError> {
     let mut warnings = Warnings::default();
     let values = match value {
+        Sexp::Environment(_) => return Err(crate::environment_values::coercion_error("double")),
         Sexp::Matrix { data, .. } => return reals(data, policy),
         Sexp::String(values) => values
             .iter()
@@ -23,6 +24,7 @@ pub(super) fn integers(
 ) -> Result<(Vec<Option<i32>>, Warnings), EvalError> {
     let mut warnings = Warnings::default();
     let values = match value {
+        Sexp::Environment(_) => return Err(crate::environment_values::coercion_error("integer")),
         Sexp::Matrix { data, .. } => return integers(data, policy),
         Sexp::String(values) => values
             .iter()
@@ -92,6 +94,7 @@ pub(super) fn scalar_real(value: &Sexp, policy: BlankPolicy) -> (f64, Warnings) 
         | Sexp::Dots(_)
         | Sexp::Promise { .. }
         | Sexp::Closure { .. }
+        | Sexp::Environment(_)
         | Sexp::Primitive(_)
         | Sexp::Function { .. }
         | Sexp::If { .. }

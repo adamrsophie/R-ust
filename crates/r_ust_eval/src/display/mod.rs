@@ -1,7 +1,9 @@
 use crate::{format_line, format_number, format_numeric_line, primitive_calls, EvalError, Sexp};
 mod containers;
+mod lists;
 mod scalars;
-use containers::{format_data_frame, format_list, format_matrix};
+use containers::{format_data_frame, format_matrix};
+use lists::format_list;
 use scalars::{format_factor, format_function_signature};
 /// Formats a value without the output event's final newline.
 ///
@@ -13,6 +15,7 @@ pub fn format_sexp(value: &Sexp) -> Result<String, EvalError> {
     Ok(match value {
         Sexp::MissingValue => String::new(),
         Sexp::PairList(_) => return Err(EvalError::NotImplemented("pairlist display")),
+        Sexp::Environment(frame) => crate::environment_values::format(frame)?,
         Sexp::Nil => "NULL".to_string(),
         Sexp::MissingArg(name) => format!("<missing {name}>"),
         Sexp::Primitive(id) => primitive_calls::format_primitive(*id),

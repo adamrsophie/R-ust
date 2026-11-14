@@ -42,6 +42,7 @@ pub enum InternalOperation {
 pub enum Sexp {
     Nil,
     Primitive(PrimitiveId),
+    Environment(Environment),
     MissingArg(String),
     MissingValue,
     Symbol(String),

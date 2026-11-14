@@ -12,6 +12,12 @@ pub(super) struct NodeId {
     generation: u64,
 }
 
+impl NodeId {
+    pub(super) fn display_token(self) -> String {
+        format!("{:016x}{:016x}", self.slot, self.generation)
+    }
+}
+
 #[derive(Default)]
 pub(super) struct Frame {
     pub bindings: HashMap<String, StoredValue>,
@@ -209,3 +215,7 @@ mod environment_mutation_tests;
 #[cfg(test)]
 #[path = "environment_lifetime_tests.rs"]
 mod environment_lifetime_tests;
+
+#[cfg(test)]
+#[path = "environment_value_tests.rs"]
+mod environment_value_tests;

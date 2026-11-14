@@ -4,7 +4,7 @@ pub(super) fn value_len(value: &Sexp) -> usize {
     match value {
         Sexp::Nil => 0,
         Sexp::MissingArg(_) => 1,
-        Sexp::Primitive(_) => 1,
+        Sexp::Primitive(_) | Sexp::Environment(_) => 1,
         Sexp::Symbol(_) | Sexp::MissingValue => 1,
         Sexp::PairList(values) => values.as_slice().len(),
         Sexp::Call { arguments, .. } => 1 + arguments.len(),

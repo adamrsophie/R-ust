@@ -198,6 +198,7 @@ impl Sexp {
     pub const fn sexptype(&self) -> SexpType {
         match self {
             Self::Nil => SexpType::Nil,
+            Self::Environment(_) => SexpType::Environment,
             Self::Primitive(id) => id.sexptype(),
             Self::MissingArg(_) => SexpType::Promise,
             Self::Symbol(_) | Self::MissingValue => SexpType::Symbol,

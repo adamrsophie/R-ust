@@ -21,6 +21,7 @@ pub(super) fn stop(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
         | Sexp::Dots(_)
         | Sexp::Promise { .. }
         | Sexp::Closure { .. }
+        | Sexp::Environment(_)
         | Sexp::Primitive(_)
         | Sexp::InternalCall { .. }
         | Sexp::Function { .. }
@@ -128,6 +129,7 @@ pub(super) fn gettext(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
         | Sexp::Dots(_)
         | Sexp::Promise { .. }
         | Sexp::Closure { .. }
+        | Sexp::Environment(_)
         | Sexp::Primitive(_)
         | Sexp::InternalCall { .. }
         | Sexp::Function { .. }

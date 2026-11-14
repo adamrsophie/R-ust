@@ -48,8 +48,8 @@ fn containers_keep_their_framing_around_complete_language_text() {
     };
     for (value, expected) in [
         (Sexp::Vector(vec![value]), "f(x)"),
-        (Sexp::List(vec![element.clone()]), "[[1]]\nf(x)"),
-        (Sexp::Dots(vec![element.clone()]), "[[1]]\nf(x)"),
+        (Sexp::List(vec![element.clone()]), "[[1]]\nf(x)\n"),
+        (Sexp::Dots(vec![element.clone()]), "[[1]]\nf(x)\n"),
         (
             Sexp::Matrix {
                 data: Box::new(Sexp::List(vec![element.clone()])),

@@ -37,6 +37,7 @@ pub(super) fn class_value(value: &Sexp) -> Sexp {
 
 pub(super) fn typeof_value(value: &Sexp) -> &'static str {
     match value {
+        Sexp::Environment(_) => "environment",
         Sexp::Nil => "NULL",
         Sexp::Logical(_) => "logical",
         Sexp::Integer(_) | Sexp::Factor { .. } => "integer",

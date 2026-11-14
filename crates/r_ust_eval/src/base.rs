@@ -96,6 +96,7 @@ fn lower(value: &mut Sexp) -> Result<(), EvalError> {
         | Sexp::Dots(_)
         | Sexp::Promise { .. }
         | Sexp::Closure { .. }
+        | Sexp::Environment(_)
         | Sexp::Primitive(_)
         | Sexp::InternalCall { .. }
         | Sexp::Function { .. }

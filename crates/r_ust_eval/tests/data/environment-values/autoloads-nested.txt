@@ -1,0 +1,12 @@
+$a
+$a$b
+<environment: 0xTOKEN>
+attr(,"name")
+[1] "Autoloads"
+
+
+$z
+<environment: 0xTOKEN>
+attr(,"name")
+[1] "Autoloads"
+

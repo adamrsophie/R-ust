@@ -160,6 +160,9 @@ fn unary_numbers(value: &Sexp) -> Result<Vec<f64>, EvalError> {
 }
 
 fn eval_unary(op: UnaryOp, value: &Sexp) -> Result<Sexp, EvalError> {
+    if op == UnaryOp::Not && matches!(value, Sexp::Environment(_)) {
+        return Err(EvalError::Type("invalid argument type".into()));
+    }
     if matches!(op, UnaryOp::Plus | UnaryOp::Minus) {
         let integers = match value {
             Sexp::Logical(values) => {

@@ -22,6 +22,7 @@ pub(super) fn sexp_identical(left: &Sexp, right: &Sexp) -> bool {
                     left.name == right.name && sexp_identical(&left.value, &right.value)
                 })
         }
+        (Sexp::Environment(left), Sexp::Environment(right)) => left == right,
         (Sexp::Primitive(left), Sexp::Primitive(right)) => left == right,
         (Sexp::MissingArg(left), Sexp::MissingArg(right)) => left == right,
         (Sexp::Symbol(left), Sexp::Symbol(right)) => left == right,

@@ -1,0 +1,11 @@
+[[1]]
+<environment: R_GlobalEnv>
+
+[[2]]
+<environment: base>
+
+[[3]]
+<environment: namespace:base>
+
+[[4]]
+<environment: R_EmptyEnv>

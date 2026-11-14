@@ -71,6 +71,7 @@ fn visit(
         | Sexp::Factor { .. }
         | Sexp::Break
         | Sexp::Next => {}
+        Sexp::Environment(frame) => map(&mut frame.0)?,
         Sexp::Promise { state } => map(&mut state.0)?,
         Sexp::Closure {
             parameters,

@@ -16,6 +16,7 @@ mod error;
 mod internal;
 mod message_helpers;
 pub use error::EvalError;
+mod atomic_values;
 mod binary;
 mod builtins;
 mod closure_calls;
@@ -24,6 +25,8 @@ mod control;
 mod dots;
 mod encode_string;
 mod environment;
+mod environment_values;
+use atomic_values::{coerce_logical_values, string_values};
 mod primitive_calls;
 mod promises;
 mod quote;
@@ -175,6 +178,7 @@ impl RuntimeState {
         self.visible = true;
         let result = match expr {
             Sexp::Nil
+            | Sexp::Environment(_)
             | Sexp::Primitive(_)
             | Sexp::Logical(_)
             | Sexp::Integer(_)
@@ -1683,7 +1687,7 @@ fn dispatch_call(name: &str, args: &[EvaluatedArgument]) -> Result<Sexp, EvalErr
         }
         "length" => {
             let value = positional(args, 0, "x")?;
-            Ok(Sexp::Integer(vec![Some(value_len(value) as i32)]))
+            environment_values::length(value)
         }
         "sum" => summary::sum(args),
         "prod" => summary::product(args),
@@ -8026,53 +8030,6 @@ fn logical_values(value: &Sexp) -> Result<Vec<Option<bool>>, EvalError> {
     }
 }
 
-fn string_values(value: &Sexp) -> Result<Vec<Option<String>>, EvalError> {
-    match value {
-        Sexp::List(values) => values
-            .iter()
-            .map(|element| message_helpers::list_character(&element.value).map(Some))
-            .collect(),
-        Sexp::Vector(values) => values
-            .iter()
-            .map(|value| message_helpers::list_character(value).map(Some))
-            .collect(),
-        Sexp::Nil => Ok(Vec::new()),
-        Sexp::Matrix { data, .. } => string_values(data),
-        Sexp::String(values) => Ok(values.clone()),
-        Sexp::Real(values) => Ok(values
-            .iter()
-            .map(|value| {
-                if is_na_real(*value) {
-                    None
-                } else {
-                    Some(format_number(*value))
-                }
-            })
-            .collect()),
-        Sexp::Integer(values) => Ok(values
-            .iter()
-            .map(|value| value.map(|value| value.to_string()))
-            .collect()),
-        Sexp::Logical(values) => Ok(values
-            .iter()
-            .map(|value| {
-                value.map(|value| {
-                    if value {
-                        "TRUE".to_string()
-                    } else {
-                        "FALSE".to_string()
-                    }
-                })
-            })
-            .collect()),
-        Sexp::Factor { codes, levels, .. } => Ok(factor_strings(codes, levels)),
-        other => Err(EvalError::Type(format!(
-            "expected atomic value, found {:?}",
-            other.sexptype()
-        ))),
-    }
-}
-
 fn string_scalar(value: &Sexp, label: &str) -> Result<String, EvalError> {
     let Sexp::String(values) = value else {
         return Err(EvalError::Type(format!("{label} must be a string")));
@@ -8095,20 +8052,6 @@ fn numeric_result(values: Vec<f64>, integer: bool) -> Sexp {
 fn real_to_integer(value: f64) -> Option<i32> {
     let value = value.trunc();
     (value > i32::MIN as f64 && value <= i32::MAX as f64).then_some(value as i32)
-}
-
-fn coerce_logical_values(value: &Sexp) -> Result<Vec<Option<bool>>, EvalError> {
-    match value {
-        Sexp::String(values) => Ok(values
-            .iter()
-            .map(|value| match value.as_deref() {
-                Some("TRUE") | Some("True") | Some("true") | Some("T") => Some(true),
-                Some("FALSE") | Some("False") | Some("false") | Some("F") => Some(false),
-                _ => None,
-            })
-            .collect()),
-        other => logical_values(other),
-    }
 }
 
 fn preserve_na(result: f64, inputs: &[f64]) -> f64 {

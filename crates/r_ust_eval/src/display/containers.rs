@@ -1,24 +1,5 @@
 use super::format_sexp;
 use crate::{factor_strings, format_number, sequence_elements, EvalError, ListElement, Sexp};
-pub(super) fn format_list(values: &[ListElement]) -> Result<String, EvalError> {
-    if values.is_empty() {
-        return Ok("list()".to_string());
-    }
-    values
-        .iter()
-        .enumerate()
-        .map(|(index, element)| {
-            let label = element
-                .name
-                .as_ref()
-                .map(|name| format!("${name}"))
-                .unwrap_or_else(|| format!("[[{}]]", index + 1));
-            Ok(format!("{label}\n{}", format_sexp(&element.value)?))
-        })
-        .collect::<Result<Vec<_>, EvalError>>()
-        .map(|text| text.join("\n\n"))
-}
-
 pub(super) fn format_data_frame(columns: &[ListElement], nrow: usize) -> Result<String, EvalError> {
     if columns.is_empty() {
         return Ok("data.frame()".to_string());

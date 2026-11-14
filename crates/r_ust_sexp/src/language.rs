@@ -223,7 +223,8 @@ pub fn canonical_language(value: &Sexp) -> Result<Sexp, LanguageError> {
             ],
         ),
         Sexp::InternalCall { .. } => return Err(LanguageError::InternalCall),
-        Sexp::Primitive(_)
+        Sexp::Environment(_)
+        | Sexp::Primitive(_)
         | Sexp::Vector(_)
         | Sexp::List(_)
         | Sexp::Factor { .. }

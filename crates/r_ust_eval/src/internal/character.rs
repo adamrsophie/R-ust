@@ -22,6 +22,7 @@ pub(super) fn character_values(value: &Sexp) -> Result<Vec<Option<String>>, Eval
         | Sexp::Dots(_)
         | Sexp::Promise { .. }
         | Sexp::Closure { .. }
+        | Sexp::Environment(_)
         | Sexp::Primitive(_)
         | Sexp::InternalCall { .. }
         | Sexp::Function { .. }

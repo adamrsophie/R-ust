@@ -81,6 +81,17 @@ impl Store {
 }
 
 impl Environment {
+    /// Opaque process-local display identity, stable across exports and aliases.
+    pub fn display_identity(&self) -> Result<String, GraphError> {
+        let heap = self.0.heap()?;
+        heap.lock().frame(self.0.id())?;
+        Ok(format!(
+            "{:p}{}",
+            std::sync::Arc::as_ptr(heap),
+            self.0.id().display_token()
+        ))
+    }
+
     pub fn role(&self) -> Result<EnvironmentRole, GraphError> {
         Ok(self.0.heap()?.lock().frame(self.0.id())?.role)
     }

@@ -65,6 +65,7 @@ impl Writer {
             | Sexp::String(_) => self.atom(value),
             Sexp::PairList(_)
             | Sexp::MissingArg(_)
+            | Sexp::Environment(_)
             | Sexp::Primitive(_)
             | Sexp::Factor { .. }
             | Sexp::Vector(_)

@@ -153,6 +153,7 @@ fn assert_root_free_body(value: &Sexp) {
         | Sexp::Dots(_)
         | Sexp::Promise { .. }
         | Sexp::Closure { .. }
+        | Sexp::Environment(_)
         | Sexp::Primitive(_)
         | Sexp::Function { .. }
         | Sexp::For { .. }
