@@ -116,6 +116,7 @@ pub(super) fn scalar_real(value: &Sexp, policy: BlankPolicy) -> (f64, Warnings) 
         | Sexp::MatrixSubassignment { .. }
         | Sexp::ExtractAssignment { .. }
         | Sexp::DollarAssignment { .. }
+        | Sexp::MemberAssignment { .. }
         | Sexp::NamesAssignment { .. }
         | Sexp::Binary { .. }
         | Sexp::Unary { .. }

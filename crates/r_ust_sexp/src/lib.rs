@@ -234,6 +234,7 @@ impl Sexp {
             | Self::MatrixSubassignment { .. }
             | Self::ExtractAssignment { .. }
             | Self::DollarAssignment { .. }
+            | Self::MemberAssignment { .. }
             | Self::NamesAssignment { .. }
             | Self::Binary { .. }
             | Self::Unary { .. } => SexpType::Language,

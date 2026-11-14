@@ -118,6 +118,7 @@ fn lower(value: &mut Sexp) -> Result<(), EvalError> {
         | Sexp::MatrixSubassignment { .. }
         | Sexp::ExtractAssignment { .. }
         | Sexp::DollarAssignment { .. }
+        | Sexp::MemberAssignment { .. }
         | Sexp::NamesAssignment { .. } => {
             return Err(EvalError::NotImplemented("base bootstrap expression"))
         }

@@ -162,6 +162,11 @@ pub enum Sexp {
         name: MemberName,
         value: Box<Sexp>,
     },
+    MemberAssignment {
+        operator: AssignmentOperator,
+        target: Box<Sexp>,
+        value: Box<Sexp>,
+    },
     NamesAssignment {
         operator: AssignmentOperator,
         target: String,

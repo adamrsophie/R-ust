@@ -44,6 +44,7 @@ pub(super) fn character_values(value: &Sexp) -> Result<Vec<Option<String>>, Eval
         | Sexp::MatrixSubassignment { .. }
         | Sexp::ExtractAssignment { .. }
         | Sexp::DollarAssignment { .. }
+        | Sexp::MemberAssignment { .. }
         | Sexp::NamesAssignment { .. }
         | Sexp::Binary { .. }
         | Sexp::Unary { .. }

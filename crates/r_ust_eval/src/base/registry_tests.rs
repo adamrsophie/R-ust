@@ -176,6 +176,7 @@ fn assert_root_free_body(value: &Sexp) {
         | Sexp::MatrixSubassignment { .. }
         | Sexp::ExtractAssignment { .. }
         | Sexp::DollarAssignment { .. }
+        | Sexp::MemberAssignment { .. }
         | Sexp::NamesAssignment { .. } => panic!("unexpected bootstrap value: {value:?}"),
     }
 }

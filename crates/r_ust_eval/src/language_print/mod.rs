@@ -95,6 +95,7 @@ impl Writer {
             | Sexp::MatrixSubassignment { .. }
             | Sexp::ExtractAssignment { .. }
             | Sexp::DollarAssignment { .. }
+            | Sexp::MemberAssignment { .. }
             | Sexp::NamesAssignment { .. }
             | Sexp::Binary { .. }
             | Sexp::Unary { .. }

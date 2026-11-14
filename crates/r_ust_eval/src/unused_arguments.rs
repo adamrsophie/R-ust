@@ -124,6 +124,7 @@ impl RuntimeState {
             | Sexp::MatrixSubassignment { .. }
             | Sexp::ExtractAssignment { .. }
             | Sexp::DollarAssignment { .. }
+            | Sexp::MemberAssignment { .. }
             | Sexp::NamesAssignment { .. }
             | Sexp::Binary { .. }
             | Sexp::Unary { .. } => Err(EvalError::NotImplemented(

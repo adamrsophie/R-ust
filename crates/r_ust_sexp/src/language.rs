@@ -1,3 +1,5 @@
+mod assignments;
+
 use crate::{CallArgument, ListElement, Sexp, UnaryOp};
 
 use super::language_types::LanguageError;
@@ -137,91 +139,14 @@ pub fn canonical_language(value: &Sexp) -> Result<Sexp, LanguageError> {
             vec![canonical_language(value)?, canonical_language(index)?],
         ),
         Sexp::Dollar { value, name } => call("$", vec![canonical_language(value)?, name.to_sexp()]),
-        Sexp::Assignment {
-            operator,
-            target,
-            value,
-        } => call(
-            operator.as_str(),
-            vec![Sexp::Symbol(target.clone()), canonical_language(value)?],
-        ),
-        Sexp::SuperAssignment { target, value } => call(
-            "<<-",
-            vec![Sexp::Symbol(target.clone()), canonical_language(value)?],
-        ),
-        Sexp::Subassignment {
-            operator,
-            target,
-            index,
-            value,
-        } => call(
-            operator.as_str(),
-            vec![
-                call(
-                    "[",
-                    vec![Sexp::Symbol(target.clone()), optional(index.as_deref())?],
-                ),
-                canonical_language(value)?,
-            ],
-        ),
-        Sexp::MatrixSubassignment {
-            operator,
-            target,
-            row,
-            col,
-            value,
-        } => call(
-            operator.as_str(),
-            vec![
-                call(
-                    "[",
-                    vec![
-                        Sexp::Symbol(target.clone()),
-                        optional(row.as_deref())?,
-                        optional(col.as_deref())?,
-                    ],
-                ),
-                canonical_language(value)?,
-            ],
-        ),
-        Sexp::ExtractAssignment {
-            operator,
-            target,
-            index,
-            value,
-        } => call(
-            operator.as_str(),
-            vec![
-                call(
-                    "[[",
-                    vec![Sexp::Symbol(target.clone()), canonical_language(index)?],
-                ),
-                canonical_language(value)?,
-            ],
-        ),
-        Sexp::DollarAssignment {
-            operator,
-            target,
-            name,
-            value,
-        } => call(
-            operator.as_str(),
-            vec![
-                call("$", vec![Sexp::Symbol(target.clone()), name.to_sexp()]),
-                canonical_language(value)?,
-            ],
-        ),
-        Sexp::NamesAssignment {
-            operator,
-            target,
-            value,
-        } => call(
-            operator.as_str(),
-            vec![
-                call("names", vec![Sexp::Symbol(target.clone())]),
-                canonical_language(value)?,
-            ],
-        ),
+        Sexp::Assignment { .. }
+        | Sexp::SuperAssignment { .. }
+        | Sexp::Subassignment { .. }
+        | Sexp::MatrixSubassignment { .. }
+        | Sexp::ExtractAssignment { .. }
+        | Sexp::DollarAssignment { .. }
+        | Sexp::MemberAssignment { .. }
+        | Sexp::NamesAssignment { .. } => assignments::canonical_assignment(value)?,
         Sexp::InternalCall { .. } => return Err(LanguageError::InternalCall),
         Sexp::Environment(_)
         | Sexp::Primitive(_)

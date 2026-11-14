@@ -116,6 +116,7 @@ fn recursive_flag(value: &Sexp) -> Result<bool, EvalError> {
         | Sexp::MatrixSubassignment { .. }
         | Sexp::ExtractAssignment { .. }
         | Sexp::DollarAssignment { .. }
+        | Sexp::MemberAssignment { .. }
         | Sexp::NamesAssignment { .. }
         | Sexp::Binary { .. }
         | Sexp::Unary { .. }
@@ -196,6 +197,7 @@ fn contains(value: &Sexp, recursive: &Sexp) -> Result<bool, EvalError> {
         | Sexp::MatrixSubassignment { .. }
         | Sexp::ExtractAssignment { .. }
         | Sexp::DollarAssignment { .. }
+        | Sexp::MemberAssignment { .. }
         | Sexp::NamesAssignment { .. }
         | Sexp::Binary { .. }
         | Sexp::Unary { .. }
@@ -249,6 +251,7 @@ fn scalar_missing(value: &Sexp) -> bool {
         | Sexp::MatrixSubassignment { .. }
         | Sexp::ExtractAssignment { .. }
         | Sexp::DollarAssignment { .. }
+        | Sexp::MemberAssignment { .. }
         | Sexp::NamesAssignment { .. }
         | Sexp::Binary { .. }
         | Sexp::Unary { .. }

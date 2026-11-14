@@ -100,9 +100,14 @@ impl SyntaxParser {
                     index,
                     value: Box::new(value),
                 }),
-                _ => Err(ParseError::new(
-                    "left side of extract assignment must target a name",
-                )),
+                other => Self::nested_member_assignment(
+                    Sexp::Extract {
+                        value: Box::new(other),
+                        index,
+                    },
+                    value,
+                    operator,
+                ),
             },
             Sexp::Dollar {
                 value: target,
@@ -114,9 +119,14 @@ impl SyntaxParser {
                     name,
                     value: Box::new(value),
                 }),
-                _ => Err(ParseError::new(
-                    "left side of dollar assignment must target a name",
-                )),
+                other => Self::nested_member_assignment(
+                    Sexp::Dollar {
+                        value: Box::new(other),
+                        name,
+                    },
+                    value,
+                    operator,
+                ),
             },
             Sexp::Call {
                 function,
@@ -149,5 +159,30 @@ impl SyntaxParser {
                 "left side of assignment must be a name or subset",
             )),
         }
+    }
+
+    fn nested_member_assignment(
+        target: Sexp,
+        value: Sexp,
+        operator: AssignmentOperator,
+    ) -> Result<Sexp, ParseError> {
+        if !member_rooted(&target) {
+            return Err(ParseError::new(
+                "nested member assignment must target a name",
+            ));
+        }
+        Ok(Sexp::MemberAssignment {
+            operator,
+            target: Box::new(target),
+            value: Box::new(value),
+        })
+    }
+}
+
+fn member_rooted(target: &Sexp) -> bool {
+    match target {
+        Sexp::Symbol(_) => true,
+        Sexp::Dollar { value, .. } | Sexp::Extract { value, .. } => member_rooted(value),
+        _ => false,
     }
 }

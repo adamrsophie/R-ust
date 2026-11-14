@@ -219,3 +219,7 @@ mod environment_lifetime_tests;
 #[cfg(test)]
 #[path = "environment_value_tests.rs"]
 mod environment_value_tests;
+
+#[cfg(test)]
+#[path = "member_assignment_tests.rs"]
+mod member_assignment_tests;

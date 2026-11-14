@@ -147,11 +147,15 @@ impl RuntimeState {
     }
 
     pub(super) fn assign_local(&mut self, name: String, value: Sexp) -> Result<(), EvalError> {
-        Ok(self.current.insert(name, &value)?)
+        self.current
+            .insert(name.clone(), &value)
+            .map_err(|error| super::environment_members::member_graph_error(error, &name))
     }
 
     pub(super) fn assign_super(&mut self, name: String, value: Sexp) -> Result<(), EvalError> {
-        Ok(self.current.assign_parent(name, &value)?)
+        self.current
+            .assign_parent(name.clone(), &value)
+            .map_err(|error| super::environment_members::member_graph_error(error, &name))
     }
 }
 

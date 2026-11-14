@@ -166,6 +166,10 @@ fn visit(
             visit(value, map)?;
             visit(index, map)?;
         }
+        Sexp::MemberAssignment { target, value, .. } => {
+            visit(target, map)?;
+            visit(value, map)?;
+        }
         Sexp::Call {
             function,
             arguments,

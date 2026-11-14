@@ -43,6 +43,7 @@ pub(super) fn stop(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
         | Sexp::MatrixSubassignment { .. }
         | Sexp::ExtractAssignment { .. }
         | Sexp::DollarAssignment { .. }
+        | Sexp::MemberAssignment { .. }
         | Sexp::NamesAssignment { .. }
         | Sexp::Binary { .. }
         | Sexp::Unary { .. }
@@ -151,6 +152,7 @@ pub(super) fn gettext(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
         | Sexp::MatrixSubassignment { .. }
         | Sexp::ExtractAssignment { .. }
         | Sexp::DollarAssignment { .. }
+        | Sexp::MemberAssignment { .. }
         | Sexp::NamesAssignment { .. }
         | Sexp::Binary { .. }
         | Sexp::Unary { .. }
