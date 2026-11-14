@@ -93,12 +93,7 @@ enum EvalFlow {
     Value(Sexp),
 }
 
-#[derive(Clone, Debug, PartialEq)]
-enum ApplyFunction {
-    Closure(Sexp),
-    Primitive(r_ust_sexp::PrimitiveId),
-    Builtin(String),
-}
+use environment::ApplyFunction;
 
 #[derive(Debug)]
 pub struct RuntimeState {
@@ -175,6 +170,7 @@ impl RuntimeState {
     }
 
     fn eval_flow(&mut self, expr: &Sexp) -> Result<EvalFlow, EvalError> {
+        base::initialize(&self.current)?;
         self.visible = true;
         let result = match expr {
             Sexp::Nil
@@ -385,7 +381,7 @@ impl RuntimeState {
                 function,
                 arguments,
             } => self.eval_call(function, arguments)?,
-            Sexp::Parenthesized(value) => self.eval_flow(value)?,
+            Sexp::Parenthesized(value) => self.eval_parenthesized(value)?,
         };
         if is_assignment(expr)
             || matches!(
@@ -434,7 +430,7 @@ impl RuntimeState {
     /// Returns an owned rooted binding that can outlive this runtime.
     ///
     /// # Errors
-    /// Returns a graph error if lexical storage contains an invalid internal edge.
+    /// Returns a graph or base bootstrap error if the session cannot be read.
     pub fn get(&self, name: &str) -> Result<Option<Sexp>, EvalError> {
         self.raw_lookup(name)
     }
@@ -643,29 +639,6 @@ impl RuntimeState {
     fn eval_regular_argument(&mut self, expr: &Sexp) -> Result<Sexp, EvalError> {
         let EvalFlow::Value(value) = self.eval_flow(expr)?;
         Ok(value)
-    }
-
-    fn resolve_apply_function(&mut self, expr: &Sexp) -> Result<ApplyFunction, EvalError> {
-        if let Sexp::Parenthesized(expr) = expr {
-            return self.resolve_apply_function(expr);
-        }
-        if let Sexp::Symbol(name) = expr {
-            if let Some(Sexp::Primitive(id)) = self.lookup_function(name)? {
-                return Ok(ApplyFunction::Primitive(id));
-            }
-            if self.raw_lookup(name)?.is_none() && is_builtin(name) {
-                return Ok(ApplyFunction::Builtin(name.clone()));
-            }
-        }
-        let value = self.eval_regular_argument(expr)?;
-        match value {
-            Sexp::Primitive(id) => Ok(ApplyFunction::Primitive(id)),
-            closure @ Sexp::Closure { .. } => Ok(ApplyFunction::Closure(closure)),
-            other => Err(EvalError::Type(format!(
-                "apply function must be callable, found {:?}",
-                other.sexptype()
-            ))),
-        }
     }
 
     fn call_apply_function(

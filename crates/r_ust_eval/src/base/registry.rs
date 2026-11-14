@@ -72,21 +72,6 @@ pub(crate) fn iter() -> Result<impl Iterator<Item = (&'static str, &'static Sexp
     Ok(values.iter().map(|(name, value)| (*name, value)))
 }
 
-pub(crate) fn lookup(name: &str) -> Result<Option<Sexp>, EvalError> {
-    if let Some(value) = constants::lookup(name) {
-        return Ok(Some(value));
-    }
-    if let Some(id) = PrimitiveId::from_name(name) {
-        return Ok(Some(Sexp::Primitive(id)));
-    }
-    if !definitions().any(|(key, _)| *key == name) {
-        return Ok(None);
-    }
-    Ok(super::iter()?
-        .find(|(key, _)| *key == name)
-        .map(|(_, value)| value.clone()))
-}
-
 #[cfg(test)]
 #[path = "registry_tests.rs"]
 mod tests;

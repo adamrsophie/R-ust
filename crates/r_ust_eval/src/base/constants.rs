@@ -33,13 +33,6 @@ const CONSTANTS: &[Constant] = &[
     }),
 ];
 
-pub(super) fn lookup(name: &str) -> Option<Sexp> {
-    CONSTANTS
-        .iter()
-        .find(|(key, _)| *key == name)
-        .map(|(_, value)| value())
-}
-
 pub(super) fn iter() -> impl Iterator<Item = (&'static str, Sexp)> {
     CONSTANTS.iter().map(|(name, value)| (*name, value()))
 }

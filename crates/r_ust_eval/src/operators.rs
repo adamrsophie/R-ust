@@ -12,32 +12,30 @@ impl RuntimeState {
         operands: (&Sexp, &Sexp),
     ) -> Result<EvalFlow, EvalError> {
         let name = match op {
-            BinaryOp::Add => Some("+"),
-            BinaryOp::Subtract => Some("-"),
-            BinaryOp::Multiply => Some("*"),
-            BinaryOp::Divide => Some("/"),
-            BinaryOp::Power => Some("^"),
-            BinaryOp::Modulo => Some("%%"),
-            BinaryOp::IntegerDivide => Some("%/%"),
-            BinaryOp::Sequence => Some(":"),
-            BinaryOp::And
-            | BinaryOp::Or
-            | BinaryOp::AndScalar
-            | BinaryOp::OrScalar
-            | BinaryOp::In
-            | BinaryOp::Less
-            | BinaryOp::LessEqual
-            | BinaryOp::Greater
-            | BinaryOp::GreaterEqual
-            | BinaryOp::Equal
-            | BinaryOp::NotEqual => None,
+            BinaryOp::Add => "+",
+            BinaryOp::Subtract => "-",
+            BinaryOp::Multiply => "*",
+            BinaryOp::Divide => "/",
+            BinaryOp::Power => "^",
+            BinaryOp::Modulo => "%%",
+            BinaryOp::IntegerDivide => "%/%",
+            BinaryOp::Sequence => ":",
+            BinaryOp::And => "&",
+            BinaryOp::Or => "|",
+            BinaryOp::AndScalar => "&&",
+            BinaryOp::OrScalar => "||",
+            BinaryOp::In => "%in%",
+            BinaryOp::Less => "<",
+            BinaryOp::LessEqual => "<=",
+            BinaryOp::Greater => ">",
+            BinaryOp::GreaterEqual => ">=",
+            BinaryOp::Equal => "==",
+            BinaryOp::NotEqual => "!=",
         };
         let (left, right) = operands;
-        if let Some(name) = name {
-            let function = self
-                .lookup_function(name)?
-                .ok_or_else(|| EvalError::UndefinedSymbol(name.into()))?;
-            return self.call_value(
+        let function = self.require_function(name, true)?;
+        if !matches!(function, super::ApplyFunction::Builtin(_)) {
+            return self.call_resolved(
                 function,
                 &[
                     CallArgument::positional(left.clone()),
@@ -76,17 +74,16 @@ impl RuntimeState {
         let name = match op {
             UnaryOp::Plus => "+",
             UnaryOp::Minus => "-",
-            UnaryOp::Not => {
-                let EvalFlow::Value(value) = self.eval_flow(value)?;
-                let result = eval_unary(op, &value)?;
-                self.visible = true;
-                return Ok(EvalFlow::Value(result));
-            }
+            UnaryOp::Not => "!",
         };
-        let function = self
-            .lookup_function(name)?
-            .ok_or_else(|| EvalError::UndefinedSymbol(name.into()))?;
-        self.call_value(function, &[CallArgument::positional(value.clone())])
+        let function = self.require_function(name, true)?;
+        if !matches!(function, super::ApplyFunction::Builtin(_)) {
+            return self.call_resolved(function, &[CallArgument::positional(value.clone())]);
+        }
+        let EvalFlow::Value(value) = self.eval_flow(value)?;
+        let result = eval_unary(op, &value)?;
+        self.visible = true;
+        Ok(EvalFlow::Value(result))
     }
 
     pub(super) fn call_arithmetic(

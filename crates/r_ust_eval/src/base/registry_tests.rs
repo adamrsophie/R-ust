@@ -5,7 +5,7 @@ use r_ust_sexp::canonical_language;
 use super::*;
 
 #[test]
-fn base_registry_enumeration_is_unique_complete_and_matches_lookup() {
+fn base_registry_enumeration_is_unique_complete() {
     let expected: BTreeSet<_> = definitions()
         .map(|(name, _)| *name)
         .chain(constants::iter().map(|(name, _)| name))
@@ -19,15 +19,16 @@ fn base_registry_enumeration_is_unique_complete_and_matches_lookup() {
     let mut names = BTreeSet::new();
     for (name, value) in iter().unwrap() {
         assert!(names.insert(name), "duplicate base binding: {name}");
-        assert_eq!(lookup(name).unwrap(), Some(value.clone()), "{name}");
+        assert!(matches!(
+            value,
+            Sexp::Closure { .. }
+                | Sexp::Primitive(_)
+                | Sexp::Logical(_)
+                | Sexp::Real(_)
+                | Sexp::String(_)
+        ));
     }
     assert_eq!(names, expected);
-    for name in crate::primitive_calls::names::NAMES {
-        if PrimitiveId::from_name(name).is_none() && !expected.contains(name) {
-            assert_eq!(lookup(name).unwrap(), None, "{name}");
-        }
-    }
-    assert_eq!(lookup("not_a_registered_base_binding").unwrap(), None);
 }
 
 #[test]
@@ -41,7 +42,12 @@ fn base_registry_templates_preserve_formals_and_contain_no_session_roots() {
             parameters: actual,
             body,
             environment,
-        } = lookup(name).unwrap().unwrap()
+        } = iter()
+            .unwrap()
+            .find(|(key, _)| key == name)
+            .unwrap()
+            .1
+            .clone()
         else {
             panic!("missing closure: {name}");
         };

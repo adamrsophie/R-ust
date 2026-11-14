@@ -1,22 +1,25 @@
 use super::{
-    expand_dots_call_arguments, promise, CallArgument, ClosureEnvironment, Environment, EvalError,
-    EvalFlow, FunctionParameter, RuntimeState, Sexp,
+    expand_dots_call_arguments, promise, CallArgument, ClosureEnvironment, EvalError, EvalFlow,
+    FunctionParameter, RuntimeState, Sexp,
 };
 
 impl RuntimeState {
     pub(super) fn call_closure(
         &mut self,
         parameters: &[FunctionParameter],
-        body: &Sexp,
-        environment: &ClosureEnvironment,
+        definition: (&Sexp, &ClosureEnvironment),
         arguments: &[CallArgument],
     ) -> Result<EvalFlow, EvalError> {
+        let (body, environment) = definition;
         let caller = self.current.clone();
         let arguments = expand_dots_call_arguments(arguments, &caller)?;
         let bindings = self.bind_supplied_argument_promises(parameters, &arguments, &caller)?;
         let frame = match environment {
             ClosureEnvironment::Captured(frame) => frame.child()?,
-            ClosureEnvironment::Base => Environment::global(),
+            ClosureEnvironment::Base => self
+                .global
+                .session_root(r_ust_sexp::EnvironmentRole::BaseNamespace)?
+                .child()?,
         };
         for (name, value) in bindings {
             frame.insert(name, &value)?;

@@ -29,7 +29,17 @@ fn evaluation_functions_are_base_closures_with_genuine_formals_and_symbol_body()
         };
         assert_eq!(parameters, vec![FunctionParameter::required("x")]);
         assert_eq!(*body, Sexp::Symbol("x".into()));
-        assert!(matches!(environment, ClosureEnvironment::Base));
+        let ClosureEnvironment::Captured(namespace) = environment else {
+            panic!("{name} has no session namespace");
+        };
+        assert_eq!(
+            frontend.runtime().get(".BaseNamespaceEnv").unwrap(),
+            Some(Sexp::Environment(namespace.clone()))
+        );
+        assert_ne!(
+            RuntimeState::default().get(".BaseNamespaceEnv").unwrap(),
+            Some(Sexp::Environment(namespace))
+        );
     }
 }
 

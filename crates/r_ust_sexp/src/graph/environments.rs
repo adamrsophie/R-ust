@@ -148,6 +148,14 @@ impl Environment {
         Ok(Self(store.root(heap, id, &mut staging)))
     }
 
+    /// Reports whether this session already has an installed base inventory.
+    pub fn base_initialized(&self) -> Result<bool, GraphError> {
+        let store = self.0.heap()?.lock();
+        let global = store.frame(self.0.id())?.global.unwrap_or(self.0.id());
+        let roots = store.frame(global)?.session.ok_or(GraphError::WrongKind)?;
+        Ok(store.frame(roots.base)?.initialized)
+    }
+
     /// Installs a validated base inventory atomically once, sealing both aliases.
     /// Later calls preserve the already installed session inventory.
     pub fn install_base(&self, bindings: &[(String, Sexp)]) -> Result<(), GraphError> {

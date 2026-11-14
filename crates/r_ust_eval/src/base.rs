@@ -7,10 +7,12 @@ mod registry;
 mod rowsum;
 mod run_length;
 mod sequence;
+mod session;
 
 use super::{EvalError, Parser, Sexp};
 
-pub(super) use registry::{iter, lookup};
+pub(super) use registry::iter;
+pub(super) use session::initialize;
 
 fn lower(value: &mut Sexp) -> Result<(), EvalError> {
     match value {

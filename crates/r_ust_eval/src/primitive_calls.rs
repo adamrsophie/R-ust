@@ -97,7 +97,7 @@ impl RuntimeState {
                 parameters,
                 body,
                 environment,
-            } => self.call_closure(&parameters, &body, &environment, arguments),
+            } => self.call_closure(&parameters, (&body, &environment), arguments),
             Sexp::Primitive(id) => self.call_primitive(id, arguments),
             _ => Err(EvalError::Type("attempt to apply non-function".into())),
         }

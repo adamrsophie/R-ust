@@ -196,15 +196,24 @@ fn base_internal_gettext_validates_trim_and_preserves_disabled_domains() {
 
 #[test]
 fn base_internal_bootstrap_has_r_formals_and_condition_operations_stay_explicit() {
-    let values = Frontend::default().eval_source("stop").unwrap();
+    let mut frontend = Frontend::default();
+    let values = frontend.eval_source("stop").unwrap();
     let [Sexp::Closure {
         parameters,
-        environment: ClosureEnvironment::Base,
+        environment: ClosureEnvironment::Captured(namespace),
         ..
     }] = values.as_slice()
     else {
         panic!("base stop must be a closure")
     };
+    assert_eq!(
+        frontend.runtime().get(".BaseNamespaceEnv").unwrap(),
+        Some(Sexp::Environment(namespace.clone()))
+    );
+    assert_ne!(
+        RuntimeState::default().get(".BaseNamespaceEnv").unwrap(),
+        Some(Sexp::Environment(namespace.clone()))
+    );
     assert_eq!(
         parameters
             .iter()
