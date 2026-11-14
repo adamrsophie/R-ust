@@ -1,6 +1,6 @@
 mod tables;
 
-pub(super) fn encode(value: &str, quote: Option<char>) -> String {
+pub(crate) fn encode(value: &str, quote: Option<char>) -> String {
     let mut result = String::new();
     result.extend(quote);
     for character in value.chars() {

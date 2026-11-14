@@ -1,4 +1,5 @@
 mod escape;
+pub(crate) use escape::encode;
 
 use crate::{EvalError, EvalFlow, RuntimeState, Sexp};
 

@@ -58,7 +58,7 @@ fn check_rows(scope: &str, expected_count: usize) {
                 );
                 if fields[9] != "-" {
                     assert_eq!(
-                        format!("{}\n", format_sexp(value)),
+                        format!("{}\n", format_sexp(value).unwrap()),
                         unhex(fields[9]),
                         "{}",
                         fields[0]

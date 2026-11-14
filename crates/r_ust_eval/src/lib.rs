@@ -28,7 +28,10 @@ mod primitive_calls;
 mod promises;
 use dots::expand_dots_call_arguments;
 use promises::{is_missing_binding, promise};
+mod display;
 mod formatting;
+mod language_print;
+pub use display::format_sexp;
 mod loops;
 mod matching;
 mod matrix_storage;
@@ -919,7 +922,7 @@ impl Frontend {
             let value = self.runtime.eval(expr)?;
             if self.runtime.is_visible() {
                 self.runtime
-                    .emit(OutputEvent::Stdout(format!("{}\n", format_sexp(&value))))?;
+                    .emit(OutputEvent::Stdout(format!("{}\n", format_sexp(&value)?)))?;
             }
             Ok(())
         })();
@@ -8189,274 +8192,6 @@ fn recycled_len(lengths: &[usize]) -> usize {
     }
 }
 
-pub fn format_sexp(value: &Sexp) -> String {
-    match value {
-        Sexp::MissingValue => String::new(),
-        Sexp::PairList(_) => "<pairlist>".to_string(),
-        Sexp::Nil => "NULL".to_string(),
-        Sexp::MissingArg(name) => format!("<missing {name}>"),
-        Sexp::Primitive(id) => primitive_calls::format_primitive(*id),
-        Sexp::Logical(values) => format_numeric_line(
-            values
-                .iter()
-                .map(|value| match value {
-                    Some(true) => "TRUE".to_string(),
-                    Some(false) => "FALSE".to_string(),
-                    None => "NA".to_string(),
-                })
-                .collect(),
-            "logical(0)",
-        ),
-        Sexp::Integer(values) => format_numeric_line(
-            values
-                .iter()
-                .map(|value| value.map_or_else(|| "NA".to_string(), |value| value.to_string()))
-                .collect(),
-            "integer(0)",
-        ),
-        Sexp::Real(values) => format_numeric_line(
-            values.iter().map(|value| format_number(*value)).collect(),
-            "numeric(0)",
-        ),
-        Sexp::String(values) => format_line(
-            values
-                .iter()
-                .map(|value| match value {
-                    Some(value) => format!("{value:?}"),
-                    None => "NA".to_string(),
-                })
-                .collect(),
-        ),
-        Sexp::Factor {
-            codes,
-            levels,
-            ordered,
-        } => format_factor(codes, levels, *ordered),
-        Sexp::Vector(values) => values
-            .iter()
-            .map(format_sexp)
-            .collect::<Vec<_>>()
-            .join("\n"),
-        Sexp::List(values) => format_list(values),
-        Sexp::DataFrame { columns, nrow } => format_data_frame(columns, *nrow),
-        Sexp::Matrix { data, nrow, ncol } => format_matrix(data, *nrow, *ncol),
-        Sexp::Dots(values) => format_list(values),
-        Sexp::Promise { .. } => "<promise>".to_string(),
-        Sexp::Symbol(name) => name.clone(),
-        Sexp::Closure { parameters, .. } => format_function_signature(parameters),
-        Sexp::Function { .. }
-        | Sexp::If { .. }
-        | Sexp::For { .. }
-        | Sexp::While { .. }
-        | Sexp::Repeat { .. }
-        | Sexp::Break
-        | Sexp::Next
-        | Sexp::Block(_)
-        | Sexp::Subset { .. }
-        | Sexp::Subset2D { .. }
-        | Sexp::Extract { .. }
-        | Sexp::Dollar { .. }
-        | Sexp::Call { .. }
-        | Sexp::InternalCall { .. }
-        | Sexp::Assignment { .. }
-        | Sexp::SuperAssignment { .. }
-        | Sexp::Subassignment { .. }
-        | Sexp::MatrixSubassignment { .. }
-        | Sexp::ExtractAssignment { .. }
-        | Sexp::DollarAssignment { .. }
-        | Sexp::NamesAssignment { .. }
-        | Sexp::Binary { .. }
-        | Sexp::Unary { .. }
-        | Sexp::Parenthesized(_) => "<language>".to_string(),
-    }
-}
-
-fn format_factor(codes: &[Option<usize>], levels: &[String], ordered: bool) -> String {
-    let values = factor_strings(codes, levels)
-        .into_iter()
-        .map(|value| value.unwrap_or_else(|| "<NA>".to_string()))
-        .collect::<Vec<_>>();
-    let levels_line = if ordered {
-        format!("Levels: {}", levels.join(" < "))
-    } else {
-        format!("Levels: {}", levels.join(" "))
-    };
-    if values.is_empty() {
-        levels_line
-    } else {
-        format!("{}\n{levels_line}", format_line(values))
-    }
-}
-
-fn format_list(values: &[ListElement]) -> String {
-    if values.is_empty() {
-        return "list()".to_string();
-    }
-    values
-        .iter()
-        .enumerate()
-        .map(|(index, element)| {
-            let label = element
-                .name
-                .as_ref()
-                .map(|name| format!("${name}"))
-                .unwrap_or_else(|| format!("[[{}]]", index + 1));
-            format!("{label}\n{}", format_sexp(&element.value))
-        })
-        .collect::<Vec<_>>()
-        .join("\n\n")
-}
-
-fn format_data_frame(columns: &[ListElement], nrow: usize) -> String {
-    if columns.is_empty() {
-        return "data.frame()".to_string();
-    }
-    let names = columns
-        .iter()
-        .enumerate()
-        .map(|(index, column)| {
-            column
-                .name
-                .clone()
-                .unwrap_or_else(|| format!("X{}", index + 1))
-        })
-        .collect::<Vec<_>>();
-    let column_values = columns
-        .iter()
-        .map(|column| data_frame_display_values(&column.value))
-        .collect::<Vec<_>>();
-    let mut lines = Vec::new();
-    lines.push(
-        std::iter::once(" ".to_string())
-            .chain(names)
-            .collect::<Vec<_>>()
-            .join(" "),
-    );
-    for row in 0..nrow {
-        let mut cells = vec![(row + 1).to_string()];
-        for values in &column_values {
-            cells.push(values.get(row).cloned().unwrap_or_else(|| "NA".to_string()));
-        }
-        lines.push(cells.join(" "));
-    }
-    lines.join("\n")
-}
-
-fn data_frame_display_values(value: &Sexp) -> Vec<String> {
-    match value {
-        Sexp::Nil => Vec::new(),
-        Sexp::Logical(values) => values
-            .iter()
-            .map(|value| match value {
-                Some(true) => "TRUE".to_string(),
-                Some(false) => "FALSE".to_string(),
-                None => "NA".to_string(),
-            })
-            .collect(),
-        Sexp::Integer(values) => values
-            .iter()
-            .map(|value| value.map_or_else(|| "NA".to_string(), |value| value.to_string()))
-            .collect(),
-        Sexp::Real(values) => values.iter().map(|value| format_number(*value)).collect(),
-        Sexp::String(values) => values
-            .iter()
-            .map(|value| match value {
-                Some(value) => format!("{value:?}"),
-                None => "NA".to_string(),
-            })
-            .collect(),
-        Sexp::Factor { codes, levels, .. } => factor_strings(codes, levels)
-            .into_iter()
-            .map(|value| value.unwrap_or_else(|| "NA".to_string()))
-            .collect(),
-        Sexp::Matrix { data, .. } => data_frame_display_values(data),
-        other => sequence_elements(other)
-            .unwrap_or_default()
-            .iter()
-            .map(format_sexp)
-            .collect(),
-    }
-}
-
-fn format_matrix(data: &Sexp, nrow: usize, ncol: usize) -> String {
-    let values = matrix_display_values(data);
-    if nrow == 0 || ncol == 0 {
-        return format!("<{nrow} x {ncol} matrix>");
-    }
-    let mut lines = Vec::new();
-    lines.push(
-        std::iter::once("     ".to_string())
-            .chain((1..=ncol).map(|col| format!("[,{col}]")))
-            .collect::<Vec<_>>()
-            .join(" "),
-    );
-    for row in 0..nrow {
-        let mut cells = vec![format!("[{},]", row + 1)];
-        for col in 0..ncol {
-            let index = row + col * nrow;
-            cells.push(
-                values
-                    .get(index)
-                    .cloned()
-                    .unwrap_or_else(|| "NA".to_string()),
-            );
-        }
-        lines.push(cells.join(" "));
-    }
-    lines.join("\n")
-}
-
-fn matrix_display_values(data: &Sexp) -> Vec<String> {
-    match data {
-        Sexp::Nil => Vec::new(),
-        Sexp::Logical(values) => values
-            .iter()
-            .map(|value| match value {
-                Some(true) => "TRUE".to_string(),
-                Some(false) => "FALSE".to_string(),
-                None => "NA".to_string(),
-            })
-            .collect(),
-        Sexp::Integer(values) => values
-            .iter()
-            .map(|value| value.map_or_else(|| "NA".to_string(), |value| value.to_string()))
-            .collect(),
-        Sexp::Real(values) => values.iter().map(|value| format_number(*value)).collect(),
-        Sexp::String(values) => values
-            .iter()
-            .map(|value| match value {
-                Some(value) => format!("{value:?}"),
-                None => "NA".to_string(),
-            })
-            .collect(),
-        Sexp::Factor { codes, levels, .. } => factor_strings(codes, levels)
-            .into_iter()
-            .map(|value| value.unwrap_or_else(|| "NA".to_string()))
-            .collect(),
-        Sexp::Matrix { data, .. } => matrix_display_values(data),
-        other => sequence_elements(other)
-            .unwrap_or_default()
-            .iter()
-            .map(format_sexp)
-            .collect(),
-    }
-}
-
-fn format_function_signature(parameters: &[FunctionParameter]) -> String {
-    let params = parameters
-        .iter()
-        .map(|parameter| {
-            if parameter.default.is_some() {
-                format!("{} = <default>", parameter.name)
-            } else {
-                parameter.name.clone()
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(", ");
-    format!("function({params})")
-}
-
 fn format_number(value: f64) -> String {
     if is_na_real(value) {
         "NA".to_string()
@@ -10590,7 +10325,7 @@ mod tests {
     fn formats_lists() {
         let mut frontend = Frontend::default();
         let values = frontend.eval_source("list(a = 1, b = TRUE)").unwrap();
-        let formatted = format_sexp(&values[0]);
+        let formatted = format_sexp(&values[0]).unwrap();
         assert!(formatted.contains("$a\n[1] 1"));
         assert!(formatted.contains("$b\n[1] TRUE"));
     }

@@ -1,8 +1,9 @@
 pub const PORT_TARGET: &str = "R 4.6.0 Unix CLI, implemented in Rust";
 
-pub use r_ust_eval::{
-    format_sexp, EvalError, Frontend, OutputEvent, QuitRequest, RuntimeState, SaveAction,
-};
+/// Display formatting returns a Result; callers must handle language and nested
+/// container errors before emitting the completed text.
+pub use r_ust_eval::format_sexp;
+pub use r_ust_eval::{EvalError, Frontend, OutputEvent, QuitRequest, RuntimeState, SaveAction};
 pub use r_ust_parse::{ParseError, ParseIter, ParseResult, ParseStatus, Parser};
 pub use r_ust_sexp::{
     BinaryOp, CallArgument, FunctionParameter, Sexp, SexpHeader, SexpType, UnaryOp,

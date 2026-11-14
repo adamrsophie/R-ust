@@ -75,10 +75,10 @@ impl RuntimeState {
                                 .collect(),
                         )
                     } else {
-                        format_sexp(&value)
+                        format_sexp(&value)?
                     }
                 } else {
-                    format_sexp(&value)
+                    format_sexp(&value)?
                 };
                 self.emit(OutputEvent::Stdout(format!("{text}\n")))?;
                 self.visible = false;

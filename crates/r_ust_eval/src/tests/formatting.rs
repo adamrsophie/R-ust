@@ -3,7 +3,7 @@ use super::{format_sexp, EvalError, Frontend, Sexp};
 #[test]
 fn prints_small_doubles_without_losing_precision() {
     assert_eq!(
-        format_sexp(&Sexp::Real(vec![1e-13, 1.0 / i32::MAX as f64])),
+        format_sexp(&Sexp::Real(vec![1e-13, 1.0 / i32::MAX as f64])).unwrap(),
         "[1]             1e-13 4.65661287525e-10"
     );
 }
@@ -43,7 +43,7 @@ fn distinguishes_missing_doubles_from_nan() {
         ("c(sum(c(NA_real_, NaN), na.rm=TRUE), prod(c(NA_real_, NaN), na.rm=TRUE))", "[1] 0 1"),
     ] {
         let values = frontend.eval_source(source).unwrap_or_else(|error| panic!("{source}: {error}"));
-        assert_eq!(format_sexp(values.last().unwrap()), expected, "{source}");
+        assert_eq!(format_sexp(values.last().unwrap()).unwrap(), expected, "{source}");
     }
     for source in ["(1:3)[c(-1, NA)]", "(1:3)[c(-1, 2)]"] {
         assert!(
@@ -56,11 +56,11 @@ fn distinguishes_missing_doubles_from_nan() {
 #[test]
 fn formats_atomic_values() {
     assert_eq!(
-        format_sexp(&Sexp::Real(vec![1.0, f64::INFINITY])),
+        format_sexp(&Sexp::Real(vec![1.0, f64::INFINITY])).unwrap(),
         "[1]   1 Inf"
     );
     assert_eq!(
-        format_sexp(&Sexp::Logical(vec![Some(true), None, Some(false)])),
+        format_sexp(&Sexp::Logical(vec![Some(true), None, Some(false)])).unwrap(),
         "[1]  TRUE    NA FALSE"
     );
 }

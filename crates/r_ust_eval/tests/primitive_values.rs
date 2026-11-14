@@ -114,7 +114,7 @@ fn primitive_display_preserves_r_print_special_formals() {
         ("missing", "function (x)  .Primitive(\"missing\")"),
     ] {
         let values = Frontend::default().eval_source(source).unwrap();
-        assert_eq!(format_sexp(&values[0]), expected);
+        assert_eq!(format_sexp(&values[0]).unwrap(), expected);
     }
 }
 
