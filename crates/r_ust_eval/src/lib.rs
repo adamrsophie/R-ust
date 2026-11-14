@@ -32,6 +32,7 @@ mod formatting;
 mod loops;
 mod matching;
 mod matrix_storage;
+mod operators;
 mod options;
 mod ordering;
 mod parse_warnings;
@@ -365,29 +366,10 @@ impl RuntimeState {
                 EvalFlow::Value(replacement)
             }
             Sexp::Binary { op, left, right } => {
-                let EvalFlow::Value(left) = self.eval_flow(left)?;
-                if matches!(op, BinaryOp::AndScalar | BinaryOp::OrScalar) {
-                    match (
-                        *op,
-                        binary::logical_operand(&left, *op == BinaryOp::AndScalar, "x")?,
-                    ) {
-                        (BinaryOp::AndScalar, Some(false)) => {
-                            self.visible = true;
-                            return Ok(EvalFlow::Value(Sexp::Logical(vec![Some(false)])));
-                        }
-                        (BinaryOp::OrScalar, Some(true)) => {
-                            self.visible = true;
-                            return Ok(EvalFlow::Value(Sexp::Logical(vec![Some(true)])));
-                        }
-                        _ => {}
-                    }
-                }
-                let EvalFlow::Value(right) = self.eval_flow(right)?;
-                EvalFlow::Value(self.eval_binary(*op, (&left, &right))?)
+                return self.eval_binary_expression(*op, (left, right));
             }
             Sexp::Unary { op, value } => {
-                let EvalFlow::Value(value) = self.eval_flow(value)?;
-                EvalFlow::Value(eval_unary(*op, &value)?)
+                return self.eval_unary_expression(*op, value);
             }
             Sexp::Call {
                 function,
@@ -2493,48 +2475,6 @@ fn integer_arithmetic_operand(value: &Sexp) -> bool {
     }
 }
 
-fn eval_unary(op: UnaryOp, value: &Sexp) -> Result<Sexp, EvalError> {
-    if matches!(op, UnaryOp::Plus | UnaryOp::Minus) {
-        let integers = match value {
-            Sexp::Nil => {
-                return Err(EvalError::Type(
-                    "invalid argument to unary operator".to_string(),
-                ))
-            }
-            Sexp::Logical(values) => {
-                Some(values.iter().map(|value| value.map(i32::from)).collect())
-            }
-            Sexp::Integer(values) => Some(values.clone()),
-            _ => None,
-        };
-        if let Some(values) = integers {
-            return Ok(Sexp::Integer(if op == UnaryOp::Minus {
-                values
-                    .into_iter()
-                    .map(|value| value.and_then(i32::checked_neg))
-                    .collect()
-            } else {
-                values
-            }));
-        }
-    }
-    match op {
-        UnaryOp::Plus => Ok(Sexp::Real(numeric_values(value)?)),
-        UnaryOp::Minus => Ok(Sexp::Real(
-            numeric_values(value)?
-                .into_iter()
-                .map(|value| -value)
-                .collect(),
-        )),
-        UnaryOp::Not => Ok(Sexp::Logical(
-            logical_values(value)?
-                .into_iter()
-                .map(|value| value.map(|value| !value))
-                .collect(),
-        )),
-    }
-}
-
 fn compare_values(op: BinaryOp, left: &Sexp, right: &Sexp) -> Result<Sexp, EvalError> {
     if is_character_value(left)
         || is_character_value(right)
@@ -2577,12 +2517,6 @@ fn compare_values(op: BinaryOp, left: &Sexp, right: &Sexp) -> Result<Sexp, EvalE
         })
     })
     .map(Sexp::Logical)
-}
-
-fn eval_sequence(left: &Sexp, right: &Sexp) -> Result<Sexp, EvalError> {
-    let from = numeric_scalar(left, "left side of :")?;
-    let to = numeric_scalar(right, "right side of :")?;
-    colon_sequence(from, to)
 }
 
 fn colon_sequence(from: f64, to: f64) -> Result<Sexp, EvalError> {

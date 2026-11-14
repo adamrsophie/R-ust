@@ -108,8 +108,21 @@ impl RuntimeState {
         match id {
             PrimitiveId::Return => self.eval_return(arguments),
             PrimitiveId::Missing => self.eval_missing(arguments),
-            PrimitiveId::Sum | PrimitiveId::Length | PrimitiveId::Invisible => {
-                let values = self.eval_arguments(arguments, id == PrimitiveId::Sum)?;
+            PrimitiveId::Sum
+            | PrimitiveId::Length
+            | PrimitiveId::Invisible
+            | PrimitiveId::Add
+            | PrimitiveId::Subtract
+            | PrimitiveId::Multiply
+            | PrimitiveId::Divide
+            | PrimitiveId::Power
+            | PrimitiveId::Modulo
+            | PrimitiveId::IntegerDivide
+            | PrimitiveId::Colon => {
+                let values = self.eval_arguments(
+                    arguments,
+                    !matches!(id, PrimitiveId::Length | PrimitiveId::Invisible),
+                )?;
                 self.call_eager_primitive(id, &values).map(EvalFlow::Value)
             }
         }
@@ -121,6 +134,18 @@ impl RuntimeState {
         arguments: &[EvaluatedArgument],
     ) -> Result<Sexp, EvalError> {
         match id {
+            PrimitiveId::Add
+            | PrimitiveId::Subtract
+            | PrimitiveId::Multiply
+            | PrimitiveId::Divide
+            | PrimitiveId::Power
+            | PrimitiveId::Modulo
+            | PrimitiveId::IntegerDivide
+            | PrimitiveId::Colon => {
+                let value = self.call_arithmetic(id, arguments)?;
+                self.visible = true;
+                Ok(value)
+            }
             PrimitiveId::Length | PrimitiveId::Invisible => {
                 if arguments.len() != 1 && !(id == PrimitiveId::Invisible && arguments.is_empty()) {
                     return Err(EvalError::Arity(format!(
@@ -158,7 +183,14 @@ pub(super) fn format_primitive(id: PrimitiveId) -> String {
         PrimitiveId::Sum => "function (..., na.rm = FALSE)  ",
         PrimitiveId::Length | PrimitiveId::Missing => "function (x)  ",
         PrimitiveId::Invisible => "function (x = NULL)  ",
-        PrimitiveId::Return => "",
+        PrimitiveId::Return | PrimitiveId::Colon => "",
+        PrimitiveId::Add
+        | PrimitiveId::Subtract
+        | PrimitiveId::Multiply
+        | PrimitiveId::Divide
+        | PrimitiveId::Power
+        | PrimitiveId::Modulo
+        | PrimitiveId::IntegerDivide => "function (e1, e2)  ",
     };
     format!("{signature}.Primitive(\"{}\")", id.name())
 }

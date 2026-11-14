@@ -50,7 +50,15 @@ pub(super) fn typeof_value(value: &Sexp) -> &'static str {
         Sexp::Primitive(id) => match id {
             r_ust_sexp::PrimitiveId::Sum
             | r_ust_sexp::PrimitiveId::Length
-            | r_ust_sexp::PrimitiveId::Invisible => "builtin",
+            | r_ust_sexp::PrimitiveId::Invisible
+            | r_ust_sexp::PrimitiveId::Add
+            | r_ust_sexp::PrimitiveId::Subtract
+            | r_ust_sexp::PrimitiveId::Multiply
+            | r_ust_sexp::PrimitiveId::Divide
+            | r_ust_sexp::PrimitiveId::Power
+            | r_ust_sexp::PrimitiveId::Modulo
+            | r_ust_sexp::PrimitiveId::IntegerDivide
+            | r_ust_sexp::PrimitiveId::Colon => "builtin",
             r_ust_sexp::PrimitiveId::Return | r_ust_sexp::PrimitiveId::Missing => "special",
         },
         Sexp::Symbol(_) | Sexp::MissingValue => "symbol",

@@ -1,0 +1,279 @@
+id	scope	source
+00_handle	portable	`+`
+00_identity	portable	f <- `+`; identical(f, `+`)
+00_pair_identity	portable	c(identical(`+`, `+`),identical(`+`, `-`),identical(`+`, `*`),identical(`+`, `/`),identical(`+`, `^`),identical(`+`, `%%`),identical(`+`, `%/%`),identical(`+`, `:`))
+00_binary	portable	`+`(7L, 2L)
+00_infix	portable	7L + 2L
+00_alias	portable	f <- `+`; f(7L, 2L)
+00_computed	portable	(`+`)(7L, 2L)
+00_returned	portable	f <- function() `+`; f()(7L, 2L)
+00_zero	portable	`+`()
+00_unary	portable	`+`(7L)
+00_three	portable	`+`(7L, 2L, 3L)
+00_named	portable	`+`(e2=7L, e1=2L)
+00_arbitrary_names	portable	`+`(wrong=7L, other=2L)
+00_effects	portable	`+`({cat("LEFT\n");7L},{cat("RIGHT\n");2L})
+00_three_effects	portable	`+`({cat("LEFT\n");7L},{cat("RIGHT\n");2L},{cat("THIRD\n");3L})
+00_operand_error	portable	`+`({cat("LEFT\n");stop("left failed")},{cat("RIGHT\n");2L})
+00_empty_first	portable	`+`(,{cat("RIGHT\n");2L})
+00_empty_second	portable	`+`({cat("LEFT\n");7L},)
+00_skip_data	portable	`+` <- 99L; 7L + 2L
+00_computed_data	portable	`+` <- 99L; (`+`)(7L, 2L)
+00_rebound_lazy	portable	`+` <- function(e1,e2) e1; {cat("LEFT\n");7L} + stop("unused")
+00_rebound_reverse	portable	`+` <- function(e1,e2) {e2;e1}; {cat("LEFT\n");7L} + {cat("RIGHT\n");2L}
+00_rebound_invisible	portable	`+` <- function(e1,e2) invisible(e1); 7L + 2L
+00_rebound_primitive	portable	`+` <- `-`; 7L + 2L
+00_alias_saved	portable	f <- `+`; `+` <- function(e1,e2) 999L; f(7L,2L)
+00_skip_nested_data	portable	`+` <- function(e1,e2) 321L; f <- function() {`+` <- 99L; 7L + 2L}; f()
+00_missing_formal	portable	f <- function(`+`) 7L + 2L; f()
+00_recycle_warning	portable	`+`(c(1L,2L,3L),c(2L,3L))
+00_invisible_operands	portable	`+`(invisible(7L), invisible(2L))
+00_type_error	portable	`+`("bad",2L)
+00_raw_missing_binding	future_quote	`+` <- quote(expr=); 7L + 2L
+00_computed_missing_binding	future_quote	f <- function() quote(expr=); `+` <- f(); 7L + 2L
+00_computed_missing_head	future_quote	(quote(expr=))(7L,2L)
+00_computed_missing_operand	future_quote	`+`(quote(expr=),2L)
+01_handle	portable	`-`
+01_identity	portable	f <- `-`; identical(f, `-`)
+01_pair_identity	portable	c(identical(`-`, `+`),identical(`-`, `-`),identical(`-`, `*`),identical(`-`, `/`),identical(`-`, `^`),identical(`-`, `%%`),identical(`-`, `%/%`),identical(`-`, `:`))
+01_binary	portable	`-`(7L, 2L)
+01_infix	portable	7L - 2L
+01_alias	portable	f <- `-`; f(7L, 2L)
+01_computed	portable	(`-`)(7L, 2L)
+01_returned	portable	f <- function() `-`; f()(7L, 2L)
+01_zero	portable	`-`()
+01_unary	portable	`-`(7L)
+01_three	portable	`-`(7L, 2L, 3L)
+01_named	portable	`-`(e2=7L, e1=2L)
+01_arbitrary_names	portable	`-`(wrong=7L, other=2L)
+01_effects	portable	`-`({cat("LEFT\n");7L},{cat("RIGHT\n");2L})
+01_three_effects	portable	`-`({cat("LEFT\n");7L},{cat("RIGHT\n");2L},{cat("THIRD\n");3L})
+01_operand_error	portable	`-`({cat("LEFT\n");stop("left failed")},{cat("RIGHT\n");2L})
+01_empty_first	portable	`-`(,{cat("RIGHT\n");2L})
+01_empty_second	portable	`-`({cat("LEFT\n");7L},)
+01_skip_data	portable	`-` <- 99L; 7L - 2L
+01_computed_data	portable	`-` <- 99L; (`-`)(7L, 2L)
+01_rebound_lazy	portable	`-` <- function(e1,e2) e1; {cat("LEFT\n");7L} - stop("unused")
+01_rebound_reverse	portable	`-` <- function(e1,e2) {e2;e1}; {cat("LEFT\n");7L} - {cat("RIGHT\n");2L}
+01_rebound_invisible	portable	`-` <- function(e1,e2) invisible(e1); 7L - 2L
+01_rebound_primitive	portable	`-` <- `-`; 7L - 2L
+01_alias_saved	portable	f <- `-`; `-` <- function(e1,e2) 999L; f(7L,2L)
+01_skip_nested_data	portable	`-` <- function(e1,e2) 321L; f <- function() {`-` <- 99L; 7L - 2L}; f()
+01_missing_formal	portable	f <- function(`-`) 7L - 2L; f()
+01_recycle_warning	portable	`-`(c(1L,2L,3L),c(2L,3L))
+01_invisible_operands	portable	`-`(invisible(7L), invisible(2L))
+01_type_error	portable	`-`("bad",2L)
+01_raw_missing_binding	future_quote	`-` <- quote(expr=); 7L - 2L
+01_computed_missing_binding	future_quote	f <- function() quote(expr=); `-` <- f(); 7L - 2L
+01_computed_missing_head	future_quote	(quote(expr=))(7L,2L)
+01_computed_missing_operand	future_quote	`-`(quote(expr=),2L)
+02_handle	portable	`*`
+02_identity	portable	f <- `*`; identical(f, `*`)
+02_pair_identity	portable	c(identical(`*`, `+`),identical(`*`, `-`),identical(`*`, `*`),identical(`*`, `/`),identical(`*`, `^`),identical(`*`, `%%`),identical(`*`, `%/%`),identical(`*`, `:`))
+02_binary	portable	`*`(7L, 2L)
+02_infix	portable	7L * 2L
+02_alias	portable	f <- `*`; f(7L, 2L)
+02_computed	portable	(`*`)(7L, 2L)
+02_returned	portable	f <- function() `*`; f()(7L, 2L)
+02_zero	portable	`*`()
+02_unary	portable	`*`(7L)
+02_three	portable	`*`(7L, 2L, 3L)
+02_named	portable	`*`(e2=7L, e1=2L)
+02_arbitrary_names	portable	`*`(wrong=7L, other=2L)
+02_effects	portable	`*`({cat("LEFT\n");7L},{cat("RIGHT\n");2L})
+02_three_effects	portable	`*`({cat("LEFT\n");7L},{cat("RIGHT\n");2L},{cat("THIRD\n");3L})
+02_operand_error	portable	`*`({cat("LEFT\n");stop("left failed")},{cat("RIGHT\n");2L})
+02_empty_first	portable	`*`(,{cat("RIGHT\n");2L})
+02_empty_second	portable	`*`({cat("LEFT\n");7L},)
+02_skip_data	portable	`*` <- 99L; 7L * 2L
+02_computed_data	portable	`*` <- 99L; (`*`)(7L, 2L)
+02_rebound_lazy	portable	`*` <- function(e1,e2) e1; {cat("LEFT\n");7L} * stop("unused")
+02_rebound_reverse	portable	`*` <- function(e1,e2) {e2;e1}; {cat("LEFT\n");7L} * {cat("RIGHT\n");2L}
+02_rebound_invisible	portable	`*` <- function(e1,e2) invisible(e1); 7L * 2L
+02_rebound_primitive	portable	`*` <- `-`; 7L * 2L
+02_alias_saved	portable	f <- `*`; `*` <- function(e1,e2) 999L; f(7L,2L)
+02_skip_nested_data	portable	`*` <- function(e1,e2) 321L; f <- function() {`*` <- 99L; 7L * 2L}; f()
+02_missing_formal	portable	f <- function(`*`) 7L * 2L; f()
+02_recycle_warning	portable	`*`(c(1L,2L,3L),c(2L,3L))
+02_invisible_operands	portable	`*`(invisible(7L), invisible(2L))
+02_type_error	portable	`*`("bad",2L)
+02_raw_missing_binding	future_quote	`*` <- quote(expr=); 7L * 2L
+02_computed_missing_binding	future_quote	f <- function() quote(expr=); `*` <- f(); 7L * 2L
+02_computed_missing_head	future_quote	(quote(expr=))(7L,2L)
+02_computed_missing_operand	future_quote	`*`(quote(expr=),2L)
+03_handle	portable	`/`
+03_identity	portable	f <- `/`; identical(f, `/`)
+03_pair_identity	portable	c(identical(`/`, `+`),identical(`/`, `-`),identical(`/`, `*`),identical(`/`, `/`),identical(`/`, `^`),identical(`/`, `%%`),identical(`/`, `%/%`),identical(`/`, `:`))
+03_binary	portable	`/`(7L, 2L)
+03_infix	portable	7L / 2L
+03_alias	portable	f <- `/`; f(7L, 2L)
+03_computed	portable	(`/`)(7L, 2L)
+03_returned	portable	f <- function() `/`; f()(7L, 2L)
+03_zero	portable	`/`()
+03_unary	portable	`/`(7L)
+03_three	portable	`/`(7L, 2L, 3L)
+03_named	portable	`/`(e2=7L, e1=2L)
+03_arbitrary_names	portable	`/`(wrong=7L, other=2L)
+03_effects	portable	`/`({cat("LEFT\n");7L},{cat("RIGHT\n");2L})
+03_three_effects	portable	`/`({cat("LEFT\n");7L},{cat("RIGHT\n");2L},{cat("THIRD\n");3L})
+03_operand_error	portable	`/`({cat("LEFT\n");stop("left failed")},{cat("RIGHT\n");2L})
+03_empty_first	portable	`/`(,{cat("RIGHT\n");2L})
+03_empty_second	portable	`/`({cat("LEFT\n");7L},)
+03_skip_data	portable	`/` <- 99L; 7L / 2L
+03_computed_data	portable	`/` <- 99L; (`/`)(7L, 2L)
+03_rebound_lazy	portable	`/` <- function(e1,e2) e1; {cat("LEFT\n");7L} / stop("unused")
+03_rebound_reverse	portable	`/` <- function(e1,e2) {e2;e1}; {cat("LEFT\n");7L} / {cat("RIGHT\n");2L}
+03_rebound_invisible	portable	`/` <- function(e1,e2) invisible(e1); 7L / 2L
+03_rebound_primitive	portable	`/` <- `-`; 7L / 2L
+03_alias_saved	portable	f <- `/`; `/` <- function(e1,e2) 999L; f(7L,2L)
+03_skip_nested_data	portable	`/` <- function(e1,e2) 321L; f <- function() {`/` <- 99L; 7L / 2L}; f()
+03_missing_formal	portable	f <- function(`/`) 7L / 2L; f()
+03_recycle_warning	portable	`/`(c(1L,2L,3L),c(2L,3L))
+03_invisible_operands	portable	`/`(invisible(7L), invisible(2L))
+03_type_error	portable	`/`("bad",2L)
+03_raw_missing_binding	future_quote	`/` <- quote(expr=); 7L / 2L
+03_computed_missing_binding	future_quote	f <- function() quote(expr=); `/` <- f(); 7L / 2L
+03_computed_missing_head	future_quote	(quote(expr=))(7L,2L)
+03_computed_missing_operand	future_quote	`/`(quote(expr=),2L)
+04_handle	portable	`^`
+04_identity	portable	f <- `^`; identical(f, `^`)
+04_pair_identity	portable	c(identical(`^`, `+`),identical(`^`, `-`),identical(`^`, `*`),identical(`^`, `/`),identical(`^`, `^`),identical(`^`, `%%`),identical(`^`, `%/%`),identical(`^`, `:`))
+04_binary	portable	`^`(7L, 2L)
+04_infix	portable	7L ^ 2L
+04_alias	portable	f <- `^`; f(7L, 2L)
+04_computed	portable	(`^`)(7L, 2L)
+04_returned	portable	f <- function() `^`; f()(7L, 2L)
+04_zero	portable	`^`()
+04_unary	portable	`^`(7L)
+04_three	portable	`^`(7L, 2L, 3L)
+04_named	portable	`^`(e2=7L, e1=2L)
+04_arbitrary_names	portable	`^`(wrong=7L, other=2L)
+04_effects	portable	`^`({cat("LEFT\n");7L},{cat("RIGHT\n");2L})
+04_three_effects	portable	`^`({cat("LEFT\n");7L},{cat("RIGHT\n");2L},{cat("THIRD\n");3L})
+04_operand_error	portable	`^`({cat("LEFT\n");stop("left failed")},{cat("RIGHT\n");2L})
+04_empty_first	portable	`^`(,{cat("RIGHT\n");2L})
+04_empty_second	portable	`^`({cat("LEFT\n");7L},)
+04_skip_data	portable	`^` <- 99L; 7L ^ 2L
+04_computed_data	portable	`^` <- 99L; (`^`)(7L, 2L)
+04_rebound_lazy	portable	`^` <- function(e1,e2) e1; {cat("LEFT\n");7L} ^ stop("unused")
+04_rebound_reverse	portable	`^` <- function(e1,e2) {e2;e1}; {cat("LEFT\n");7L} ^ {cat("RIGHT\n");2L}
+04_rebound_invisible	portable	`^` <- function(e1,e2) invisible(e1); 7L ^ 2L
+04_rebound_primitive	portable	`^` <- `-`; 7L ^ 2L
+04_alias_saved	portable	f <- `^`; `^` <- function(e1,e2) 999L; f(7L,2L)
+04_skip_nested_data	portable	`^` <- function(e1,e2) 321L; f <- function() {`^` <- 99L; 7L ^ 2L}; f()
+04_missing_formal	portable	f <- function(`^`) 7L ^ 2L; f()
+04_recycle_warning	portable	`^`(c(1L,2L,3L),c(2L,3L))
+04_invisible_operands	portable	`^`(invisible(7L), invisible(2L))
+04_type_error	portable	`^`("bad",2L)
+04_raw_missing_binding	future_quote	`^` <- quote(expr=); 7L ^ 2L
+04_computed_missing_binding	future_quote	f <- function() quote(expr=); `^` <- f(); 7L ^ 2L
+04_computed_missing_head	future_quote	(quote(expr=))(7L,2L)
+04_computed_missing_operand	future_quote	`^`(quote(expr=),2L)
+05_handle	portable	`%%`
+05_identity	portable	f <- `%%`; identical(f, `%%`)
+05_pair_identity	portable	c(identical(`%%`, `+`),identical(`%%`, `-`),identical(`%%`, `*`),identical(`%%`, `/`),identical(`%%`, `^`),identical(`%%`, `%%`),identical(`%%`, `%/%`),identical(`%%`, `:`))
+05_binary	portable	`%%`(7L, 2L)
+05_infix	portable	7L %% 2L
+05_alias	portable	f <- `%%`; f(7L, 2L)
+05_computed	portable	(`%%`)(7L, 2L)
+05_returned	portable	f <- function() `%%`; f()(7L, 2L)
+05_zero	portable	`%%`()
+05_unary	portable	`%%`(7L)
+05_three	portable	`%%`(7L, 2L, 3L)
+05_named	portable	`%%`(e2=7L, e1=2L)
+05_arbitrary_names	portable	`%%`(wrong=7L, other=2L)
+05_effects	portable	`%%`({cat("LEFT\n");7L},{cat("RIGHT\n");2L})
+05_three_effects	portable	`%%`({cat("LEFT\n");7L},{cat("RIGHT\n");2L},{cat("THIRD\n");3L})
+05_operand_error	portable	`%%`({cat("LEFT\n");stop("left failed")},{cat("RIGHT\n");2L})
+05_empty_first	portable	`%%`(,{cat("RIGHT\n");2L})
+05_empty_second	portable	`%%`({cat("LEFT\n");7L},)
+05_skip_data	portable	`%%` <- 99L; 7L %% 2L
+05_computed_data	portable	`%%` <- 99L; (`%%`)(7L, 2L)
+05_rebound_lazy	portable	`%%` <- function(e1,e2) e1; {cat("LEFT\n");7L} %% stop("unused")
+05_rebound_reverse	portable	`%%` <- function(e1,e2) {e2;e1}; {cat("LEFT\n");7L} %% {cat("RIGHT\n");2L}
+05_rebound_invisible	portable	`%%` <- function(e1,e2) invisible(e1); 7L %% 2L
+05_rebound_primitive	portable	`%%` <- `-`; 7L %% 2L
+05_alias_saved	portable	f <- `%%`; `%%` <- function(e1,e2) 999L; f(7L,2L)
+05_skip_nested_data	portable	`%%` <- function(e1,e2) 321L; f <- function() {`%%` <- 99L; 7L %% 2L}; f()
+05_missing_formal	portable	f <- function(`%%`) 7L %% 2L; f()
+05_recycle_warning	portable	`%%`(c(1L,2L,3L),c(2L,3L))
+05_invisible_operands	portable	`%%`(invisible(7L), invisible(2L))
+05_type_error	portable	`%%`("bad",2L)
+05_raw_missing_binding	future_quote	`%%` <- quote(expr=); 7L %% 2L
+05_computed_missing_binding	future_quote	f <- function() quote(expr=); `%%` <- f(); 7L %% 2L
+05_computed_missing_head	future_quote	(quote(expr=))(7L,2L)
+05_computed_missing_operand	future_quote	`%%`(quote(expr=),2L)
+06_handle	portable	`%/%`
+06_identity	portable	f <- `%/%`; identical(f, `%/%`)
+06_pair_identity	portable	c(identical(`%/%`, `+`),identical(`%/%`, `-`),identical(`%/%`, `*`),identical(`%/%`, `/`),identical(`%/%`, `^`),identical(`%/%`, `%%`),identical(`%/%`, `%/%`),identical(`%/%`, `:`))
+06_binary	portable	`%/%`(7L, 2L)
+06_infix	portable	7L %/% 2L
+06_alias	portable	f <- `%/%`; f(7L, 2L)
+06_computed	portable	(`%/%`)(7L, 2L)
+06_returned	portable	f <- function() `%/%`; f()(7L, 2L)
+06_zero	portable	`%/%`()
+06_unary	portable	`%/%`(7L)
+06_three	portable	`%/%`(7L, 2L, 3L)
+06_named	portable	`%/%`(e2=7L, e1=2L)
+06_arbitrary_names	portable	`%/%`(wrong=7L, other=2L)
+06_effects	portable	`%/%`({cat("LEFT\n");7L},{cat("RIGHT\n");2L})
+06_three_effects	portable	`%/%`({cat("LEFT\n");7L},{cat("RIGHT\n");2L},{cat("THIRD\n");3L})
+06_operand_error	portable	`%/%`({cat("LEFT\n");stop("left failed")},{cat("RIGHT\n");2L})
+06_empty_first	portable	`%/%`(,{cat("RIGHT\n");2L})
+06_empty_second	portable	`%/%`({cat("LEFT\n");7L},)
+06_skip_data	portable	`%/%` <- 99L; 7L %/% 2L
+06_computed_data	portable	`%/%` <- 99L; (`%/%`)(7L, 2L)
+06_rebound_lazy	portable	`%/%` <- function(e1,e2) e1; {cat("LEFT\n");7L} %/% stop("unused")
+06_rebound_reverse	portable	`%/%` <- function(e1,e2) {e2;e1}; {cat("LEFT\n");7L} %/% {cat("RIGHT\n");2L}
+06_rebound_invisible	portable	`%/%` <- function(e1,e2) invisible(e1); 7L %/% 2L
+06_rebound_primitive	portable	`%/%` <- `-`; 7L %/% 2L
+06_alias_saved	portable	f <- `%/%`; `%/%` <- function(e1,e2) 999L; f(7L,2L)
+06_skip_nested_data	portable	`%/%` <- function(e1,e2) 321L; f <- function() {`%/%` <- 99L; 7L %/% 2L}; f()
+06_missing_formal	portable	f <- function(`%/%`) 7L %/% 2L; f()
+06_recycle_warning	portable	`%/%`(c(1L,2L,3L),c(2L,3L))
+06_invisible_operands	portable	`%/%`(invisible(7L), invisible(2L))
+06_type_error	portable	`%/%`("bad",2L)
+06_raw_missing_binding	future_quote	`%/%` <- quote(expr=); 7L %/% 2L
+06_computed_missing_binding	future_quote	f <- function() quote(expr=); `%/%` <- f(); 7L %/% 2L
+06_computed_missing_head	future_quote	(quote(expr=))(7L,2L)
+06_computed_missing_operand	future_quote	`%/%`(quote(expr=),2L)
+07_handle	portable	`:`
+07_identity	portable	f <- `:`; identical(f, `:`)
+07_pair_identity	portable	c(identical(`:`, `+`),identical(`:`, `-`),identical(`:`, `*`),identical(`:`, `/`),identical(`:`, `^`),identical(`:`, `%%`),identical(`:`, `%/%`),identical(`:`, `:`))
+07_binary	portable	`:`(7L, 2L)
+07_infix	portable	7L : 2L
+07_alias	portable	f <- `:`; f(7L, 2L)
+07_computed	portable	(`:`)(7L, 2L)
+07_returned	portable	f <- function() `:`; f()(7L, 2L)
+07_zero	portable	`:`()
+07_unary	portable	`:`(7L)
+07_three	portable	`:`(7L, 2L, 3L)
+07_named	portable	`:`(e2=7L, e1=2L)
+07_arbitrary_names	portable	`:`(wrong=7L, other=2L)
+07_effects	portable	`:`({cat("LEFT\n");7L},{cat("RIGHT\n");2L})
+07_three_effects	portable	`:`({cat("LEFT\n");7L},{cat("RIGHT\n");2L},{cat("THIRD\n");3L})
+07_operand_error	portable	`:`({cat("LEFT\n");stop("left failed")},{cat("RIGHT\n");2L})
+07_empty_first	portable	`:`(,{cat("RIGHT\n");2L})
+07_empty_second	portable	`:`({cat("LEFT\n");7L},)
+07_skip_data	portable	`:` <- 99L; 7L : 2L
+07_computed_data	portable	`:` <- 99L; (`:`)(7L, 2L)
+07_rebound_lazy	portable	`:` <- function(e1,e2) e1; {cat("LEFT\n");7L} : stop("unused")
+07_rebound_reverse	portable	`:` <- function(e1,e2) {e2;e1}; {cat("LEFT\n");7L} : {cat("RIGHT\n");2L}
+07_rebound_invisible	portable	`:` <- function(e1,e2) invisible(e1); 7L : 2L
+07_rebound_primitive	portable	`:` <- `-`; 7L : 2L
+07_alias_saved	portable	f <- `:`; `:` <- function(e1,e2) 999L; f(7L,2L)
+07_skip_nested_data	portable	`:` <- function(e1,e2) 321L; f <- function() {`:` <- 99L; 7L : 2L}; f()
+07_missing_formal	portable	f <- function(`:`) 7L : 2L; f()
+07_recycle_warning	portable	`:`(c(1L,2L,3L),c(2L,3L))
+07_invisible_operands	portable	`:`(invisible(7L), invisible(2L))
+07_type_error	portable	`:`("bad",2L)
+07_raw_missing_binding	future_quote	`:` <- quote(expr=); 7L : 2L
+07_computed_missing_binding	future_quote	f <- function() quote(expr=); `:` <- f(); 7L : 2L
+07_computed_missing_head	future_quote	(quote(expr=))(7L,2L)
+07_computed_missing_operand	future_quote	`:`(quote(expr=),2L)
+00_numeric_warning	portable	2147483647L + 1L
+01_numeric_warning	portable	(-2147483647L) - 2L
+02_numeric_warning	portable	2147483647L * 2L
+04_numeric_warning	portable	(-1)^0.5
+05_numeric_warning	portable	1e30 %% 3
+06_numeric_warning	portable	1e30 %/% 3

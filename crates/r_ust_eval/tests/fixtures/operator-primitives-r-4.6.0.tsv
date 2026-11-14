@@ -1,0 +1,279 @@
+id	scope	source	storage	fingerprint	error_hex	warnings_hex	stdout_hex	visible	handle_display_hex
+00_handle	portable	`+`	builtin	builtin:.Primitive("+")	-	-	-	TRUE	66756e6374696f6e202865312c2065322920202e5072696d697469766528222b22290a
+00_identity	portable	f <- `+`; identical(f, `+`)	logical	logical|1|T	-	-	-	TRUE	-
+00_pair_identity	portable	c(identical(`+`, `+`),identical(`+`, `-`),identical(`+`, `*`),identical(`+`, `/`),identical(`+`, `^`),identical(`+`, `%%`),identical(`+`, `%/%`),identical(`+`, `:`))	logical	logical|8|T,F,F,F,F,F,F,F	-	-	-	TRUE	-
+00_binary	portable	`+`(7L, 2L)	integer	integer|1|9	-	-	-	TRUE	-
+00_infix	portable	7L + 2L	integer	integer|1|9	-	-	-	TRUE	-
+00_alias	portable	f <- `+`; f(7L, 2L)	integer	integer|1|9	-	-	-	TRUE	-
+00_computed	portable	(`+`)(7L, 2L)	integer	integer|1|9	-	-	-	TRUE	-
+00_returned	portable	f <- function() `+`; f()(7L, 2L)	integer	integer|1|9	-	-	-	TRUE	-
+00_zero	portable	`+`()	error	-	6f70657261746f72206e65656473206f6e65206f722074776f20617267756d656e7473	-	-	-	-
+00_unary	portable	`+`(7L)	integer	integer|1|7	-	-	-	TRUE	-
+00_three	portable	`+`(7L, 2L, 3L)	error	-	6f70657261746f72206e65656473206f6e65206f722074776f20617267756d656e7473	-	-	-	-
+00_named	portable	`+`(e2=7L, e1=2L)	integer	integer|1|9	-	-	-	TRUE	-
+00_arbitrary_names	portable	`+`(wrong=7L, other=2L)	integer	integer|1|9	-	-	-	TRUE	-
+00_effects	portable	`+`({cat("LEFT\n");7L},{cat("RIGHT\n");2L})	integer	integer|1|9	-	-	4c4546540a52494748540a	TRUE	-
+00_three_effects	portable	`+`({cat("LEFT\n");7L},{cat("RIGHT\n");2L},{cat("THIRD\n");3L})	error	-	6f70657261746f72206e65656473206f6e65206f722074776f20617267756d656e7473	-	4c4546540a52494748540a54484952440a	-	-
+00_operand_error	portable	`+`({cat("LEFT\n");stop("left failed")},{cat("RIGHT\n");2L})	error	-	6c656674206661696c6564	-	4c4546540a	-	-
+00_empty_first	portable	`+`(,{cat("RIGHT\n");2L})	error	-	617267756d656e74203120697320656d707479	-	-	-	-
+00_empty_second	portable	`+`({cat("LEFT\n");7L},)	error	-	617267756d656e74203220697320656d707479	-	4c4546540a	-	-
+00_skip_data	portable	`+` <- 99L; 7L + 2L	integer	integer|1|9	-	-	-	TRUE	-
+00_computed_data	portable	`+` <- 99L; (`+`)(7L, 2L)	error	-	617474656d707420746f206170706c79206e6f6e2d66756e6374696f6e	-	-	-	-
+00_rebound_lazy	portable	`+` <- function(e1,e2) e1; {cat("LEFT\n");7L} + stop("unused")	integer	integer|1|7	-	-	4c4546540a	TRUE	-
+00_rebound_reverse	portable	`+` <- function(e1,e2) {e2;e1}; {cat("LEFT\n");7L} + {cat("RIGHT\n");2L}	integer	integer|1|7	-	-	52494748540a4c4546540a	TRUE	-
+00_rebound_invisible	portable	`+` <- function(e1,e2) invisible(e1); 7L + 2L	integer	integer|1|7	-	-	-	FALSE	-
+00_rebound_primitive	portable	`+` <- `-`; 7L + 2L	integer	integer|1|5	-	-	-	TRUE	-
+00_alias_saved	portable	f <- `+`; `+` <- function(e1,e2) 999L; f(7L,2L)	integer	integer|1|9	-	-	-	TRUE	-
+00_skip_nested_data	portable	`+` <- function(e1,e2) 321L; f <- function() {`+` <- 99L; 7L + 2L}; f()	integer	integer|1|321	-	-	-	TRUE	-
+00_missing_formal	portable	f <- function(`+`) 7L + 2L; f()	error	-	617267756d656e7420222b22206973206d697373696e672c2077697468206e6f2064656661756c74	-	-	-	-
+00_recycle_warning	portable	`+`(c(1L,2L,3L),c(2L,3L))	integer	integer|3|3,5,5	-	6c6f6e676572206f626a656374206c656e677468206973206e6f742061206d756c7469706c65206f662073686f72746572206f626a656374206c656e677468	-	TRUE	-
+00_invisible_operands	portable	`+`(invisible(7L), invisible(2L))	integer	integer|1|9	-	-	-	TRUE	-
+00_type_error	portable	`+`("bad",2L)	error	-	6e6f6e2d6e756d6572696320617267756d656e7420746f2062696e617279206f70657261746f72	-	-	-	-
+00_raw_missing_binding	future_quote	`+` <- quote(expr=); 7L + 2L	error	-	617267756d656e7420222b22206973206d697373696e672c2077697468206e6f2064656661756c74	-	-	-	-
+00_computed_missing_binding	future_quote	f <- function() quote(expr=); `+` <- f(); 7L + 2L	error	-	617267756d656e7420222b22206973206d697373696e672c2077697468206e6f2064656661756c74	-	-	-	-
+00_computed_missing_head	future_quote	(quote(expr=))(7L,2L)	error	-	617474656d707420746f206170706c79206e6f6e2d66756e6374696f6e	-	-	-	-
+00_computed_missing_operand	future_quote	`+`(quote(expr=),2L)	error	-	6e6f6e2d6e756d6572696320617267756d656e7420746f2062696e617279206f70657261746f72	-	-	-	-
+01_handle	portable	`-`	builtin	builtin:.Primitive("-")	-	-	-	TRUE	66756e6374696f6e202865312c2065322920202e5072696d697469766528222d22290a
+01_identity	portable	f <- `-`; identical(f, `-`)	logical	logical|1|T	-	-	-	TRUE	-
+01_pair_identity	portable	c(identical(`-`, `+`),identical(`-`, `-`),identical(`-`, `*`),identical(`-`, `/`),identical(`-`, `^`),identical(`-`, `%%`),identical(`-`, `%/%`),identical(`-`, `:`))	logical	logical|8|F,T,F,F,F,F,F,F	-	-	-	TRUE	-
+01_binary	portable	`-`(7L, 2L)	integer	integer|1|5	-	-	-	TRUE	-
+01_infix	portable	7L - 2L	integer	integer|1|5	-	-	-	TRUE	-
+01_alias	portable	f <- `-`; f(7L, 2L)	integer	integer|1|5	-	-	-	TRUE	-
+01_computed	portable	(`-`)(7L, 2L)	integer	integer|1|5	-	-	-	TRUE	-
+01_returned	portable	f <- function() `-`; f()(7L, 2L)	integer	integer|1|5	-	-	-	TRUE	-
+01_zero	portable	`-`()	error	-	6f70657261746f72206e65656473206f6e65206f722074776f20617267756d656e7473	-	-	-	-
+01_unary	portable	`-`(7L)	integer	integer|1|-7	-	-	-	TRUE	-
+01_three	portable	`-`(7L, 2L, 3L)	error	-	6f70657261746f72206e65656473206f6e65206f722074776f20617267756d656e7473	-	-	-	-
+01_named	portable	`-`(e2=7L, e1=2L)	integer	integer|1|5	-	-	-	TRUE	-
+01_arbitrary_names	portable	`-`(wrong=7L, other=2L)	integer	integer|1|5	-	-	-	TRUE	-
+01_effects	portable	`-`({cat("LEFT\n");7L},{cat("RIGHT\n");2L})	integer	integer|1|5	-	-	4c4546540a52494748540a	TRUE	-
+01_three_effects	portable	`-`({cat("LEFT\n");7L},{cat("RIGHT\n");2L},{cat("THIRD\n");3L})	error	-	6f70657261746f72206e65656473206f6e65206f722074776f20617267756d656e7473	-	4c4546540a52494748540a54484952440a	-	-
+01_operand_error	portable	`-`({cat("LEFT\n");stop("left failed")},{cat("RIGHT\n");2L})	error	-	6c656674206661696c6564	-	4c4546540a	-	-
+01_empty_first	portable	`-`(,{cat("RIGHT\n");2L})	error	-	617267756d656e74203120697320656d707479	-	-	-	-
+01_empty_second	portable	`-`({cat("LEFT\n");7L},)	error	-	617267756d656e74203220697320656d707479	-	4c4546540a	-	-
+01_skip_data	portable	`-` <- 99L; 7L - 2L	integer	integer|1|5	-	-	-	TRUE	-
+01_computed_data	portable	`-` <- 99L; (`-`)(7L, 2L)	error	-	617474656d707420746f206170706c79206e6f6e2d66756e6374696f6e	-	-	-	-
+01_rebound_lazy	portable	`-` <- function(e1,e2) e1; {cat("LEFT\n");7L} - stop("unused")	integer	integer|1|7	-	-	4c4546540a	TRUE	-
+01_rebound_reverse	portable	`-` <- function(e1,e2) {e2;e1}; {cat("LEFT\n");7L} - {cat("RIGHT\n");2L}	integer	integer|1|7	-	-	52494748540a4c4546540a	TRUE	-
+01_rebound_invisible	portable	`-` <- function(e1,e2) invisible(e1); 7L - 2L	integer	integer|1|7	-	-	-	FALSE	-
+01_rebound_primitive	portable	`-` <- `-`; 7L - 2L	integer	integer|1|5	-	-	-	TRUE	-
+01_alias_saved	portable	f <- `-`; `-` <- function(e1,e2) 999L; f(7L,2L)	integer	integer|1|5	-	-	-	TRUE	-
+01_skip_nested_data	portable	`-` <- function(e1,e2) 321L; f <- function() {`-` <- 99L; 7L - 2L}; f()	integer	integer|1|321	-	-	-	TRUE	-
+01_missing_formal	portable	f <- function(`-`) 7L - 2L; f()	error	-	617267756d656e7420222d22206973206d697373696e672c2077697468206e6f2064656661756c74	-	-	-	-
+01_recycle_warning	portable	`-`(c(1L,2L,3L),c(2L,3L))	integer	integer|3|-1,-1,1	-	6c6f6e676572206f626a656374206c656e677468206973206e6f742061206d756c7469706c65206f662073686f72746572206f626a656374206c656e677468	-	TRUE	-
+01_invisible_operands	portable	`-`(invisible(7L), invisible(2L))	integer	integer|1|5	-	-	-	TRUE	-
+01_type_error	portable	`-`("bad",2L)	error	-	6e6f6e2d6e756d6572696320617267756d656e7420746f2062696e617279206f70657261746f72	-	-	-	-
+01_raw_missing_binding	future_quote	`-` <- quote(expr=); 7L - 2L	error	-	617267756d656e7420222d22206973206d697373696e672c2077697468206e6f2064656661756c74	-	-	-	-
+01_computed_missing_binding	future_quote	f <- function() quote(expr=); `-` <- f(); 7L - 2L	error	-	617267756d656e7420222d22206973206d697373696e672c2077697468206e6f2064656661756c74	-	-	-	-
+01_computed_missing_head	future_quote	(quote(expr=))(7L,2L)	error	-	617474656d707420746f206170706c79206e6f6e2d66756e6374696f6e	-	-	-	-
+01_computed_missing_operand	future_quote	`-`(quote(expr=),2L)	error	-	6e6f6e2d6e756d6572696320617267756d656e7420746f2062696e617279206f70657261746f72	-	-	-	-
+02_handle	portable	`*`	builtin	builtin:.Primitive("*")	-	-	-	TRUE	66756e6374696f6e202865312c2065322920202e5072696d697469766528222a22290a
+02_identity	portable	f <- `*`; identical(f, `*`)	logical	logical|1|T	-	-	-	TRUE	-
+02_pair_identity	portable	c(identical(`*`, `+`),identical(`*`, `-`),identical(`*`, `*`),identical(`*`, `/`),identical(`*`, `^`),identical(`*`, `%%`),identical(`*`, `%/%`),identical(`*`, `:`))	logical	logical|8|F,F,T,F,F,F,F,F	-	-	-	TRUE	-
+02_binary	portable	`*`(7L, 2L)	integer	integer|1|14	-	-	-	TRUE	-
+02_infix	portable	7L * 2L	integer	integer|1|14	-	-	-	TRUE	-
+02_alias	portable	f <- `*`; f(7L, 2L)	integer	integer|1|14	-	-	-	TRUE	-
+02_computed	portable	(`*`)(7L, 2L)	integer	integer|1|14	-	-	-	TRUE	-
+02_returned	portable	f <- function() `*`; f()(7L, 2L)	integer	integer|1|14	-	-	-	TRUE	-
+02_zero	portable	`*`()	error	-	6f70657261746f72206e65656473206f6e65206f722074776f20617267756d656e7473	-	-	-	-
+02_unary	portable	`*`(7L)	error	-	696e76616c696420756e617279206f70657261746f72	-	-	-	-
+02_three	portable	`*`(7L, 2L, 3L)	error	-	6f70657261746f72206e65656473206f6e65206f722074776f20617267756d656e7473	-	-	-	-
+02_named	portable	`*`(e2=7L, e1=2L)	integer	integer|1|14	-	-	-	TRUE	-
+02_arbitrary_names	portable	`*`(wrong=7L, other=2L)	integer	integer|1|14	-	-	-	TRUE	-
+02_effects	portable	`*`({cat("LEFT\n");7L},{cat("RIGHT\n");2L})	integer	integer|1|14	-	-	4c4546540a52494748540a	TRUE	-
+02_three_effects	portable	`*`({cat("LEFT\n");7L},{cat("RIGHT\n");2L},{cat("THIRD\n");3L})	error	-	6f70657261746f72206e65656473206f6e65206f722074776f20617267756d656e7473	-	4c4546540a52494748540a54484952440a	-	-
+02_operand_error	portable	`*`({cat("LEFT\n");stop("left failed")},{cat("RIGHT\n");2L})	error	-	6c656674206661696c6564	-	4c4546540a	-	-
+02_empty_first	portable	`*`(,{cat("RIGHT\n");2L})	error	-	617267756d656e74203120697320656d707479	-	-	-	-
+02_empty_second	portable	`*`({cat("LEFT\n");7L},)	error	-	617267756d656e74203220697320656d707479	-	4c4546540a	-	-
+02_skip_data	portable	`*` <- 99L; 7L * 2L	integer	integer|1|14	-	-	-	TRUE	-
+02_computed_data	portable	`*` <- 99L; (`*`)(7L, 2L)	error	-	617474656d707420746f206170706c79206e6f6e2d66756e6374696f6e	-	-	-	-
+02_rebound_lazy	portable	`*` <- function(e1,e2) e1; {cat("LEFT\n");7L} * stop("unused")	integer	integer|1|7	-	-	4c4546540a	TRUE	-
+02_rebound_reverse	portable	`*` <- function(e1,e2) {e2;e1}; {cat("LEFT\n");7L} * {cat("RIGHT\n");2L}	integer	integer|1|7	-	-	52494748540a4c4546540a	TRUE	-
+02_rebound_invisible	portable	`*` <- function(e1,e2) invisible(e1); 7L * 2L	integer	integer|1|7	-	-	-	FALSE	-
+02_rebound_primitive	portable	`*` <- `-`; 7L * 2L	integer	integer|1|5	-	-	-	TRUE	-
+02_alias_saved	portable	f <- `*`; `*` <- function(e1,e2) 999L; f(7L,2L)	integer	integer|1|14	-	-	-	TRUE	-
+02_skip_nested_data	portable	`*` <- function(e1,e2) 321L; f <- function() {`*` <- 99L; 7L * 2L}; f()	integer	integer|1|321	-	-	-	TRUE	-
+02_missing_formal	portable	f <- function(`*`) 7L * 2L; f()	error	-	617267756d656e7420222a22206973206d697373696e672c2077697468206e6f2064656661756c74	-	-	-	-
+02_recycle_warning	portable	`*`(c(1L,2L,3L),c(2L,3L))	integer	integer|3|2,6,6	-	6c6f6e676572206f626a656374206c656e677468206973206e6f742061206d756c7469706c65206f662073686f72746572206f626a656374206c656e677468	-	TRUE	-
+02_invisible_operands	portable	`*`(invisible(7L), invisible(2L))	integer	integer|1|14	-	-	-	TRUE	-
+02_type_error	portable	`*`("bad",2L)	error	-	6e6f6e2d6e756d6572696320617267756d656e7420746f2062696e617279206f70657261746f72	-	-	-	-
+02_raw_missing_binding	future_quote	`*` <- quote(expr=); 7L * 2L	error	-	617267756d656e7420222a22206973206d697373696e672c2077697468206e6f2064656661756c74	-	-	-	-
+02_computed_missing_binding	future_quote	f <- function() quote(expr=); `*` <- f(); 7L * 2L	error	-	617267756d656e7420222a22206973206d697373696e672c2077697468206e6f2064656661756c74	-	-	-	-
+02_computed_missing_head	future_quote	(quote(expr=))(7L,2L)	error	-	617474656d707420746f206170706c79206e6f6e2d66756e6374696f6e	-	-	-	-
+02_computed_missing_operand	future_quote	`*`(quote(expr=),2L)	error	-	6e6f6e2d6e756d6572696320617267756d656e7420746f2062696e617279206f70657261746f72	-	-	-	-
+03_handle	portable	`/`	builtin	builtin:.Primitive("/")	-	-	-	TRUE	66756e6374696f6e202865312c2065322920202e5072696d697469766528222f22290a
+03_identity	portable	f <- `/`; identical(f, `/`)	logical	logical|1|T	-	-	-	TRUE	-
+03_pair_identity	portable	c(identical(`/`, `+`),identical(`/`, `-`),identical(`/`, `*`),identical(`/`, `/`),identical(`/`, `^`),identical(`/`, `%%`),identical(`/`, `%/%`),identical(`/`, `:`))	logical	logical|8|F,F,F,T,F,F,F,F	-	-	-	TRUE	-
+03_binary	portable	`/`(7L, 2L)	double	double|1|400c000000000000	-	-	-	TRUE	-
+03_infix	portable	7L / 2L	double	double|1|400c000000000000	-	-	-	TRUE	-
+03_alias	portable	f <- `/`; f(7L, 2L)	double	double|1|400c000000000000	-	-	-	TRUE	-
+03_computed	portable	(`/`)(7L, 2L)	double	double|1|400c000000000000	-	-	-	TRUE	-
+03_returned	portable	f <- function() `/`; f()(7L, 2L)	double	double|1|400c000000000000	-	-	-	TRUE	-
+03_zero	portable	`/`()	error	-	6f70657261746f72206e65656473206f6e65206f722074776f20617267756d656e7473	-	-	-	-
+03_unary	portable	`/`(7L)	error	-	696e76616c696420756e617279206f70657261746f72	-	-	-	-
+03_three	portable	`/`(7L, 2L, 3L)	error	-	6f70657261746f72206e65656473206f6e65206f722074776f20617267756d656e7473	-	-	-	-
+03_named	portable	`/`(e2=7L, e1=2L)	double	double|1|400c000000000000	-	-	-	TRUE	-
+03_arbitrary_names	portable	`/`(wrong=7L, other=2L)	double	double|1|400c000000000000	-	-	-	TRUE	-
+03_effects	portable	`/`({cat("LEFT\n");7L},{cat("RIGHT\n");2L})	double	double|1|400c000000000000	-	-	4c4546540a52494748540a	TRUE	-
+03_three_effects	portable	`/`({cat("LEFT\n");7L},{cat("RIGHT\n");2L},{cat("THIRD\n");3L})	error	-	6f70657261746f72206e65656473206f6e65206f722074776f20617267756d656e7473	-	4c4546540a52494748540a54484952440a	-	-
+03_operand_error	portable	`/`({cat("LEFT\n");stop("left failed")},{cat("RIGHT\n");2L})	error	-	6c656674206661696c6564	-	4c4546540a	-	-
+03_empty_first	portable	`/`(,{cat("RIGHT\n");2L})	error	-	617267756d656e74203120697320656d707479	-	-	-	-
+03_empty_second	portable	`/`({cat("LEFT\n");7L},)	error	-	617267756d656e74203220697320656d707479	-	4c4546540a	-	-
+03_skip_data	portable	`/` <- 99L; 7L / 2L	double	double|1|400c000000000000	-	-	-	TRUE	-
+03_computed_data	portable	`/` <- 99L; (`/`)(7L, 2L)	error	-	617474656d707420746f206170706c79206e6f6e2d66756e6374696f6e	-	-	-	-
+03_rebound_lazy	portable	`/` <- function(e1,e2) e1; {cat("LEFT\n");7L} / stop("unused")	integer	integer|1|7	-	-	4c4546540a	TRUE	-
+03_rebound_reverse	portable	`/` <- function(e1,e2) {e2;e1}; {cat("LEFT\n");7L} / {cat("RIGHT\n");2L}	integer	integer|1|7	-	-	52494748540a4c4546540a	TRUE	-
+03_rebound_invisible	portable	`/` <- function(e1,e2) invisible(e1); 7L / 2L	integer	integer|1|7	-	-	-	FALSE	-
+03_rebound_primitive	portable	`/` <- `-`; 7L / 2L	integer	integer|1|5	-	-	-	TRUE	-
+03_alias_saved	portable	f <- `/`; `/` <- function(e1,e2) 999L; f(7L,2L)	double	double|1|400c000000000000	-	-	-	TRUE	-
+03_skip_nested_data	portable	`/` <- function(e1,e2) 321L; f <- function() {`/` <- 99L; 7L / 2L}; f()	integer	integer|1|321	-	-	-	TRUE	-
+03_missing_formal	portable	f <- function(`/`) 7L / 2L; f()	error	-	617267756d656e7420222f22206973206d697373696e672c2077697468206e6f2064656661756c74	-	-	-	-
+03_recycle_warning	portable	`/`(c(1L,2L,3L),c(2L,3L))	double	double|3|3fe0000000000000,3fe5555555555555,3ff8000000000000	-	6c6f6e676572206f626a656374206c656e677468206973206e6f742061206d756c7469706c65206f662073686f72746572206f626a656374206c656e677468	-	TRUE	-
+03_invisible_operands	portable	`/`(invisible(7L), invisible(2L))	double	double|1|400c000000000000	-	-	-	TRUE	-
+03_type_error	portable	`/`("bad",2L)	error	-	6e6f6e2d6e756d6572696320617267756d656e7420746f2062696e617279206f70657261746f72	-	-	-	-
+03_raw_missing_binding	future_quote	`/` <- quote(expr=); 7L / 2L	error	-	617267756d656e7420222f22206973206d697373696e672c2077697468206e6f2064656661756c74	-	-	-	-
+03_computed_missing_binding	future_quote	f <- function() quote(expr=); `/` <- f(); 7L / 2L	error	-	617267756d656e7420222f22206973206d697373696e672c2077697468206e6f2064656661756c74	-	-	-	-
+03_computed_missing_head	future_quote	(quote(expr=))(7L,2L)	error	-	617474656d707420746f206170706c79206e6f6e2d66756e6374696f6e	-	-	-	-
+03_computed_missing_operand	future_quote	`/`(quote(expr=),2L)	error	-	6e6f6e2d6e756d6572696320617267756d656e7420746f2062696e617279206f70657261746f72	-	-	-	-
+04_handle	portable	`^`	builtin	builtin:.Primitive("^")	-	-	-	TRUE	66756e6374696f6e202865312c2065322920202e5072696d697469766528225e22290a
+04_identity	portable	f <- `^`; identical(f, `^`)	logical	logical|1|T	-	-	-	TRUE	-
+04_pair_identity	portable	c(identical(`^`, `+`),identical(`^`, `-`),identical(`^`, `*`),identical(`^`, `/`),identical(`^`, `^`),identical(`^`, `%%`),identical(`^`, `%/%`),identical(`^`, `:`))	logical	logical|8|F,F,F,F,T,F,F,F	-	-	-	TRUE	-
+04_binary	portable	`^`(7L, 2L)	double	double|1|4048800000000000	-	-	-	TRUE	-
+04_infix	portable	7L ^ 2L	double	double|1|4048800000000000	-	-	-	TRUE	-
+04_alias	portable	f <- `^`; f(7L, 2L)	double	double|1|4048800000000000	-	-	-	TRUE	-
+04_computed	portable	(`^`)(7L, 2L)	double	double|1|4048800000000000	-	-	-	TRUE	-
+04_returned	portable	f <- function() `^`; f()(7L, 2L)	double	double|1|4048800000000000	-	-	-	TRUE	-
+04_zero	portable	`^`()	error	-	6f70657261746f72206e65656473206f6e65206f722074776f20617267756d656e7473	-	-	-	-
+04_unary	portable	`^`(7L)	error	-	696e76616c696420756e617279206f70657261746f72	-	-	-	-
+04_three	portable	`^`(7L, 2L, 3L)	error	-	6f70657261746f72206e65656473206f6e65206f722074776f20617267756d656e7473	-	-	-	-
+04_named	portable	`^`(e2=7L, e1=2L)	double	double|1|4048800000000000	-	-	-	TRUE	-
+04_arbitrary_names	portable	`^`(wrong=7L, other=2L)	double	double|1|4048800000000000	-	-	-	TRUE	-
+04_effects	portable	`^`({cat("LEFT\n");7L},{cat("RIGHT\n");2L})	double	double|1|4048800000000000	-	-	4c4546540a52494748540a	TRUE	-
+04_three_effects	portable	`^`({cat("LEFT\n");7L},{cat("RIGHT\n");2L},{cat("THIRD\n");3L})	error	-	6f70657261746f72206e65656473206f6e65206f722074776f20617267756d656e7473	-	4c4546540a52494748540a54484952440a	-	-
+04_operand_error	portable	`^`({cat("LEFT\n");stop("left failed")},{cat("RIGHT\n");2L})	error	-	6c656674206661696c6564	-	4c4546540a	-	-
+04_empty_first	portable	`^`(,{cat("RIGHT\n");2L})	error	-	617267756d656e74203120697320656d707479	-	-	-	-
+04_empty_second	portable	`^`({cat("LEFT\n");7L},)	error	-	617267756d656e74203220697320656d707479	-	4c4546540a	-	-
+04_skip_data	portable	`^` <- 99L; 7L ^ 2L	double	double|1|4048800000000000	-	-	-	TRUE	-
+04_computed_data	portable	`^` <- 99L; (`^`)(7L, 2L)	error	-	617474656d707420746f206170706c79206e6f6e2d66756e6374696f6e	-	-	-	-
+04_rebound_lazy	portable	`^` <- function(e1,e2) e1; {cat("LEFT\n");7L} ^ stop("unused")	integer	integer|1|7	-	-	4c4546540a	TRUE	-
+04_rebound_reverse	portable	`^` <- function(e1,e2) {e2;e1}; {cat("LEFT\n");7L} ^ {cat("RIGHT\n");2L}	integer	integer|1|7	-	-	52494748540a4c4546540a	TRUE	-
+04_rebound_invisible	portable	`^` <- function(e1,e2) invisible(e1); 7L ^ 2L	integer	integer|1|7	-	-	-	FALSE	-
+04_rebound_primitive	portable	`^` <- `-`; 7L ^ 2L	integer	integer|1|5	-	-	-	TRUE	-
+04_alias_saved	portable	f <- `^`; `^` <- function(e1,e2) 999L; f(7L,2L)	double	double|1|4048800000000000	-	-	-	TRUE	-
+04_skip_nested_data	portable	`^` <- function(e1,e2) 321L; f <- function() {`^` <- 99L; 7L ^ 2L}; f()	integer	integer|1|321	-	-	-	TRUE	-
+04_missing_formal	portable	f <- function(`^`) 7L ^ 2L; f()	error	-	617267756d656e7420225e22206973206d697373696e672c2077697468206e6f2064656661756c74	-	-	-	-
+04_recycle_warning	portable	`^`(c(1L,2L,3L),c(2L,3L))	double	double|3|3ff0000000000000,4020000000000000,4022000000000000	-	6c6f6e676572206f626a656374206c656e677468206973206e6f742061206d756c7469706c65206f662073686f72746572206f626a656374206c656e677468	-	TRUE	-
+04_invisible_operands	portable	`^`(invisible(7L), invisible(2L))	double	double|1|4048800000000000	-	-	-	TRUE	-
+04_type_error	portable	`^`("bad",2L)	error	-	6e6f6e2d6e756d6572696320617267756d656e7420746f2062696e617279206f70657261746f72	-	-	-	-
+04_raw_missing_binding	future_quote	`^` <- quote(expr=); 7L ^ 2L	error	-	617267756d656e7420225e22206973206d697373696e672c2077697468206e6f2064656661756c74	-	-	-	-
+04_computed_missing_binding	future_quote	f <- function() quote(expr=); `^` <- f(); 7L ^ 2L	error	-	617267756d656e7420225e22206973206d697373696e672c2077697468206e6f2064656661756c74	-	-	-	-
+04_computed_missing_head	future_quote	(quote(expr=))(7L,2L)	error	-	617474656d707420746f206170706c79206e6f6e2d66756e6374696f6e	-	-	-	-
+04_computed_missing_operand	future_quote	`^`(quote(expr=),2L)	error	-	6e6f6e2d6e756d6572696320617267756d656e7420746f2062696e617279206f70657261746f72	-	-	-	-
+05_handle	portable	`%%`	builtin	builtin:.Primitive("%%")	-	-	-	TRUE	66756e6374696f6e202865312c2065322920202e5072696d69746976652822252522290a
+05_identity	portable	f <- `%%`; identical(f, `%%`)	logical	logical|1|T	-	-	-	TRUE	-
+05_pair_identity	portable	c(identical(`%%`, `+`),identical(`%%`, `-`),identical(`%%`, `*`),identical(`%%`, `/`),identical(`%%`, `^`),identical(`%%`, `%%`),identical(`%%`, `%/%`),identical(`%%`, `:`))	logical	logical|8|F,F,F,F,F,T,F,F	-	-	-	TRUE	-
+05_binary	portable	`%%`(7L, 2L)	integer	integer|1|1	-	-	-	TRUE	-
+05_infix	portable	7L %% 2L	integer	integer|1|1	-	-	-	TRUE	-
+05_alias	portable	f <- `%%`; f(7L, 2L)	integer	integer|1|1	-	-	-	TRUE	-
+05_computed	portable	(`%%`)(7L, 2L)	integer	integer|1|1	-	-	-	TRUE	-
+05_returned	portable	f <- function() `%%`; f()(7L, 2L)	integer	integer|1|1	-	-	-	TRUE	-
+05_zero	portable	`%%`()	error	-	6f70657261746f72206e65656473206f6e65206f722074776f20617267756d656e7473	-	-	-	-
+05_unary	portable	`%%`(7L)	error	-	696e76616c696420756e617279206f70657261746f72	-	-	-	-
+05_three	portable	`%%`(7L, 2L, 3L)	error	-	6f70657261746f72206e65656473206f6e65206f722074776f20617267756d656e7473	-	-	-	-
+05_named	portable	`%%`(e2=7L, e1=2L)	integer	integer|1|1	-	-	-	TRUE	-
+05_arbitrary_names	portable	`%%`(wrong=7L, other=2L)	integer	integer|1|1	-	-	-	TRUE	-
+05_effects	portable	`%%`({cat("LEFT\n");7L},{cat("RIGHT\n");2L})	integer	integer|1|1	-	-	4c4546540a52494748540a	TRUE	-
+05_three_effects	portable	`%%`({cat("LEFT\n");7L},{cat("RIGHT\n");2L},{cat("THIRD\n");3L})	error	-	6f70657261746f72206e65656473206f6e65206f722074776f20617267756d656e7473	-	4c4546540a52494748540a54484952440a	-	-
+05_operand_error	portable	`%%`({cat("LEFT\n");stop("left failed")},{cat("RIGHT\n");2L})	error	-	6c656674206661696c6564	-	4c4546540a	-	-
+05_empty_first	portable	`%%`(,{cat("RIGHT\n");2L})	error	-	617267756d656e74203120697320656d707479	-	-	-	-
+05_empty_second	portable	`%%`({cat("LEFT\n");7L},)	error	-	617267756d656e74203220697320656d707479	-	4c4546540a	-	-
+05_skip_data	portable	`%%` <- 99L; 7L %% 2L	integer	integer|1|1	-	-	-	TRUE	-
+05_computed_data	portable	`%%` <- 99L; (`%%`)(7L, 2L)	error	-	617474656d707420746f206170706c79206e6f6e2d66756e6374696f6e	-	-	-	-
+05_rebound_lazy	portable	`%%` <- function(e1,e2) e1; {cat("LEFT\n");7L} %% stop("unused")	integer	integer|1|7	-	-	4c4546540a	TRUE	-
+05_rebound_reverse	portable	`%%` <- function(e1,e2) {e2;e1}; {cat("LEFT\n");7L} %% {cat("RIGHT\n");2L}	integer	integer|1|7	-	-	52494748540a4c4546540a	TRUE	-
+05_rebound_invisible	portable	`%%` <- function(e1,e2) invisible(e1); 7L %% 2L	integer	integer|1|7	-	-	-	FALSE	-
+05_rebound_primitive	portable	`%%` <- `-`; 7L %% 2L	integer	integer|1|5	-	-	-	TRUE	-
+05_alias_saved	portable	f <- `%%`; `%%` <- function(e1,e2) 999L; f(7L,2L)	integer	integer|1|1	-	-	-	TRUE	-
+05_skip_nested_data	portable	`%%` <- function(e1,e2) 321L; f <- function() {`%%` <- 99L; 7L %% 2L}; f()	integer	integer|1|321	-	-	-	TRUE	-
+05_missing_formal	portable	f <- function(`%%`) 7L %% 2L; f()	error	-	617267756d656e742022252522206973206d697373696e672c2077697468206e6f2064656661756c74	-	-	-	-
+05_recycle_warning	portable	`%%`(c(1L,2L,3L),c(2L,3L))	integer	integer|3|1,2,1	-	6c6f6e676572206f626a656374206c656e677468206973206e6f742061206d756c7469706c65206f662073686f72746572206f626a656374206c656e677468	-	TRUE	-
+05_invisible_operands	portable	`%%`(invisible(7L), invisible(2L))	integer	integer|1|1	-	-	-	TRUE	-
+05_type_error	portable	`%%`("bad",2L)	error	-	6e6f6e2d6e756d6572696320617267756d656e7420746f2062696e617279206f70657261746f72	-	-	-	-
+05_raw_missing_binding	future_quote	`%%` <- quote(expr=); 7L %% 2L	error	-	617267756d656e742022252522206973206d697373696e672c2077697468206e6f2064656661756c74	-	-	-	-
+05_computed_missing_binding	future_quote	f <- function() quote(expr=); `%%` <- f(); 7L %% 2L	error	-	617267756d656e742022252522206973206d697373696e672c2077697468206e6f2064656661756c74	-	-	-	-
+05_computed_missing_head	future_quote	(quote(expr=))(7L,2L)	error	-	617474656d707420746f206170706c79206e6f6e2d66756e6374696f6e	-	-	-	-
+05_computed_missing_operand	future_quote	`%%`(quote(expr=),2L)	error	-	6e6f6e2d6e756d6572696320617267756d656e7420746f2062696e617279206f70657261746f72	-	-	-	-
+06_handle	portable	`%/%`	builtin	builtin:.Primitive("%/%")	-	-	-	TRUE	66756e6374696f6e202865312c2065322920202e5072696d69746976652822252f2522290a
+06_identity	portable	f <- `%/%`; identical(f, `%/%`)	logical	logical|1|T	-	-	-	TRUE	-
+06_pair_identity	portable	c(identical(`%/%`, `+`),identical(`%/%`, `-`),identical(`%/%`, `*`),identical(`%/%`, `/`),identical(`%/%`, `^`),identical(`%/%`, `%%`),identical(`%/%`, `%/%`),identical(`%/%`, `:`))	logical	logical|8|F,F,F,F,F,F,T,F	-	-	-	TRUE	-
+06_binary	portable	`%/%`(7L, 2L)	integer	integer|1|3	-	-	-	TRUE	-
+06_infix	portable	7L %/% 2L	integer	integer|1|3	-	-	-	TRUE	-
+06_alias	portable	f <- `%/%`; f(7L, 2L)	integer	integer|1|3	-	-	-	TRUE	-
+06_computed	portable	(`%/%`)(7L, 2L)	integer	integer|1|3	-	-	-	TRUE	-
+06_returned	portable	f <- function() `%/%`; f()(7L, 2L)	integer	integer|1|3	-	-	-	TRUE	-
+06_zero	portable	`%/%`()	error	-	6f70657261746f72206e65656473206f6e65206f722074776f20617267756d656e7473	-	-	-	-
+06_unary	portable	`%/%`(7L)	error	-	696e76616c696420756e617279206f70657261746f72	-	-	-	-
+06_three	portable	`%/%`(7L, 2L, 3L)	error	-	6f70657261746f72206e65656473206f6e65206f722074776f20617267756d656e7473	-	-	-	-
+06_named	portable	`%/%`(e2=7L, e1=2L)	integer	integer|1|3	-	-	-	TRUE	-
+06_arbitrary_names	portable	`%/%`(wrong=7L, other=2L)	integer	integer|1|3	-	-	-	TRUE	-
+06_effects	portable	`%/%`({cat("LEFT\n");7L},{cat("RIGHT\n");2L})	integer	integer|1|3	-	-	4c4546540a52494748540a	TRUE	-
+06_three_effects	portable	`%/%`({cat("LEFT\n");7L},{cat("RIGHT\n");2L},{cat("THIRD\n");3L})	error	-	6f70657261746f72206e65656473206f6e65206f722074776f20617267756d656e7473	-	4c4546540a52494748540a54484952440a	-	-
+06_operand_error	portable	`%/%`({cat("LEFT\n");stop("left failed")},{cat("RIGHT\n");2L})	error	-	6c656674206661696c6564	-	4c4546540a	-	-
+06_empty_first	portable	`%/%`(,{cat("RIGHT\n");2L})	error	-	617267756d656e74203120697320656d707479	-	-	-	-
+06_empty_second	portable	`%/%`({cat("LEFT\n");7L},)	error	-	617267756d656e74203220697320656d707479	-	4c4546540a	-	-
+06_skip_data	portable	`%/%` <- 99L; 7L %/% 2L	integer	integer|1|3	-	-	-	TRUE	-
+06_computed_data	portable	`%/%` <- 99L; (`%/%`)(7L, 2L)	error	-	617474656d707420746f206170706c79206e6f6e2d66756e6374696f6e	-	-	-	-
+06_rebound_lazy	portable	`%/%` <- function(e1,e2) e1; {cat("LEFT\n");7L} %/% stop("unused")	integer	integer|1|7	-	-	4c4546540a	TRUE	-
+06_rebound_reverse	portable	`%/%` <- function(e1,e2) {e2;e1}; {cat("LEFT\n");7L} %/% {cat("RIGHT\n");2L}	integer	integer|1|7	-	-	52494748540a4c4546540a	TRUE	-
+06_rebound_invisible	portable	`%/%` <- function(e1,e2) invisible(e1); 7L %/% 2L	integer	integer|1|7	-	-	-	FALSE	-
+06_rebound_primitive	portable	`%/%` <- `-`; 7L %/% 2L	integer	integer|1|5	-	-	-	TRUE	-
+06_alias_saved	portable	f <- `%/%`; `%/%` <- function(e1,e2) 999L; f(7L,2L)	integer	integer|1|3	-	-	-	TRUE	-
+06_skip_nested_data	portable	`%/%` <- function(e1,e2) 321L; f <- function() {`%/%` <- 99L; 7L %/% 2L}; f()	integer	integer|1|321	-	-	-	TRUE	-
+06_missing_formal	portable	f <- function(`%/%`) 7L %/% 2L; f()	error	-	617267756d656e742022252f2522206973206d697373696e672c2077697468206e6f2064656661756c74	-	-	-	-
+06_recycle_warning	portable	`%/%`(c(1L,2L,3L),c(2L,3L))	integer	integer|3|0,0,1	-	6c6f6e676572206f626a656374206c656e677468206973206e6f742061206d756c7469706c65206f662073686f72746572206f626a656374206c656e677468	-	TRUE	-
+06_invisible_operands	portable	`%/%`(invisible(7L), invisible(2L))	integer	integer|1|3	-	-	-	TRUE	-
+06_type_error	portable	`%/%`("bad",2L)	error	-	6e6f6e2d6e756d6572696320617267756d656e7420746f2062696e617279206f70657261746f72	-	-	-	-
+06_raw_missing_binding	future_quote	`%/%` <- quote(expr=); 7L %/% 2L	error	-	617267756d656e742022252f2522206973206d697373696e672c2077697468206e6f2064656661756c74	-	-	-	-
+06_computed_missing_binding	future_quote	f <- function() quote(expr=); `%/%` <- f(); 7L %/% 2L	error	-	617267756d656e742022252f2522206973206d697373696e672c2077697468206e6f2064656661756c74	-	-	-	-
+06_computed_missing_head	future_quote	(quote(expr=))(7L,2L)	error	-	617474656d707420746f206170706c79206e6f6e2d66756e6374696f6e	-	-	-	-
+06_computed_missing_operand	future_quote	`%/%`(quote(expr=),2L)	error	-	6e6f6e2d6e756d6572696320617267756d656e7420746f2062696e617279206f70657261746f72	-	-	-	-
+07_handle	portable	`:`	builtin	builtin:.Primitive(":")	-	-	-	TRUE	2e5072696d697469766528223a22290a
+07_identity	portable	f <- `:`; identical(f, `:`)	logical	logical|1|T	-	-	-	TRUE	-
+07_pair_identity	portable	c(identical(`:`, `+`),identical(`:`, `-`),identical(`:`, `*`),identical(`:`, `/`),identical(`:`, `^`),identical(`:`, `%%`),identical(`:`, `%/%`),identical(`:`, `:`))	logical	logical|8|F,F,F,F,F,F,F,T	-	-	-	TRUE	-
+07_binary	portable	`:`(7L, 2L)	integer	integer|6|7,6,5,4,3,2	-	-	-	TRUE	-
+07_infix	portable	7L : 2L	integer	integer|6|7,6,5,4,3,2	-	-	-	TRUE	-
+07_alias	portable	f <- `:`; f(7L, 2L)	integer	integer|6|7,6,5,4,3,2	-	-	-	TRUE	-
+07_computed	portable	(`:`)(7L, 2L)	integer	integer|6|7,6,5,4,3,2	-	-	-	TRUE	-
+07_returned	portable	f <- function() `:`; f()(7L, 2L)	integer	integer|6|7,6,5,4,3,2	-	-	-	TRUE	-
+07_zero	portable	`:`()	error	-	3020617267756d656e74732070617373656420746f20273a272077686963682072657175697265732032	-	-	-	-
+07_unary	portable	`:`(7L)	error	-	3120617267756d656e742070617373656420746f20273a272077686963682072657175697265732032	-	-	-	-
+07_three	portable	`:`(7L, 2L, 3L)	error	-	3320617267756d656e74732070617373656420746f20273a272077686963682072657175697265732032	-	-	-	-
+07_named	portable	`:`(e2=7L, e1=2L)	integer	integer|6|7,6,5,4,3,2	-	-	-	TRUE	-
+07_arbitrary_names	portable	`:`(wrong=7L, other=2L)	integer	integer|6|7,6,5,4,3,2	-	-	-	TRUE	-
+07_effects	portable	`:`({cat("LEFT\n");7L},{cat("RIGHT\n");2L})	integer	integer|6|7,6,5,4,3,2	-	-	4c4546540a52494748540a	TRUE	-
+07_three_effects	portable	`:`({cat("LEFT\n");7L},{cat("RIGHT\n");2L},{cat("THIRD\n");3L})	error	-	3320617267756d656e74732070617373656420746f20273a272077686963682072657175697265732032	-	4c4546540a52494748540a54484952440a	-	-
+07_operand_error	portable	`:`({cat("LEFT\n");stop("left failed")},{cat("RIGHT\n");2L})	error	-	6c656674206661696c6564	-	4c4546540a	-	-
+07_empty_first	portable	`:`(,{cat("RIGHT\n");2L})	error	-	617267756d656e74203120697320656d707479	-	-	-	-
+07_empty_second	portable	`:`({cat("LEFT\n");7L},)	error	-	617267756d656e74203220697320656d707479	-	4c4546540a	-	-
+07_skip_data	portable	`:` <- 99L; 7L : 2L	integer	integer|6|7,6,5,4,3,2	-	-	-	TRUE	-
+07_computed_data	portable	`:` <- 99L; (`:`)(7L, 2L)	error	-	617474656d707420746f206170706c79206e6f6e2d66756e6374696f6e	-	-	-	-
+07_rebound_lazy	portable	`:` <- function(e1,e2) e1; {cat("LEFT\n");7L} : stop("unused")	integer	integer|1|7	-	-	4c4546540a	TRUE	-
+07_rebound_reverse	portable	`:` <- function(e1,e2) {e2;e1}; {cat("LEFT\n");7L} : {cat("RIGHT\n");2L}	integer	integer|1|7	-	-	52494748540a4c4546540a	TRUE	-
+07_rebound_invisible	portable	`:` <- function(e1,e2) invisible(e1); 7L : 2L	integer	integer|1|7	-	-	-	FALSE	-
+07_rebound_primitive	portable	`:` <- `-`; 7L : 2L	integer	integer|1|5	-	-	-	TRUE	-
+07_alias_saved	portable	f <- `:`; `:` <- function(e1,e2) 999L; f(7L,2L)	integer	integer|6|7,6,5,4,3,2	-	-	-	TRUE	-
+07_skip_nested_data	portable	`:` <- function(e1,e2) 321L; f <- function() {`:` <- 99L; 7L : 2L}; f()	integer	integer|1|321	-	-	-	TRUE	-
+07_missing_formal	portable	f <- function(`:`) 7L : 2L; f()	error	-	617267756d656e7420223a22206973206d697373696e672c2077697468206e6f2064656661756c74	-	-	-	-
+07_recycle_warning	portable	`:`(c(1L,2L,3L),c(2L,3L))	integer	integer|2|1,2	-	6e756d65726963616c2065787072657373696f6e20686173203320656c656d656e74733a206f6e6c79207468652066697273742075736564	-	TRUE	-
+07_invisible_operands	portable	`:`(invisible(7L), invisible(2L))	integer	integer|6|7,6,5,4,3,2	-	-	-	TRUE	-
+07_type_error	portable	`:`("bad",2L)	error	-	4e412f4e614e20617267756d656e74	4e417320696e74726f647563656420627920636f657263696f6e	-	-	-
+07_raw_missing_binding	future_quote	`:` <- quote(expr=); 7L : 2L	error	-	617267756d656e7420223a22206973206d697373696e672c2077697468206e6f2064656661756c74	-	-	-	-
+07_computed_missing_binding	future_quote	f <- function() quote(expr=); `:` <- f(); 7L : 2L	error	-	617267756d656e7420223a22206973206d697373696e672c2077697468206e6f2064656661756c74	-	-	-	-
+07_computed_missing_head	future_quote	(quote(expr=))(7L,2L)	error	-	617474656d707420746f206170706c79206e6f6e2d66756e6374696f6e	-	-	-	-
+07_computed_missing_operand	future_quote	`:`(quote(expr=),2L)	error	-	4e412f4e614e20617267756d656e74	-	-	-	-
+00_numeric_warning	portable	2147483647L + 1L	integer	integer|1|NA	-	4e41732070726f647563656420627920696e7465676572206f766572666c6f77	-	TRUE	-
+01_numeric_warning	portable	(-2147483647L) - 2L	integer	integer|1|NA	-	4e41732070726f647563656420627920696e7465676572206f766572666c6f77	-	TRUE	-
+02_numeric_warning	portable	2147483647L * 2L	integer	integer|1|NA	-	4e41732070726f647563656420627920696e7465676572206f766572666c6f77	-	TRUE	-
+04_numeric_warning	portable	(-1)^0.5	double	double|1|7ff8000000000000	-	-	-	TRUE	-
+05_numeric_warning	portable	1e30 %% 3	double	double|1|3ff0000000000000	-	70726f6261626c6520636f6d706c657465206c6f7373206f6620616363757261637920696e206d6f64756c7573	-	TRUE	-
+06_numeric_warning	portable	1e30 %/% 3	double	double|1|4610d43b7bc05df1	-	-	-	TRUE	-

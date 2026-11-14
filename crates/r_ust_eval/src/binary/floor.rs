@@ -1,8 +1,8 @@
 mod shape;
 
 use super::super::{
-    integer_arithmetic_operand, numeric_values, real_to_integer, recycled_len, value_len,
-    EvalError, RuntimeState, Sexp,
+    integer_arithmetic_operand, real_to_integer, recycled_len, value_len, EvalError, RuntimeState,
+    Sexp,
 };
 
 #[derive(Clone, Copy)]
@@ -87,8 +87,8 @@ impl RuntimeState {
                 value_len(left).max(value_len(right))
             ]));
         }
-        let x = numeric_values(left)?;
-        let y = numeric_values(right)?;
+        let x = super::arithmetic_numbers(left)?;
+        let y = super::arithmetic_numbers(right)?;
         let dims = self.floor_shape(operands)?;
         let length = recycled_len(&[x.len(), y.len()]);
         if length > 0 && !length.is_multiple_of(x.len().min(y.len())) {
