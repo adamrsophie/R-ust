@@ -63,13 +63,7 @@ impl RuntimeState {
                 if formal_use[formal] == MatchUse::Partial {
                     return Err(duplicate_formal(&parameter.name));
                 }
-                if matches!(self.get_option("warnPartialMatchArgs"), Some(Sexp::Logical(values)) if values.as_slice() == [Some(true)])
-                {
-                    self.record_parse_warnings(&[format!(
-                        "partial argument match of '{name}' to '{}'",
-                        parameter.name
-                    )])?;
-                }
+                self.warn_partial_argument(name, &parameter.name)?;
                 matched[formal] = Some(argument);
                 formal_use[formal] = MatchUse::Partial;
                 actual_use[actual] = MatchUse::Partial;

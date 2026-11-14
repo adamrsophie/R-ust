@@ -1,0 +1,11 @@
+# Quote runtime reference
+
+The untouched R 4.6.0 reference has 67 rows (46 typed results and 21 direct terminal errors), SHA-256 `8502240c91b1528778b2f9533fffc7ad66b072ac11111f79d3a54a22cc88dbfa`.
+
+`mapping.tsv` retains every row before implementation: 63 direct-source rows, two SDK mappings, and two reference-only rows. The SDK mappings replace only the unsupported `base::quote` namespace expression with a genuine primitive-headed SDK call inside the supplied promise. They preserve the missing-function lookup and cached-promise contract, without claiming namespace syntax support. `do.call` is unported; `vapply` is unported and its reference failure is FUN.VALUE preflight, not quote dispatch. Neither is claimed as native quote parity.
+
+The source contract is R `coerce.c:2931` (`do_quote`), `util.c:516/534` (raw arity then single tag), `names.c:121` (SPECIAL, visible), `apply.c:42` (synthetic two raw arguments), and base `zzz.R:140` (primitive signature). Quote returns canonical language without forcing payloads or expanding dots. Empty tags and prefixes of expr are accepted; nonempty proper prefixes use the existing partial-match warning policy.
+
+Canonical JSON trees and direct error payloads are independently captured R values, not Rust-parser expectations. Metadata, visibility, printing, warnings and effects are separate observations. Native warning rendering uses the existing evaluator policy; R condition classes/calls and terminal error framing are retained as reference evidence, not claimed as identical native transport. The canonical printer remains bounded to its accepted ASCII profile; unsupported printing can fail while metadata succeeds. General eval, pairlists and Unicode are not implemented here.
+
+The original quote69, missing16 and numeric5574 data remain unchanged. The portable generator uses base R plus utils. Run with `LC_ALL=C LANG=C R_ENABLE_JIT=0 R_DEFAULT_PACKAGES=base R --vanilla --slave -f generate.R --args cases.tsv NEW_CAPTURE`, then `R --vanilla --slave -f verify.R --args FIXTURE_DIRECTORY NEW_CAPTURE` with the same environment. Existing output, wrong R version/platform, locale, JIT or startup-package profiles are rejected. `verify.R` requires byte-exact fixture reproduction and repeated raw/typed captures. No Rust output is used to generate expected trees.

@@ -1,9 +1,12 @@
 use super::fixture_json::{array, hex, text, Json};
 use crate::{CallArgument, ListElement, Sexp};
-pub(super) fn node(value: &Json) -> Result<Sexp, String> {
+pub(crate) fn node(value: &Json) -> Result<Sexp, String> {
     let (tag, args) = array(value)?.split_first().ok_or("empty node")?;
     match (text(tag)?, args) {
         ("nil", []) => Ok(Sexp::Nil),
+        ("primitive", [name]) => r_ust_sexp::PrimitiveId::from_name(text(name)?)
+            .map(Sexp::Primitive)
+            .ok_or("unrepresented primitive".into()),
         ("missing", []) => Ok(Sexp::MissingValue),
         ("symbol", [name]) => Ok(Sexp::Symbol(utf8(text(name)?)?)),
         ("logical", [value]) => Ok(Sexp::Logical(vec![match text(value)? {

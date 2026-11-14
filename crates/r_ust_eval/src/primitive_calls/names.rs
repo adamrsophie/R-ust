@@ -1,4 +1,4 @@
-pub(super) const NAMES: &[&str] = &[
+pub(crate) const NAMES: &[&str] = &[
     "if",
     "while",
     "for",

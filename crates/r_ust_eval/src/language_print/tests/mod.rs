@@ -1,7 +1,4 @@
-#[path = "fixture_json.rs"]
-mod fixture_json;
-#[path = "fixture_node.rs"]
-mod fixture_node;
+use crate::test_support::{fixture_json, fixture_node};
 mod sdk;
 use super::{format_language, LanguagePrintError};
 use crate::{CallArgument, Sexp};

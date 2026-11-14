@@ -3,6 +3,20 @@ use r_ust_sexp::Sexp;
 use super::{EvalError, OutputEvent, RuntimeState};
 
 impl RuntimeState {
+    pub(super) fn warn_partial_argument(
+        &mut self,
+        name: &str,
+        formal: &str,
+    ) -> Result<(), EvalError> {
+        if matches!(self.get_option("warnPartialMatchArgs"), Some(Sexp::Logical(values)) if values.as_slice() == [Some(true)])
+        {
+            self.record_parse_warnings(&[format!(
+                "partial argument match of '{name}' to '{formal}'"
+            )])?;
+        }
+        Ok(())
+    }
+
     /// Applies warn policy; deferred warnings must be finished after result output or cleanup.
     pub fn record_parse_warnings(&mut self, warnings: &[String]) -> Result<(), EvalError> {
         if warnings.is_empty() {

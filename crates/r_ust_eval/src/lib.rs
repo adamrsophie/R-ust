@@ -26,6 +26,9 @@ mod encode_string;
 mod environment;
 mod primitive_calls;
 mod promises;
+mod quote;
+#[cfg(test)]
+mod test_support;
 use dots::expand_dots_call_arguments;
 use promises::{is_missing_binding, promise};
 mod display;

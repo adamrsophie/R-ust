@@ -104,10 +104,12 @@ impl RuntimeState {
             PrimitiveId::IntegerDivide => BinaryOp::IntegerDivide,
             PrimitiveId::Colon => BinaryOp::Sequence,
             PrimitiveId::Sum
+            | PrimitiveId::Primitive
             | PrimitiveId::Length
             | PrimitiveId::Invisible
             | PrimitiveId::Return
-            | PrimitiveId::Missing => {
+            | PrimitiveId::Missing
+            | PrimitiveId::Quote => {
                 return Err(EvalError::NotImplemented("non-arithmetic primitive"))
             }
         };
@@ -133,10 +135,12 @@ impl RuntimeState {
                 }
                 PrimitiveId::Colon
                 | PrimitiveId::Sum
+                | PrimitiveId::Primitive
                 | PrimitiveId::Length
                 | PrimitiveId::Invisible
                 | PrimitiveId::Return
-                | PrimitiveId::Missing => Err(EvalError::NotImplemented("non-unary primitive")),
+                | PrimitiveId::Missing
+                | PrimitiveId::Quote => Err(EvalError::NotImplemented("non-unary primitive")),
             },
             _ => Err(EvalError::Arity(
                 "operator needs one or two arguments".into(),

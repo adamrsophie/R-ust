@@ -16,6 +16,8 @@ pub enum PrimitiveId {
     Modulo,
     IntegerDivide,
     Colon,
+    Quote,
+    Primitive,
 }
 
 impl PrimitiveId {
@@ -26,6 +28,8 @@ impl PrimitiveId {
             "invisible" => Some(Self::Invisible),
             "return" => Some(Self::Return),
             "missing" => Some(Self::Missing),
+            "quote" => Some(Self::Quote),
+            ".Primitive" => Some(Self::Primitive),
             "+" => Some(Self::Add),
             "-" => Some(Self::Subtract),
             "*" => Some(Self::Multiply),
@@ -45,6 +49,8 @@ impl PrimitiveId {
             Self::Invisible => "invisible",
             Self::Return => "return",
             Self::Missing => "missing",
+            Self::Quote => "quote",
+            Self::Primitive => ".Primitive",
             Self::Add => "+",
             Self::Subtract => "-",
             Self::Multiply => "*",
@@ -59,6 +65,7 @@ impl PrimitiveId {
     pub const fn sexptype(self) -> SexpType {
         match self {
             Self::Sum
+            | Self::Primitive
             | Self::Length
             | Self::Invisible
             | Self::Add
@@ -69,7 +76,7 @@ impl PrimitiveId {
             | Self::Modulo
             | Self::IntegerDivide
             | Self::Colon => SexpType::Builtin,
-            Self::Return | Self::Missing => SexpType::Special,
+            Self::Return | Self::Missing | Self::Quote => SexpType::Special,
         }
     }
 }

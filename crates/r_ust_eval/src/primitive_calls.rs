@@ -1,4 +1,6 @@
 use r_ust_sexp::PrimitiveId;
+mod accessor;
+pub(crate) mod names;
 
 use super::{
     is_missing_binding, ApplyFunction, CallArgument, EvalError, EvalFlow, EvaluatedArgument,
@@ -13,7 +15,9 @@ impl RuntimeState {
     ) -> Result<Vec<EvaluatedArgument>, EvalError> {
         if matches!(
             function,
-            ApplyFunction::Primitive(PrimitiveId::Return | PrimitiveId::Missing)
+            ApplyFunction::Primitive(
+                PrimitiveId::Return | PrimitiveId::Missing | PrimitiveId::Quote
+            )
         ) {
             return Ok(Vec::new());
         }
@@ -108,7 +112,9 @@ impl RuntimeState {
         match id {
             PrimitiveId::Return => self.eval_return(arguments),
             PrimitiveId::Missing => self.eval_missing(arguments),
+            PrimitiveId::Quote => self.eval_quote(arguments),
             PrimitiveId::Sum
+            | PrimitiveId::Primitive
             | PrimitiveId::Length
             | PrimitiveId::Invisible
             | PrimitiveId::Add
@@ -134,6 +140,11 @@ impl RuntimeState {
         arguments: &[EvaluatedArgument],
     ) -> Result<Sexp, EvalError> {
         match id {
+            PrimitiveId::Primitive => {
+                let value = accessor::lookup(arguments)?;
+                self.visible = true;
+                Ok(value)
+            }
             PrimitiveId::Add
             | PrimitiveId::Subtract
             | PrimitiveId::Multiply
@@ -166,7 +177,7 @@ impl RuntimeState {
                 self.call_builtin(id.name(), arguments)
             }
             PrimitiveId::Sum => self.call_builtin(id.name(), arguments),
-            PrimitiveId::Return | PrimitiveId::Missing => {
+            PrimitiveId::Return | PrimitiveId::Missing | PrimitiveId::Quote => {
                 let arguments = [
                     CallArgument::positional(Sexp::Symbol("X".into())),
                     CallArgument::positional(Sexp::Symbol("...".into())),
@@ -182,6 +193,8 @@ pub(super) fn format_primitive(id: PrimitiveId) -> String {
     let signature = match id {
         PrimitiveId::Sum => "function (..., na.rm = FALSE)  ",
         PrimitiveId::Length | PrimitiveId::Missing => "function (x)  ",
+        PrimitiveId::Quote => "function (expr)  ",
+        PrimitiveId::Primitive => "function (name)  ",
         PrimitiveId::Invisible => "function (x = NULL)  ",
         PrimitiveId::Return | PrimitiveId::Colon => "",
         PrimitiveId::Add

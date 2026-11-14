@@ -1,10 +1,10 @@
 #[derive(Debug)]
-pub(super) enum Json {
+pub(crate) enum Json {
     Array(Vec<Json>),
     Text(String),
     Null,
 }
-pub(super) fn parse(input: &str) -> Result<Json, String> {
+pub(crate) fn parse(input: &str) -> Result<Json, String> {
     let mut bytes = input.as_bytes();
     let result = value(&mut bytes)?;
     if !bytes.is_empty() {
@@ -51,7 +51,7 @@ fn value(bytes: &mut &[u8]) -> Result<Json, String> {
         _ => Err("fixture JSON value".into()),
     }
 }
-pub(super) fn hex(text: &str) -> Result<Vec<u8>, String> {
+pub(crate) fn hex(text: &str) -> Result<Vec<u8>, String> {
     if !text.len().is_multiple_of(2) {
         return Err("odd hex length".into());
     }
@@ -65,13 +65,13 @@ pub(super) fn hex(text: &str) -> Result<Vec<u8>, String> {
         })
         .collect()
 }
-pub(super) fn text(value: &Json) -> Result<&str, String> {
+pub(crate) fn text(value: &Json) -> Result<&str, String> {
     match value {
         Json::Text(value) => Ok(value),
         Json::Null | Json::Array(_) => Err("JSON text".into()),
     }
 }
-pub(super) fn array(value: &Json) -> Result<&[Json], String> {
+pub(crate) fn array(value: &Json) -> Result<&[Json], String> {
     match value {
         Json::Array(value) => Ok(value),
         Json::Null | Json::Text(_) => Err("JSON array".into()),

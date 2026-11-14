@@ -49,6 +49,7 @@ pub(super) fn typeof_value(value: &Sexp) -> &'static str {
         Sexp::Closure { .. } | Sexp::Function { .. } => "closure",
         Sexp::Primitive(id) => match id {
             r_ust_sexp::PrimitiveId::Sum
+            | r_ust_sexp::PrimitiveId::Primitive
             | r_ust_sexp::PrimitiveId::Length
             | r_ust_sexp::PrimitiveId::Invisible
             | r_ust_sexp::PrimitiveId::Add
@@ -59,7 +60,9 @@ pub(super) fn typeof_value(value: &Sexp) -> &'static str {
             | r_ust_sexp::PrimitiveId::Modulo
             | r_ust_sexp::PrimitiveId::IntegerDivide
             | r_ust_sexp::PrimitiveId::Colon => "builtin",
-            r_ust_sexp::PrimitiveId::Return | r_ust_sexp::PrimitiveId::Missing => "special",
+            r_ust_sexp::PrimitiveId::Return
+            | r_ust_sexp::PrimitiveId::Missing
+            | r_ust_sexp::PrimitiveId::Quote => "special",
         },
         Sexp::Symbol(_) | Sexp::MissingValue => "symbol",
         Sexp::PairList(_) => "pairlist",

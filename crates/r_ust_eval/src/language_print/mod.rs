@@ -5,7 +5,7 @@ mod infix;
 mod layout;
 mod names;
 mod operators;
-mod primitives;
+use crate::primitive_calls::names as primitives;
 #[cfg(test)]
 mod tests;
 
