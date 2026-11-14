@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use super::heap::{Frame, Heap, Node, NodeId, Store};
 use super::values::StoredValue;
 use super::{Environment, GraphError};
@@ -12,7 +10,7 @@ impl Store {
             Node::Promise(_) => Err(GraphError::WrongKind),
         }
     }
-    fn frame_mut(&mut self, id: NodeId) -> Result<&mut Frame, GraphError> {
+    pub(super) fn frame_mut(&mut self, id: NodeId) -> Result<&mut Frame, GraphError> {
         match self.node_mut(id)? {
             Node::Frame(frame) => Ok(frame),
             Node::Promise(_) => Err(GraphError::WrongKind),
@@ -28,11 +26,7 @@ impl Default for Environment {
 
 impl Environment {
     pub fn global() -> Self {
-        Self(Heap::shared().insert(Node::Frame(Frame {
-            bindings: HashMap::new(),
-            parent: None,
-            global: None,
-        })))
+        Heap::shared().session()
     }
     pub fn child(&self) -> Result<Self, GraphError> {
         let heap = self.0.heap()?;
@@ -42,9 +36,9 @@ impl Environment {
             .global
             .unwrap_or(self.0.id());
         Ok(Self(heap.insert(Node::Frame(Frame {
-            bindings: HashMap::new(),
             parent: Some(self.0.id()),
             global: Some(global),
+            ..Frame::default()
         }))))
     }
     pub fn parent(&self) -> Result<Option<Self>, GraphError> {
@@ -59,7 +53,7 @@ impl Environment {
         let mut staging = Vec::new();
         let mut store = heap.lock();
         let value = store
-            .frame(self.0.id())?
+            .binding_frame(self.0.id())?
             .bindings
             .get(name)
             .map(StoredValue::copy_edges);
@@ -82,7 +76,7 @@ impl Environment {
             .0
             .heap()?
             .lock()
-            .frame(self.0.id())?
+            .binding_frame(self.0.id())?
             .bindings
             .contains_key(name))
     }
@@ -90,15 +84,7 @@ impl Environment {
         let heap = self.0.heap()?;
         let value = StoredValue::new(value, heap)?;
         let mut store = heap.lock();
-        if store
-            .frame_mut(self.0.id())?
-            .bindings
-            .insert(name, value)
-            .is_some()
-        {
-            store.collect();
-        }
-        Ok(())
+        store.write_binding(self.0.id(), name, value)
     }
     pub fn assign_parent(&self, name: String, value: &Sexp) -> Result<(), GraphError> {
         let heap = self.0.heap()?;
@@ -109,20 +95,12 @@ impl Environment {
         let mut current = frame.parent;
         while let Some(id) = current {
             let frame = store.frame(id)?;
-            if frame.bindings.contains_key(&name) {
+            if store.binding_frame(id)?.bindings.contains_key(&name) {
                 target = id;
                 break;
             }
             current = frame.parent;
         }
-        if store
-            .frame_mut(target)?
-            .bindings
-            .insert(name, value)
-            .is_some()
-        {
-            store.collect();
-        }
-        Ok(())
+        store.write_binding(target, name, value)
     }
 }

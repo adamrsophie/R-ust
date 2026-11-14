@@ -5,8 +5,8 @@ use super::{GraphError, Link};
 use crate::{ClosureEnvironment, Sexp};
 
 pub(super) struct StoredValue {
-    value: Sexp,
-    edges: Vec<NodeId>,
+    pub(super) value: Sexp,
+    pub(super) edges: Vec<NodeId>,
 }
 
 impl StoredValue {

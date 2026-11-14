@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, Weak};
 
+use super::environments::{EnvironmentRole, SessionRoots};
 use super::promises::Promise;
 use super::values::StoredValue;
 use super::{GraphError, Link};
@@ -11,10 +12,15 @@ pub(super) struct NodeId {
     generation: u64,
 }
 
+#[derive(Default)]
 pub(super) struct Frame {
     pub bindings: HashMap<String, StoredValue>,
     pub parent: Option<NodeId>,
     pub global: Option<NodeId>,
+    pub role: EnvironmentRole,
+    pub store: Option<NodeId>,
+    pub session: Option<SessionRoots>,
+    pub initialized: bool,
 }
 
 pub(super) enum Node {
@@ -79,7 +85,7 @@ impl Heap {
 }
 
 impl Store {
-    fn insert(&mut self, node: Node) -> NodeId {
+    pub(super) fn insert(&mut self, node: Node) -> NodeId {
         if let Some(slot) = self.free.pop() {
             self.slots[slot].node = Some(node);
             NodeId {
@@ -145,6 +151,10 @@ impl Store {
                 Node::Frame(frame) => {
                     pending.extend(frame.parent);
                     pending.extend(frame.global);
+                    pending.extend(frame.store);
+                    if let Some(session) = frame.session {
+                        pending.extend(session.ids());
+                    }
                     for value in frame.bindings.values() {
                         value.edges(&mut pending);
                     }
@@ -162,6 +172,9 @@ impl Store {
         }
     }
 }
+
+#[path = "session.rs"]
+mod session;
 
 #[cfg(test)]
 #[path = "language_tests.rs"]
@@ -184,3 +197,15 @@ mod mutation_tests;
 #[cfg(test)]
 #[path = "primitive_tests.rs"]
 mod primitive_tests;
+
+#[cfg(test)]
+#[path = "environment_tests.rs"]
+mod environment_tests;
+
+#[cfg(test)]
+#[path = "environment_mutation_tests.rs"]
+mod environment_mutation_tests;
+
+#[cfg(test)]
+#[path = "environment_lifetime_tests.rs"]
+mod environment_lifetime_tests;

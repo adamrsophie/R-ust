@@ -116,6 +116,7 @@ fn generation_reuse_rejects_stale_ids_and_retires_overflow() {
             bindings: HashMap::new(),
             parent: None,
             global: None,
+            ..Frame::default()
         })
     };
     let old = store.insert(frame());
@@ -142,6 +143,7 @@ fn iterative_collection_reclaims_deep_graph_and_transient_frames() {
                 bindings: HashMap::new(),
                 parent,
                 global: None,
+                ..Frame::default()
             })));
         }
         store.root(&heap, parent.unwrap(), &mut staging)
@@ -168,6 +170,7 @@ fn iterative_collection_reclaims_deep_graph_and_transient_frames() {
         bindings: HashMap::new(),
         parent: None,
         global: None,
+        ..Frame::default()
     })));
     for _ in 0..10_000 {
         drop(frame.child().unwrap());
@@ -193,6 +196,7 @@ fn final_host_root_drops_heap_and_controlled_poison_recovers() {
         bindings: HashMap::new(),
         parent: None,
         global: None,
+        ..Frame::default()
     })));
     let weak = Arc::downgrade(&heap);
     frame.insert("self".into(), &closure(&frame)).unwrap();

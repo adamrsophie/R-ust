@@ -13,7 +13,7 @@ pub use language_types::{AssignmentOperator, LanguageError, MemberName, PairList
 pub use primitive::PrimitiveId;
 pub use value::{ClosureEnvironment, InternalOperation, Sexp};
 
-pub use graph::{Environment, Force, ForceLease, GraphError, PromiseState};
+pub use graph::{Environment, EnvironmentRole, Force, ForceLease, GraphError, PromiseState};
 pub use operators::BinaryOp;
 pub use promise::{EvaluationEnvironmentId, EvaluationOrigin, EvaluationSessionId};
 

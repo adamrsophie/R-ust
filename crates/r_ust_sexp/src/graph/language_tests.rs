@@ -137,6 +137,7 @@ fn canonical_language_foreign_heap_partial_visit_preserves_binding_and_releases_
         bindings: HashMap::new(),
         parent: None,
         global: None,
+        ..Frame::default()
     })));
     assert!(!Arc::ptr_eq(&heap, foreign.0.heap()?));
     let capture_id = capture.0.id();

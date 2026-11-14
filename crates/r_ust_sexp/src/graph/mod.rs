@@ -1,3 +1,4 @@
+mod environments;
 mod frames;
 mod heap;
 mod promises;
@@ -6,6 +7,7 @@ mod values;
 use std::fmt;
 use std::sync::Arc;
 
+pub use environments::EnvironmentRole;
 use heap::{Heap, NodeId, RootToken};
 pub use promises::{Force, ForceLease};
 
@@ -16,6 +18,9 @@ pub enum GraphError {
     ForeignHeap,
     StaleNode,
     WrongKind,
+    EmptyEnvironment,
+    BindingLocked,
+    EnvironmentLocked,
     PromiseUnderEvaluation,
     PromiseNotEvaluating,
 }
