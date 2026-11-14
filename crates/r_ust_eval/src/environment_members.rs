@@ -58,7 +58,9 @@ pub(super) fn write_member(
 fn environment_name(key: MemberKey<'_>, access: Access) -> Result<&str, EvalError> {
     let name = match key {
         MemberKey::Name(name) => name,
-        MemberKey::Index(Sexp::String(values)) if values.len() == 1 => {
+        MemberKey::Index(Sexp::String(values) | Sexp::AttributedCharacter { values, .. })
+            if values.len() == 1 =>
+        {
             values[0].as_deref().unwrap_or("NA")
         }
         MemberKey::Index(_) => {
@@ -94,6 +96,8 @@ pub(super) fn member_graph_error(error: GraphError, name: &str) -> EvalError {
         | GraphError::ForeignHeap
         | GraphError::StaleNode
         | GraphError::WrongKind
+        | GraphError::IndexOutOfBounds
+        | GraphError::InvalidCharacter
         | GraphError::PromiseUnderEvaluation
         | GraphError::PromiseNotEvaluating => EvalError::Graph(error),
     }

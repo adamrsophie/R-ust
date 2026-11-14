@@ -1,3 +1,5 @@
+mod recursive;
+use recursive::recursive_flag;
 // Adapted from R 4.6.0 src/main/coerce.c (anyNA and do_anyNA).
 // Copyright (C) 1997-2025 The R Core Team
 // Copyright (C) 2003-2023 The R Foundation
@@ -11,19 +13,34 @@ use super::{
 };
 
 impl RuntimeState {
-    pub(super) fn eval_any_na(&mut self, arguments: &[CallArgument]) -> Result<Sexp, EvalError> {
+    pub(super) fn eval_any_na(
+        &mut self,
+        arguments: &[CallArgument],
+        call: &Sexp,
+    ) -> Result<Sexp, EvalError> {
         let mut values = Vec::new();
         for (index, argument) in arguments.iter().enumerate() {
             if matches!(argument.value, Sexp::MissingArg(_)) {
-                return Err(EvalError::Arity(format!("argument {} is empty", index + 1)));
+                return Err(crate::SourceFault::arity(
+                    format!("argument {} is empty", index + 1),
+                    call,
+                ));
             }
-            values.extend(self.eval_arguments(std::slice::from_ref(argument), false)?);
+            values.extend(self.eval_arguments(
+                std::slice::from_ref(argument),
+                false,
+                Some(call),
+            )?);
         }
         self.visible = true;
-        self.call_any_na(&values)
+        self.call_any_na(&values, Some(call))
     }
 
-    pub(super) fn call_any_na(&mut self, args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
+    pub(super) fn call_any_na(
+        &mut self,
+        args: &[EvaluatedArgument],
+        call: Option<&Sexp>,
+    ) -> Result<Sexp, EvalError> {
         if !(1..=2).contains(&args.len()) {
             return Err(EvalError::Arity("anyNA takes 1 or 2 arguments".into()));
         }
@@ -46,92 +63,40 @@ impl RuntimeState {
                 value: arg.value.clone(),
             })
             .collect();
-        let matched = self.bind_supplied_argument_promises(
+        let matched = self.bind_promised_arguments(
             &[
                 FunctionParameter::required("x"),
                 FunctionParameter::required("recursive"),
             ],
             &supplied,
-            &self.current.clone(),
+            call,
         )?;
-        // These promises wrap already evaluated primitive arguments; do not evaluate their expressions again.
-        let Some(Sexp::Promise { state }) = matched.get("x") else {
+        let Some(x) = matched.get("x") else {
             return Err(EvalError::MissingArgument("x".into()));
         };
-        let x = state.expression()?;
-        let Some(Sexp::Promise { state }) = matched.get("recursive") else {
-            return contains(&x, &default).map(|value| Sexp::Logical(vec![Some(value)]));
-        };
-        contains(&x, &state.expression()?).map(|value| Sexp::Logical(vec![Some(value)]))
+        let recursive = matched.get("recursive").unwrap_or(&default);
+        contains(x, recursive).map(|value| Sexp::Logical(vec![Some(value)]))
     }
-}
-
-fn recursive_flag(value: &Sexp) -> Result<bool, EvalError> {
-    if matches!(
-        typeof_value(value),
-        "logical" | "integer" | "double" | "character"
-    ) && value_len(value) > 1
-    {
-        return Err(EvalError::Domain(format!(
-            "'length = {}' in coercion to 'logical(1)'",
-            value_len(value)
-        )));
-    }
-    let logical = match value {
-        Sexp::Factor { codes, .. } => codes.first().copied().flatten().map(|code| code != 0),
-        Sexp::Logical(_) | Sexp::Integer(_) | Sexp::Real(_) | Sexp::String(_) => {
-            coerce_logical_values(value)?.first().copied().flatten()
-        }
-        Sexp::Matrix { data, .. } => return recursive_flag(data),
-        Sexp::Nil
-        | Sexp::MissingArg(_)
-        | Sexp::Symbol(_)
-        | Sexp::MissingValue
-        | Sexp::PairList(_)
-        | Sexp::List(_)
-        | Sexp::Vector(_)
-        | Sexp::DataFrame { .. }
-        | Sexp::Dots(_)
-        | Sexp::Promise { .. }
-        | Sexp::Closure { .. }
-        | Sexp::Environment(_)
-        | Sexp::Primitive(_)
-        | Sexp::InternalCall { .. }
-        | Sexp::Function { .. }
-        | Sexp::If { .. }
-        | Sexp::For { .. }
-        | Sexp::While { .. }
-        | Sexp::Repeat { .. }
-        | Sexp::Break
-        | Sexp::Next
-        | Sexp::Block(_)
-        | Sexp::Subset { .. }
-        | Sexp::Subset2D { .. }
-        | Sexp::Extract { .. }
-        | Sexp::Dollar { .. }
-        | Sexp::Call { .. }
-        | Sexp::Assignment { .. }
-        | Sexp::SuperAssignment { .. }
-        | Sexp::Subassignment { .. }
-        | Sexp::MatrixSubassignment { .. }
-        | Sexp::ExtractAssignment { .. }
-        | Sexp::DollarAssignment { .. }
-        | Sexp::MemberAssignment { .. }
-        | Sexp::NamesAssignment { .. }
-        | Sexp::Binary { .. }
-        | Sexp::Unary { .. }
-        | Sexp::Parenthesized(_) => None,
-    };
-    logical.ok_or_else(|| EvalError::Domain("NA in coercion to boolean".into()))
 }
 
 fn contains(value: &Sexp, recursive: &Sexp) -> Result<bool, EvalError> {
+    if let Sexp::PairList(values) = value {
+        return contains(&Sexp::List(values.as_slice().to_vec()), recursive);
+    }
+    if matches!(value, Sexp::ListObject(_) | Sexp::PairListObject(_)) {
+        if recursive_flag(recursive)? {
+            crate::ordinary_cycles::check(value, "cyclic ordinary value anyNA")?;
+        }
+        return contains(crate::ordinary_values::read(value)?.as_ref(), recursive);
+    }
     Ok(match value {
         Sexp::Nil => false,
         Sexp::Logical(values) => values.iter().any(Option::is_none),
         Sexp::Integer(values) => values.iter().any(Option::is_none),
         Sexp::Real(values) => values.iter().any(|value| value.is_nan()),
-        Sexp::String(values) => values.iter().any(Option::is_none),
+        Sexp::String(values) | Sexp::AttributedCharacter { values, .. } => {
+            values.iter().any(Option::is_none)
+        }
         Sexp::Factor { codes, .. } => codes.iter().any(Option::is_none),
         Sexp::Matrix { data, .. } => contains(data, recursive)?,
         Sexp::DataFrame { columns, .. } => {
@@ -142,7 +107,10 @@ fn contains(value: &Sexp, recursive: &Sexp) -> Result<bool, EvalError> {
             }
             missing
         }
-        Sexp::List(values) => {
+        Sexp::ClassedList {
+            elements: values, ..
+        }
+        | Sexp::List(values) => {
             let recurse = recursive_flag(recursive)?;
             for element in values {
                 if if recurse {
@@ -172,6 +140,9 @@ fn contains(value: &Sexp, recursive: &Sexp) -> Result<bool, EvalError> {
         | Sexp::Symbol(_)
         | Sexp::MissingValue
         | Sexp::PairList(_)
+        | Sexp::ListObject(_)
+        | Sexp::PairListObject(_)
+        | Sexp::Char(_)
         | Sexp::Dots(_)
         | Sexp::Promise { .. }
         | Sexp::Closure { .. }
@@ -188,6 +159,7 @@ fn contains(value: &Sexp, recursive: &Sexp) -> Result<bool, EvalError> {
         | Sexp::Block(_)
         | Sexp::Subset { .. }
         | Sexp::Subset2D { .. }
+        | Sexp::ExtractArguments { .. }
         | Sexp::Extract { .. }
         | Sexp::Dollar { .. }
         | Sexp::Call { .. }
@@ -198,6 +170,7 @@ fn contains(value: &Sexp, recursive: &Sexp) -> Result<bool, EvalError> {
         | Sexp::ExtractAssignment { .. }
         | Sexp::DollarAssignment { .. }
         | Sexp::MemberAssignment { .. }
+        | Sexp::ReplacementAssignment { .. }
         | Sexp::NamesAssignment { .. }
         | Sexp::Binary { .. }
         | Sexp::Unary { .. }
@@ -210,12 +183,14 @@ fn contains(value: &Sexp, recursive: &Sexp) -> Result<bool, EvalError> {
     })
 }
 
-fn scalar_missing(value: &Sexp) -> bool {
+pub(super) fn scalar_missing(value: &Sexp) -> bool {
     match value {
         Sexp::Logical(values) => values.as_slice() == [None],
         Sexp::Integer(values) => values.as_slice() == [None],
         Sexp::Real(values) => values.len() == 1 && values[0].is_nan(),
-        Sexp::String(values) => values.as_slice() == [None],
+        Sexp::String(values) | Sexp::AttributedCharacter { values, .. } => {
+            values.as_slice() == [None]
+        }
         Sexp::Factor { codes, .. } => codes.as_slice() == [None],
         Sexp::Matrix { data, .. } => scalar_missing(data),
         Sexp::Nil
@@ -223,6 +198,10 @@ fn scalar_missing(value: &Sexp) -> bool {
         | Sexp::Symbol(_)
         | Sexp::MissingValue
         | Sexp::PairList(_)
+        | Sexp::ListObject(_)
+        | Sexp::PairListObject(_)
+        | Sexp::Char(_)
+        | Sexp::ClassedList { .. }
         | Sexp::List(_)
         | Sexp::Vector(_)
         | Sexp::DataFrame { .. }
@@ -242,6 +221,7 @@ fn scalar_missing(value: &Sexp) -> bool {
         | Sexp::Block(_)
         | Sexp::Subset { .. }
         | Sexp::Subset2D { .. }
+        | Sexp::ExtractArguments { .. }
         | Sexp::Extract { .. }
         | Sexp::Dollar { .. }
         | Sexp::Call { .. }
@@ -252,6 +232,7 @@ fn scalar_missing(value: &Sexp) -> bool {
         | Sexp::ExtractAssignment { .. }
         | Sexp::DollarAssignment { .. }
         | Sexp::MemberAssignment { .. }
+        | Sexp::ReplacementAssignment { .. }
         | Sexp::NamesAssignment { .. }
         | Sexp::Binary { .. }
         | Sexp::Unary { .. }

@@ -1,6 +1,13 @@
 use super::{CallArgument, EvalError, EvalFlow, RuntimeState, Sexp};
 use r_ust_sexp::{EnvironmentRole, PrimitiveId};
 
+struct FunctionSearch<'a> {
+    name: &'a str,
+    builtin: bool,
+    skip_nonfunctions: bool,
+    call: Option<&'a Sexp>,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum ApplyFunction {
     Closure(Sexp),
@@ -18,21 +25,43 @@ impl RuntimeState {
         name: &str,
         builtin: bool,
     ) -> Result<Option<ApplyFunction>, EvalError> {
-        self.search_function(name, builtin, true)
+        self.search_function(FunctionSearch {
+            name,
+            builtin,
+            skip_nonfunctions: true,
+            call: None,
+        })
     }
 
     fn search_function(
         &mut self,
-        name: &str,
-        builtin: bool,
-        skip_nonfunctions: bool,
+        request: FunctionSearch<'_>,
     ) -> Result<Option<ApplyFunction>, EvalError> {
+        let FunctionSearch {
+            name,
+            builtin,
+            skip_nonfunctions,
+            call,
+        } = request;
         super::base::initialize(&self.current)?;
         let mut current = Some(self.current.clone());
         while let Some(frame) = current {
             if let Some(value) = frame.get_local(name)? {
-                match self.force_value(value)? {
-                    Sexp::MissingValue => return Err(EvalError::MissingArgument(name.into())),
+                let value = match value {
+                    missing @ (Sexp::MissingArg(_) | Sexp::MissingValue) => missing,
+                    value => self.force_value(value)?,
+                };
+                match value {
+                    Sexp::MissingArg(_) | Sexp::MissingValue => {
+                        return Err(match call {
+                            Some(call) => crate::SourceFault::missing(
+                                name.into(),
+                                call.clone(),
+                                crate::conditions::MissingSite::FunctionBinding,
+                            ),
+                            None => EvalError::MissingArgument(name.into()),
+                        })
+                    }
                     value @ Sexp::Closure { .. } => return Ok(Some(ApplyFunction::Closure(value))),
                     Sexp::Primitive(id) => return Ok(Some(ApplyFunction::Primitive(id))),
                     _ if !skip_nonfunctions => {
@@ -53,6 +82,21 @@ impl RuntimeState {
         Ok(None)
     }
 
+    pub(super) fn require_source_function(
+        &mut self,
+        name: &str,
+        builtin: bool,
+        call: &Sexp,
+    ) -> Result<ApplyFunction, EvalError> {
+        self.search_function(FunctionSearch {
+            name,
+            builtin,
+            skip_nonfunctions: true,
+            call: Some(call),
+        })?
+        .ok_or_else(|| crate::SourceFault::undefined_function(name, call))
+    }
+
     pub(super) fn require_function(
         &mut self,
         name: &str,
@@ -70,7 +114,7 @@ impl RuntimeState {
             return self.lookup_dot(index).map(Some);
         }
         match self.raw_lookup(name)? {
-            Some(Sexp::MissingValue) => Err(EvalError::MissingArgument(name.into())),
+            Some(Sexp::MissingValue | Sexp::MissingArg(_)) => Err(self.evaluated_missing(name)),
             Some(value) => self.force_value(value).map(Some),
             None => Ok(None),
         }
@@ -92,6 +136,10 @@ impl RuntimeState {
                     let EvalFlow::Value(value) = self.call_resolved(
                         function,
                         &[CallArgument::positional(inner.as_ref().clone())],
+                        &Sexp::Call {
+                            function: Box::new(Sexp::Symbol("(".into())),
+                            arguments: vec![CallArgument::positional(inner.as_ref().clone())],
+                        },
                     )?;
                     return callable(value);
                 }
@@ -114,6 +162,10 @@ impl RuntimeState {
                     let EvalFlow::Value(value) = self.call_resolved(
                         function,
                         &[CallArgument::positional(inner.as_ref().clone())],
+                        &Sexp::Call {
+                            function: Box::new(Sexp::Symbol("(".into())),
+                            arguments: vec![CallArgument::positional(inner.as_ref().clone())],
+                        },
                     )?;
                     call_head(value)
                 }
@@ -121,7 +173,12 @@ impl RuntimeState {
         }
         if let Sexp::Symbol(name) = expr {
             return self
-                .search_function(name, has_builtin(name), false)?
+                .search_function(FunctionSearch {
+                    name,
+                    builtin: has_builtin(name),
+                    skip_nonfunctions: false,
+                    call: None,
+                })?
                 .ok_or_else(|| EvalError::UndefinedSymbol(name.into()));
         }
         call_head(self.eval_regular_argument(expr)?)
@@ -131,18 +188,26 @@ impl RuntimeState {
         &mut self,
         function: ApplyFunction,
         arguments: &[CallArgument],
+        call: &Sexp,
     ) -> Result<EvalFlow, EvalError> {
         match function {
-            ApplyFunction::Closure(value) => self.call_value(value, arguments),
-            ApplyFunction::Primitive(id) => self.call_value(Sexp::Primitive(id), arguments),
-            ApplyFunction::Builtin(name) => self.eval_builtin_call(&name, arguments),
+            ApplyFunction::Closure(value) => self.call_value(value, arguments, call),
+            ApplyFunction::Primitive(id) => self.call_value(Sexp::Primitive(id), arguments, call),
+            ApplyFunction::Builtin(name) => self.eval_builtin_call(&name, arguments, call),
         }
     }
 
     pub(super) fn eval_parenthesized(&mut self, value: &Sexp) -> Result<EvalFlow, EvalError> {
         match self.require_function("(", true)? {
             ApplyFunction::Builtin(_) => self.eval_flow(value),
-            function => self.call_resolved(function, &[CallArgument::positional(value.clone())]),
+            function => self.call_resolved(
+                function,
+                &[CallArgument::positional(value.clone())],
+                &Sexp::Call {
+                    function: Box::new(Sexp::Symbol("(".into())),
+                    arguments: vec![CallArgument::positional(value.clone())],
+                },
+            ),
         }
     }
 

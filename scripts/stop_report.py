@@ -117,7 +117,7 @@ def report_check(directory: Path = ARTIFACTS / "compare") -> int:
             read_run(case[key]) for key in ("r", "native", "r_merged", "native_merged")
         )
         assert matches(row, r, r_merged, reference=True), (mode, row.spec.label, "reference")
-        supported = row.spec.lane != "limited-condition"
+        supported = True
         passed = supported and matches(row, native, native_merged, reference=False)
         assert case["supported"] is supported
         assert case["passed"] is passed
@@ -130,5 +130,5 @@ def report_check(directory: Path = ARTIFACTS / "compare") -> int:
             f"row\t{mode}/{row.identifier}/{row.spec.label}\t" + ("PASS" if supported else "LIMITED")
         )
     assert (directory / "summary.tsv").read_text().splitlines() == expected_summary
-    print("Report hashes and all 605 outcomes verified; 600 PASS, 5 LIMITED")
+    print("Report hashes and all 605 outcomes verified; 605 PASS, 0 LIMITED")
     return 0

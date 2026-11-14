@@ -7,17 +7,20 @@ use crate::{value_len, EvalError};
 
 pub(super) fn convert(
     value: &Sexp,
-    integer: bool,
-    policy: BlankPolicy,
+    mode: (bool, BlankPolicy),
     mut warn: impl FnMut(Warnings) -> Result<(), EvalError>,
 ) -> Result<Sexp, EvalError> {
+    let projection = crate::ordinary_values::read(value)?;
+    let value = projection.as_ref();
+    let (integer, policy) = mode;
     let elements: Vec<&Sexp> = match value {
         Sexp::Vector(values) => values.iter().collect(),
-        Sexp::List(elements)
+        Sexp::ClassedList { elements, .. }
+        | Sexp::List(elements)
         | Sexp::DataFrame {
             columns: elements, ..
         } => elements.iter().map(|element| &element.value).collect(),
-        Sexp::Matrix { data, .. } => return convert(data, integer, policy, warn),
+        Sexp::Matrix { data, .. } => return convert(data, mode, warn),
         other => {
             return if integer {
                 let (values, warnings) = atomic::integers(other, policy)?;
@@ -30,7 +33,10 @@ pub(super) fn convert(
             };
         }
     };
-    if !elements.iter().all(|element| vectorizable(element)) {
+    for element in &elements {
+        if vectorizable(element)? {
+            continue;
+        }
         return Err(EvalError::Type(format!(
             "'list' object cannot be coerced to type '{}'",
             if integer { "integer" } else { "double" }
@@ -55,17 +61,21 @@ pub(super) fn convert(
     }
 }
 
-pub(super) fn vectorizable(value: &Sexp) -> bool {
-    matches!(
+pub(super) fn vectorizable(value: &Sexp) -> Result<bool, EvalError> {
+    let projection = crate::ordinary_values::read(value)?;
+    let value = projection.as_ref();
+    Ok(matches!(
         value,
         Sexp::Logical(_)
             | Sexp::Integer(_)
             | Sexp::Real(_)
             | Sexp::String(_)
+            | Sexp::AttributedCharacter { .. }
             | Sexp::Vector(_)
+            | Sexp::ClassedList { .. }
             | Sexp::List(_)
             | Sexp::Factor { .. }
             | Sexp::DataFrame { .. }
             | Sexp::Matrix { .. }
-    ) && value_len(value) <= 1
+    ) && value_len(value)? <= 1)
 }

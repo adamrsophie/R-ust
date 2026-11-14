@@ -2,10 +2,12 @@ use super::{empty_like_atomic, scalar_elements_to_vector, sequence_elements, Eva
 
 pub(super) fn matrix_data(
     data: &Sexp,
-    nrow: usize,
-    ncol: usize,
+    shape: (usize, usize),
     byrow: bool,
 ) -> Result<Sexp, EvalError> {
+    let projection = crate::ordinary_values::read(data)?;
+    let data = projection.as_ref();
+    let (nrow, ncol) = shape;
     let total = nrow.saturating_mul(ncol);
     if total == 0 {
         return match data {
@@ -13,7 +15,9 @@ pub(super) fn matrix_data(
                 "'data' must be of a vector type, was 'NULL'".into(),
             )),
             Sexp::Factor { .. } => Ok(Sexp::String(Vec::new())),
-            Sexp::List(_) | Sexp::Vector(_) | Sexp::Dots(_) => Ok(Sexp::List(Vec::new())),
+            Sexp::ClassedList { .. } | Sexp::List(_) | Sexp::Vector(_) | Sexp::Dots(_) => {
+                Ok(Sexp::List(Vec::new()))
+            }
             _ => Ok(empty_like_atomic(data)),
         };
     }
@@ -49,10 +53,10 @@ pub(super) fn matrix_column_values(
 
 pub(super) fn matrix_row_values(
     data: &Sexp,
-    nrow: usize,
-    ncol: usize,
+    shape: (usize, usize),
     row: usize,
 ) -> Result<Vec<Sexp>, EvalError> {
+    let (nrow, ncol) = shape;
     let values = sequence_elements(data)?;
     Ok((0..ncol)
         .map(|col| values.get(row + col * nrow).cloned().unwrap_or(Sexp::Nil))

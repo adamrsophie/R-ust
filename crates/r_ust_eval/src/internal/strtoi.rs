@@ -10,10 +10,10 @@ pub(super) fn convert(x: &Sexp, base: &Sexp) -> Result<Sexp, EvalError> {
     if *base != 0 && !(2..=36).contains(base) {
         return Err(EvalError::Domain("invalid 'base' argument".into()));
     }
-    if value_len(x) == 0 {
+    if value_len(x)? == 0 {
         return Ok(Sexp::Integer(Vec::new()));
     }
-    let Sexp::String(values) = x else {
+    let (Sexp::String(values) | Sexp::AttributedCharacter { values, .. }) = x else {
         return Err(EvalError::Type("strtoi requires character storage".into()));
     };
     let radix =

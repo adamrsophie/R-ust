@@ -1,5 +1,7 @@
 use r_ust_sexp::PrimitiveId;
 mod accessor;
+mod display;
+pub(super) use display::format_primitive;
 pub(crate) mod names;
 
 use super::{
@@ -16,7 +18,11 @@ impl RuntimeState {
         if matches!(
             function,
             ApplyFunction::Primitive(
-                PrimitiveId::Return | PrimitiveId::Missing | PrimitiveId::Quote
+                PrimitiveId::Return
+                    | PrimitiveId::Missing
+                    | PrimitiveId::Quote
+                    | PrimitiveId::UseMethod
+                    | PrimitiveId::OnExit
             )
         ) {
             return Ok(Vec::new());
@@ -46,7 +52,11 @@ impl RuntimeState {
         }
         let name = match &arguments[0].value {
             Sexp::Symbol(name) => name,
-            Sexp::String(values) if values.len() == 1 => values[0].as_deref().unwrap_or("NA"),
+            Sexp::String(values) | Sexp::AttributedCharacter { values, .. }
+                if values.len() == 1 =>
+            {
+                values[0].as_deref().unwrap_or("NA")
+            }
             _ => return Err(EvalError::Type("invalid use of 'missing'".into())),
         };
         if let Some(index) = name
@@ -84,22 +94,25 @@ impl RuntimeState {
         } else {
             Sexp::Nil
         };
-        Err(self.control.return_signal(value))
+        Err(self.control.return_signal(&self.current, value))
     }
 
     pub(super) fn call_value(
         &mut self,
         value: Sexp,
         arguments: &[CallArgument],
+        call: &Sexp,
     ) -> Result<EvalFlow, EvalError> {
         match value {
-            Sexp::Closure {
-                parameters,
-                body,
-                environment,
-            } => self.call_closure(&parameters, (&body, &environment), arguments),
-            Sexp::Primitive(id) => self.call_primitive(id, arguments),
-            _ => Err(EvalError::Type("attempt to apply non-function".into())),
+            Sexp::Closure { .. } => {
+                let invocation = self.prepare_closure_call(value, call.clone(), arguments)?;
+                self.invoke_closure(invocation)
+            }
+            Sexp::Primitive(id) => self.call_primitive(id, arguments, call),
+            _ => Err(crate::SourceFault::type_error(
+                "attempt to apply non-function".into(),
+                call,
+            )),
         }
     }
 
@@ -107,13 +120,19 @@ impl RuntimeState {
         &mut self,
         id: PrimitiveId,
         arguments: &[CallArgument],
+        call: &Sexp,
     ) -> Result<EvalFlow, EvalError> {
-        self.visible = true;
+        if id != PrimitiveId::UseMethod {
+            self.visible = true;
+        }
         match id {
+            PrimitiveId::UseMethod => self.eval_use_method(arguments, call),
+            PrimitiveId::OnExit => self.eval_on_exit(arguments, call),
             PrimitiveId::Return => self.eval_return(arguments),
             PrimitiveId::Missing => self.eval_missing(arguments),
-            PrimitiveId::Quote => self.eval_quote(arguments),
+            PrimitiveId::Quote => self.eval_quote(arguments, call),
             PrimitiveId::Sum
+            | PrimitiveId::Nargs
             | PrimitiveId::GlobalEnv
             | PrimitiveId::BaseEnv
             | PrimitiveId::EmptyEnv
@@ -132,8 +151,10 @@ impl RuntimeState {
                 let values = self.eval_arguments(
                     arguments,
                     !matches!(id, PrimitiveId::Length | PrimitiveId::Invisible),
+                    Some(call),
                 )?;
-                self.call_eager_primitive(id, &values).map(EvalFlow::Value)
+                self.call_eager_primitive(id, &values, call)
+                    .map(EvalFlow::Value)
             }
         }
     }
@@ -142,20 +163,27 @@ impl RuntimeState {
         &mut self,
         id: PrimitiveId,
         arguments: &[EvaluatedArgument],
+        call: &Sexp,
     ) -> Result<Sexp, EvalError> {
         match id {
-            PrimitiveId::GlobalEnv => {
-                self.environment_root(id.name(), r_ust_sexp::EnvironmentRole::Global, arguments)
-            }
-            PrimitiveId::BaseEnv => {
-                self.environment_root(id.name(), r_ust_sexp::EnvironmentRole::Base, arguments)
-            }
-            PrimitiveId::EmptyEnv => {
-                self.environment_root(id.name(), r_ust_sexp::EnvironmentRole::Empty, arguments)
-            }
-            PrimitiveId::IsEnvironment => self.is_environment(arguments),
+            PrimitiveId::GlobalEnv => self.environment_root(
+                (id.name(), r_ust_sexp::EnvironmentRole::Global),
+                arguments,
+                call,
+            ),
+            PrimitiveId::BaseEnv => self.environment_root(
+                (id.name(), r_ust_sexp::EnvironmentRole::Base),
+                arguments,
+                call,
+            ),
+            PrimitiveId::EmptyEnv => self.environment_root(
+                (id.name(), r_ust_sexp::EnvironmentRole::Empty),
+                arguments,
+                call,
+            ),
+            PrimitiveId::IsEnvironment => self.is_environment(arguments, call),
             PrimitiveId::Primitive => {
-                let value = accessor::lookup(arguments)?;
+                let value = accessor::lookup(arguments, call)?;
                 self.visible = true;
                 Ok(value)
             }
@@ -173,52 +201,43 @@ impl RuntimeState {
             }
             PrimitiveId::Length | PrimitiveId::Invisible => {
                 if arguments.len() != 1 && !(id == PrimitiveId::Invisible && arguments.is_empty()) {
-                    return Err(EvalError::Arity(format!(
-                        "{} arguments passed to '{}' which requires 1",
-                        arguments.len(),
-                        id.name()
-                    )));
+                    return Err(crate::SourceFault::arity(
+                        format!(
+                            "{} arguments passed to '{}' which requires 1",
+                            arguments.len(),
+                            id.name()
+                        ),
+                        call,
+                    ));
                 }
                 if let Some(name) = arguments
                     .first()
                     .and_then(|argument| argument.name.as_deref())
                     .filter(|name| *name != "x")
                 {
-                    return Err(EvalError::Arity(format!(
-                        "supplied argument name '{name}' does not match 'x'"
-                    )));
+                    return Err(crate::SourceFault::arity(
+                        format!("supplied argument name '{name}' does not match 'x'"),
+                        call,
+                    ));
                 }
                 self.call_builtin(id.name(), arguments)
             }
             PrimitiveId::Sum => self.call_builtin(id.name(), arguments),
-            PrimitiveId::Return | PrimitiveId::Missing | PrimitiveId::Quote => {
+            PrimitiveId::Nargs => self.condition_nargs(arguments, call),
+            PrimitiveId::OnExit => Err(EvalError::NotImplemented(
+                "on.exit with evaluated-only apply arguments",
+            )),
+            PrimitiveId::Return
+            | PrimitiveId::Missing
+            | PrimitiveId::Quote
+            | PrimitiveId::UseMethod => {
                 let arguments = [
                     CallArgument::positional(Sexp::Symbol("X".into())),
                     CallArgument::positional(Sexp::Symbol("...".into())),
                 ];
-                let EvalFlow::Value(value) = self.call_primitive(id, &arguments)?;
+                let EvalFlow::Value(value) = self.call_primitive(id, &arguments, call)?;
                 Ok(value)
             }
         }
     }
-}
-
-pub(super) fn format_primitive(id: PrimitiveId) -> String {
-    let signature = match id {
-        PrimitiveId::Sum => "function (..., na.rm = FALSE)  ",
-        PrimitiveId::Length | PrimitiveId::Missing | PrimitiveId::IsEnvironment => "function (x)  ",
-        PrimitiveId::GlobalEnv | PrimitiveId::BaseEnv | PrimitiveId::EmptyEnv => "function ()  ",
-        PrimitiveId::Quote => "function (expr)  ",
-        PrimitiveId::Primitive => "function (name)  ",
-        PrimitiveId::Invisible => "function (x = NULL)  ",
-        PrimitiveId::Return | PrimitiveId::Colon => "",
-        PrimitiveId::Add
-        | PrimitiveId::Subtract
-        | PrimitiveId::Multiply
-        | PrimitiveId::Divide
-        | PrimitiveId::Power
-        | PrimitiveId::Modulo
-        | PrimitiveId::IntegerDivide => "function (e1, e2)  ",
-    };
-    format!("{signature}.Primitive(\"{}\")", id.name())
 }

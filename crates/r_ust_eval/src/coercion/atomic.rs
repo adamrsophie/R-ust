@@ -9,7 +9,7 @@ pub(super) fn reals(value: &Sexp, policy: BlankPolicy) -> Result<(Vec<f64>, Warn
     let values = match value {
         Sexp::Environment(_) => return Err(crate::environment_values::coercion_error("double")),
         Sexp::Matrix { data, .. } => return reals(data, policy),
-        Sexp::String(values) => values
+        Sexp::String(values) | Sexp::AttributedCharacter { values, .. } => values
             .iter()
             .map(|value| strings::real(value.as_deref(), policy, &mut warnings))
             .collect(),
@@ -26,7 +26,7 @@ pub(super) fn integers(
     let values = match value {
         Sexp::Environment(_) => return Err(crate::environment_values::coercion_error("integer")),
         Sexp::Matrix { data, .. } => return integers(data, policy),
-        Sexp::String(values) => values
+        Sexp::String(values) | Sexp::AttributedCharacter { values, .. } => values
             .iter()
             .map(|value| {
                 let number = strings::real(value.as_deref(), policy, &mut warnings);
@@ -59,7 +59,11 @@ pub(super) fn scalar_integer(value: &Sexp, policy: BlankPolicy) -> (Option<i32>,
     while let Sexp::Matrix { data: inner, .. } = data {
         data = inner;
     }
-    let result = integer(number, matches!(data, Sexp::String(_)), &mut warnings);
+    let result = integer(
+        number,
+        matches!(data, Sexp::String(_) | Sexp::AttributedCharacter { .. }),
+        &mut warnings,
+    );
     (result, warnings)
 }
 
@@ -67,7 +71,7 @@ pub(super) fn scalar_real(value: &Sexp, policy: BlankPolicy) -> (f64, Warnings) 
     let mut warnings = Warnings::default();
     let number = match value {
         Sexp::Matrix { data, .. } => return scalar_real(data, policy),
-        Sexp::String(values) => strings::real(
+        Sexp::String(values) | Sexp::AttributedCharacter { values, .. } => strings::real(
             values.first().and_then(|value| value.as_deref()),
             policy,
             &mut warnings,
@@ -85,6 +89,7 @@ pub(super) fn scalar_real(value: &Sexp, policy: BlankPolicy) -> (f64, Warnings) 
             .unwrap_or(NA_REAL),
         Sexp::Nil
         | Sexp::Vector(_)
+        | Sexp::ClassedList { .. }
         | Sexp::List(_)
         | Sexp::DataFrame { .. }
         | Sexp::MissingArg(_)
@@ -94,6 +99,9 @@ pub(super) fn scalar_real(value: &Sexp, policy: BlankPolicy) -> (f64, Warnings) 
         | Sexp::Dots(_)
         | Sexp::Promise { .. }
         | Sexp::Closure { .. }
+        | Sexp::Char(_)
+        | Sexp::ListObject(_)
+        | Sexp::PairListObject(_)
         | Sexp::Environment(_)
         | Sexp::Primitive(_)
         | Sexp::Function { .. }
@@ -106,6 +114,7 @@ pub(super) fn scalar_real(value: &Sexp, policy: BlankPolicy) -> (f64, Warnings) 
         | Sexp::Block(_)
         | Sexp::Subset { .. }
         | Sexp::Subset2D { .. }
+        | Sexp::ExtractArguments { .. }
         | Sexp::Extract { .. }
         | Sexp::Dollar { .. }
         | Sexp::Call { .. }
@@ -117,6 +126,7 @@ pub(super) fn scalar_real(value: &Sexp, policy: BlankPolicy) -> (f64, Warnings) 
         | Sexp::ExtractAssignment { .. }
         | Sexp::DollarAssignment { .. }
         | Sexp::MemberAssignment { .. }
+        | Sexp::ReplacementAssignment { .. }
         | Sexp::NamesAssignment { .. }
         | Sexp::Binary { .. }
         | Sexp::Unary { .. }

@@ -1,5 +1,6 @@
 #![allow(non_camel_case_types)]
 
+mod character;
 mod graph;
 mod language;
 mod language_types;
@@ -8,12 +9,15 @@ mod primitive;
 mod promise;
 mod value;
 
-pub use language::canonical_language;
+pub use language::{canonical_actual_call, canonical_language};
 pub use language_types::{AssignmentOperator, LanguageError, MemberName, PairList};
 pub use primitive::PrimitiveId;
 pub use value::{ClosureEnvironment, InternalOperation, Sexp};
 
-pub use graph::{Environment, EnvironmentRole, Force, ForceLease, GraphError, PromiseState};
+pub use graph::{
+    Environment, EnvironmentRole, Force, ForceLease, GraphError, ListObject, PairListObject,
+    PromiseState,
+};
 pub use operators::BinaryOp;
 pub use promise::{EvaluationEnvironmentId, EvaluationOrigin, EvaluationSessionId};
 
@@ -135,6 +139,10 @@ impl SexpHeader {
         self.altrep
     }
 
+    pub(crate) fn set_gp(&mut self, gp: u16) {
+        self.gp = gp;
+    }
+
     pub const fn gp(&self) -> u16 {
         self.gp
     }
@@ -205,11 +213,13 @@ impl Sexp {
             Self::Logical(_) => SexpType::Logical,
             Self::Integer(_) => SexpType::Integer,
             Self::Real(_) => SexpType::Real,
-            Self::String(_) => SexpType::String,
+            Self::String(_) | Self::AttributedCharacter { .. } => SexpType::String,
+            Self::Char(_) => SexpType::Char,
             Self::Vector(_) => SexpType::Vector,
-            Self::List(_) | Self::PairList(_) => SexpType::List,
+            Self::ClassedList { .. } | Self::List(_) | Self::ListObject(_) => SexpType::Vector,
+            Self::PairList(_) | Self::PairListObject(_) => SexpType::List,
             Self::Factor { .. } => SexpType::Integer,
-            Self::DataFrame { .. } => SexpType::List,
+            Self::DataFrame { .. } => SexpType::Vector,
             Self::Matrix { .. } => SexpType::Vector,
             Self::Dots(_) => SexpType::Dots,
             Self::Promise { .. } => SexpType::Promise,
@@ -224,6 +234,7 @@ impl Sexp {
             | Self::Block(_)
             | Self::Subset { .. }
             | Self::Subset2D { .. }
+            | Self::ExtractArguments { .. }
             | Self::Extract { .. }
             | Self::Dollar { .. }
             | Self::Call { .. }
@@ -235,6 +246,7 @@ impl Sexp {
             | Self::ExtractAssignment { .. }
             | Self::DollarAssignment { .. }
             | Self::MemberAssignment { .. }
+            | Self::ReplacementAssignment { .. }
             | Self::NamesAssignment { .. }
             | Self::Binary { .. }
             | Self::Unary { .. } => SexpType::Language,

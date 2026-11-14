@@ -6,7 +6,7 @@ fn closure_display_includes_actual_body_and_environment() {
     let mut frontend = Frontend::default();
     frontend
         .eval_source_printed(
-            "function(x=1L,...) { x + 1L }; identity; function(x=stop('UNFORCED'))stop('UNFORCED')",
+            "function(x=1L,...) { x + 1L }; identity; function(x=stop('UNFORCED'))stop('UNFORCED'); sequence",
         )
         .unwrap();
     assert_eq!(
@@ -15,6 +15,10 @@ fn closure_display_includes_actual_body_and_environment() {
             OutputEvent::Stdout("function (x = 1L, ...) \n{\n    x + 1L\n}\n".into()),
             OutputEvent::Stdout("function (x) \nx\n<environment: namespace:base>\n".into()),
             OutputEvent::Stdout("function (x = stop(\"UNFORCED\")) \nstop(\"UNFORCED\")\n".into()),
+            OutputEvent::Stdout(
+                "function (nvec, ...) \nUseMethod(\"sequence\")\n<environment: namespace:base>\n"
+                    .into()
+            ),
         ]
     );
     let closure = frontend
@@ -95,7 +99,7 @@ fn optimized_sdk_body_fails_explicitly() {
     );
     assert!(runtime.take_output().is_empty());
     let mut frontend = Frontend::default();
-    for source in ["rle", "encodeString", "sequence", "rowsum.default"] {
+    for source in ["rle", "encodeString", "rowsum.default"] {
         assert_eq!(
             frontend.eval_source_printed(source),
             Err(EvalError::NotImplemented(

@@ -1,12 +1,16 @@
 use r_ust_sexp::{canonical_language, LanguageError};
 
-use crate::{CallArgument, EvalError, EvalFlow, RuntimeState};
+use crate::{CallArgument, EvalError, EvalFlow, RuntimeState, Sexp};
 
 #[cfg(test)]
 mod tests;
 
 impl RuntimeState {
-    pub(super) fn eval_quote(&mut self, arguments: &[CallArgument]) -> Result<EvalFlow, EvalError> {
+    pub(super) fn eval_quote(
+        &mut self,
+        arguments: &[CallArgument],
+        call: &Sexp,
+    ) -> Result<EvalFlow, EvalError> {
         let [argument] = arguments else {
             return Err(EvalError::Arity(format!(
                 "{} arguments passed to 'quote' which requires 1",
@@ -20,7 +24,7 @@ impl RuntimeState {
                 )));
             }
             if !name.is_empty() && name != "expr" {
-                self.warn_partial_argument(name, "expr")?;
+                self.warn_partial_argument(name, "expr", Some(call))?;
             }
         }
         let value = canonical_language(&argument.value).map_err(|error| match error {

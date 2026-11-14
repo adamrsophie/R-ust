@@ -31,7 +31,7 @@ impl SyntaxParser {
             }),
             Token::LParen => {
                 let expr = self.parse_expression()?;
-                self.expect(Token::RParen)?;
+                self.expect_token(Token::RParen)?;
                 Ok(Sexp::Parenthesized(Box::new(expr)))
             }
             Token::LBrace => self.parse_block_after_open(),

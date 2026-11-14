@@ -7,12 +7,12 @@ pub(super) fn source(value: &Sexp) -> Result<Sexp, EvalError> {
 }
 
 impl RuntimeState {
-    pub(super) fn body(&mut self, value: &Sexp) -> Result<Sexp, EvalError> {
+    pub(super) fn body(&mut self, value: &Sexp, call: &Sexp) -> Result<Sexp, EvalError> {
         match value {
             Sexp::Closure { body, .. } => source(body),
             Sexp::Primitive(_) => Ok(Sexp::Nil),
             _ => {
-                self.record_parse_warnings(&["argument is not a function".into()])?;
+                self.record_warnings_at(&["argument is not a function".into()], Some(call))?;
                 Ok(Sexp::Nil)
             }
         }

@@ -1,6 +1,8 @@
+mod cons_objects;
 mod environments;
 mod frames;
 mod heap;
+mod list_objects;
 mod promises;
 mod values;
 
@@ -18,6 +20,8 @@ pub enum GraphError {
     ForeignHeap,
     StaleNode,
     WrongKind,
+    IndexOutOfBounds,
+    InvalidCharacter,
     EmptyEnvironment,
     BindingLocked,
     EnvironmentLocked,
@@ -79,3 +83,13 @@ pub struct Environment(Link);
 /// A rooted lazy computation. Metadata and caches are private traced edges.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PromiseState(Link);
+
+#[cfg(test)]
+mod character_attributes_tests;
+/// An ordinary traced list whose clones retain shared identity.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ListObject(Link);
+
+/// An immutable ordinary cons spine whose clones retain head identity.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PairListObject(Link);

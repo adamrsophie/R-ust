@@ -93,18 +93,10 @@ fn sequence_matches_independent_r_4_6_0_fixture() {
     );
     let mut failures = Vec::new();
     let mut compared = 0;
-    let mut limited = 0;
     for (index, line) in fixture.lines().skip(1).enumerate() {
         let fields: Vec<_> = line.split("\t").collect();
         assert_eq!(fields.len(), 7, "{line}");
         assert_eq!(fields[0].parse::<usize>().unwrap(), index + 1);
-        if index + 1 == 69 {
-            limited += 1;
-            println!(
-                "ROW\t69\tLIMITED\ttryCatch unavailable; warning state checked at host boundary"
-            );
-            continue;
-        }
         compared += 1;
         let mut frontend = Frontend::default();
         let result = frontend.eval_source(fields[1]);
@@ -153,7 +145,7 @@ fn sequence_matches_independent_r_4_6_0_fixture() {
         }
     }
     assert_eq!(fixture.lines().count(), 91);
-    assert_eq!((compared, limited), (89, 1));
+    assert_eq!(compared, 90);
     assert!(
         failures.is_empty(),
         "{} failures:\n{}",

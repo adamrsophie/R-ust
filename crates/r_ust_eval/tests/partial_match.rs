@@ -46,6 +46,11 @@ fn partial_matching_agrees_with_r_values_errors_and_warnings() {
                     EvalError::Type(message)
                     | EvalError::Arity(message)
                     | EvalError::Domain(message) => message,
+                    error @ (EvalError::Condition(_)
+                    | EvalError::Signaled(_)
+                    | EvalError::Fresh(_)) => {
+                        panic!("internal condition state escaped Frontend: {error:?}")
+                    }
                     other @ (EvalError::Graph(_)
                     | EvalError::Parse(_)
                     | EvalError::UndefinedSymbol(_)

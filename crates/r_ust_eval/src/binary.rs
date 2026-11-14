@@ -51,8 +51,8 @@ impl RuntimeState {
 
     fn eval_sequence(&mut self, operands: (&Sexp, &Sexp)) -> Result<Sexp, EvalError> {
         let (left, right) = operands;
-        let left_len = value_len(left);
-        let right_len = value_len(right);
+        let left_len = value_len(left)?;
+        let right_len = value_len(right)?;
         if left_len == 0 || right_len == 0 {
             return Err(EvalError::Domain("argument of length 0".into()));
         }

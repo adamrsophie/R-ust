@@ -8,7 +8,11 @@ impl RuntimeState {
     pub fn run_last(&mut self) -> Result<(), EvalError> {
         let last = self.global.get_local(".Last")?;
         if let Some(last @ Sexp::Closure { .. }) = last {
-            self.call_value(last, &[])?;
+            let call = Sexp::Call {
+                function: Box::new(Sexp::Symbol(".Last".into())),
+                arguments: Vec::new(),
+            };
+            self.call_value(last, &[], &call)?;
         }
         Ok(())
     }

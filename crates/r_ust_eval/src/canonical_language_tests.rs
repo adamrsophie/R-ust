@@ -12,11 +12,11 @@ fn canonical(source: &str) -> Result<Sexp, Box<dyn std::error::Error>> {
 fn metadata(value: &Sexp, kind: &str, class: &str, length: &str, id: &str) {
     assert_eq!(typeof_value(value), kind, "{id} typeof");
     assert_eq!(
-        class_value(value),
+        class_value(value).unwrap(),
         Sexp::String(vec![Some(class.into())]),
         "{id} class"
     );
-    assert_eq!(value_len(value).to_string(), length, "{id} length");
+    assert_eq!(value_len(value).unwrap().to_string(), length, "{id} length");
 }
 
 fn rows(source: &str) -> impl Iterator<Item = Vec<&str>> {
@@ -146,7 +146,7 @@ fn canonical_language_identity_matches_r() -> Result<(), Box<dyn std::error::Err
                 return Err("identity row".into());
             };
             assert_eq!(
-                sexp_identical(&canonical(left)?, &canonical(right)?),
+                sexp_identical(&canonical(left)?, &canonical(right)?)?,
                 *identical == "TRUE",
                 "{id}"
             );
@@ -230,16 +230,16 @@ fn canonical_language_boundary_rejects_runtime_handles_and_internal_dispatch(
     assert!(sexp_identical(
         &missing,
         &canonical_language(&Sexp::MissingArg("y".into()))?
-    ));
+    )?);
     metadata(&missing, "symbol", "name", "1", "missing");
-    assert!(!sexp_identical(&missing, &Sexp::Nil));
+    assert!(!sexp_identical(&missing, &Sexp::Nil)?);
     assert!(!sexp_identical(
         &Sexp::MissingArg("x".into()),
         &Sexp::MissingArg("y".into())
-    ));
+    )?);
     assert_eq!(Sexp::pairlist(vec![]), Sexp::Nil);
     let value = canonical("function(x, y = f(x+1L)) y")?;
-    assert!(sexp_identical(&value, &canonical_language(&value)?));
+    assert!(sexp_identical(&value, &canonical_language(&value)?)?);
     Ok(())
 }
 

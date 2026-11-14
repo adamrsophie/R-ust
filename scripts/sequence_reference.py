@@ -200,5 +200,5 @@ def self_check() -> None:
 if __name__ == "__main__":
     self_check()
     print(
-        "Sequence/logical readers and ordered/limit comparators passed; 114 attempted sources, 113 supported, 1 LIMIT"
+        "Sequence/logical readers and ordered/limit comparators passed; 114 attempted sources, 114 supported, 0 LIMIT"
     )

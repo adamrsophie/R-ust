@@ -1,6 +1,9 @@
-use super::{call, canonical_language, optional, LanguageError, Sexp};
+use super::{call, Canonicalizer, LanguageError, Sexp};
 
-pub(super) fn canonical_assignment(value: &Sexp) -> Result<Sexp, LanguageError> {
+pub(super) fn canonical_assignment(
+    value: &Sexp,
+    canonical: &Canonicalizer,
+) -> Result<Sexp, LanguageError> {
     Ok(match value {
         Sexp::Assignment {
             operator,
@@ -8,11 +11,11 @@ pub(super) fn canonical_assignment(value: &Sexp) -> Result<Sexp, LanguageError> 
             value,
         } => call(
             operator.as_str(),
-            vec![Sexp::Symbol(target.clone()), canonical_language(value)?],
+            vec![Sexp::Symbol(target.clone()), canonical.language(value)?],
         ),
         Sexp::SuperAssignment { target, value } => call(
             "<<-",
-            vec![Sexp::Symbol(target.clone()), canonical_language(value)?],
+            vec![Sexp::Symbol(target.clone()), canonical.language(value)?],
         ),
         Sexp::Subassignment {
             operator,
@@ -24,9 +27,12 @@ pub(super) fn canonical_assignment(value: &Sexp) -> Result<Sexp, LanguageError> 
             vec![
                 call(
                     "[",
-                    vec![Sexp::Symbol(target.clone()), optional(index.as_deref())?],
+                    vec![
+                        Sexp::Symbol(target.clone()),
+                        canonical.optional(index.as_deref())?,
+                    ],
                 ),
-                canonical_language(value)?,
+                canonical.language(value)?,
             ],
         ),
         Sexp::MatrixSubassignment {
@@ -42,11 +48,11 @@ pub(super) fn canonical_assignment(value: &Sexp) -> Result<Sexp, LanguageError> 
                     "[",
                     vec![
                         Sexp::Symbol(target.clone()),
-                        optional(row.as_deref())?,
-                        optional(col.as_deref())?,
+                        canonical.optional(row.as_deref())?,
+                        canonical.optional(col.as_deref())?,
                     ],
                 ),
-                canonical_language(value)?,
+                canonical.language(value)?,
             ],
         ),
         Sexp::ExtractAssignment {
@@ -59,9 +65,9 @@ pub(super) fn canonical_assignment(value: &Sexp) -> Result<Sexp, LanguageError> 
             vec![
                 call(
                     "[[",
-                    vec![Sexp::Symbol(target.clone()), canonical_language(index)?],
+                    vec![Sexp::Symbol(target.clone()), canonical.language(index)?],
                 ),
-                canonical_language(value)?,
+                canonical.language(value)?,
             ],
         ),
         Sexp::DollarAssignment {
@@ -73,7 +79,7 @@ pub(super) fn canonical_assignment(value: &Sexp) -> Result<Sexp, LanguageError> 
             operator.as_str(),
             vec![
                 call("$", vec![Sexp::Symbol(target.clone()), name.to_sexp()]),
-                canonical_language(value)?,
+                canonical.language(value)?,
             ],
         ),
         Sexp::NamesAssignment {
@@ -84,16 +90,21 @@ pub(super) fn canonical_assignment(value: &Sexp) -> Result<Sexp, LanguageError> 
             operator.as_str(),
             vec![
                 call("names", vec![Sexp::Symbol(target.clone())]),
-                canonical_language(value)?,
+                canonical.language(value)?,
             ],
         ),
-        Sexp::MemberAssignment {
+        Sexp::ReplacementAssignment {
+            operator,
+            target,
+            value,
+        }
+        | Sexp::MemberAssignment {
             operator,
             target,
             value,
         } => call(
             operator.as_str(),
-            vec![canonical_language(target)?, canonical_language(value)?],
+            vec![canonical.language(target)?, canonical.language(value)?],
         ),
         Sexp::InternalCall { .. } => return Err(LanguageError::InternalCall),
         Sexp::Nil
@@ -102,6 +113,10 @@ pub(super) fn canonical_assignment(value: &Sexp) -> Result<Sexp, LanguageError> 
         | Sexp::Integer(_)
         | Sexp::Real(_)
         | Sexp::String(_)
+        | Sexp::AttributedCharacter { .. }
+        | Sexp::Char(_)
+        | Sexp::ListObject(_)
+        | Sexp::PairListObject(_)
         | Sexp::MissingArg(_)
         | Sexp::MissingValue
         | Sexp::PairList(_)
@@ -119,11 +134,13 @@ pub(super) fn canonical_assignment(value: &Sexp) -> Result<Sexp, LanguageError> 
         | Sexp::Next
         | Sexp::Subset { .. }
         | Sexp::Subset2D { .. }
+        | Sexp::ExtractArguments { .. }
         | Sexp::Extract { .. }
         | Sexp::Dollar { .. }
         | Sexp::Environment(_)
         | Sexp::Primitive(_)
         | Sexp::Vector(_)
+        | Sexp::ClassedList { .. }
         | Sexp::List(_)
         | Sexp::Factor { .. }
         | Sexp::DataFrame { .. }

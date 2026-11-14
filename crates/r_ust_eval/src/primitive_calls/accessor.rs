@@ -2,18 +2,27 @@ use r_ust_sexp::PrimitiveId;
 
 use crate::{EvalError, EvaluatedArgument, Sexp};
 
-pub(super) fn lookup(arguments: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
+pub(super) fn lookup(arguments: &[EvaluatedArgument], call: &Sexp) -> Result<Sexp, EvalError> {
     let [argument] = arguments else {
-        return Err(EvalError::Arity(format!(
-            "{} arguments passed to '.Primitive' which requires 1",
-            arguments.len()
-        )));
+        return Err(crate::SourceFault::arity(
+            format!(
+                "{} arguments passed to '.Primitive' which requires 1",
+                arguments.len()
+            ),
+            call,
+        ));
     };
-    let Sexp::String(values) = &argument.value else {
-        return Err(EvalError::Type("string argument required".into()));
+    let (Sexp::String(values) | Sexp::AttributedCharacter { values, .. }) = &argument.value else {
+        return Err(crate::SourceFault::type_error(
+            "string argument required".into(),
+            call,
+        ));
     };
     let [name] = values.as_slice() else {
-        return Err(EvalError::Type("string argument required".into()));
+        return Err(crate::SourceFault::type_error(
+            "string argument required".into(),
+            call,
+        ));
     };
     let name = name.as_deref().unwrap_or("NA");
     if let Some(id) = PrimitiveId::from_name(name) {
@@ -22,5 +31,8 @@ pub(super) fn lookup(arguments: &[EvaluatedArgument]) -> Result<Sexp, EvalError>
     if super::names::NAMES.contains(&name) {
         return Err(EvalError::NotImplemented("primitive catalogue entry"));
     }
-    Err(EvalError::Domain("no such primitive function".into()))
+    Err(crate::SourceFault::domain(
+        "no such primitive function".into(),
+        call,
+    ))
 }

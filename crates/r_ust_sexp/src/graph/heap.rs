@@ -32,6 +32,8 @@ pub(super) struct Frame {
 pub(super) enum Node {
     Frame(Frame),
     Promise(Promise),
+    Vector(super::list_objects::VectorNode),
+    Cons(super::cons_objects::ConsNode),
 }
 
 struct Slot {
@@ -166,6 +168,11 @@ impl Store {
                     }
                 }
                 Node::Promise(promise) => promise.edges(&mut pending),
+                Node::Vector(vector) => vector.payload.edges(&mut pending),
+                Node::Cons(cons) => {
+                    cons.car.edges(&mut pending);
+                    pending.extend(cons.cdr);
+                }
             }
         }
         for (index, slot) in self.slots.iter_mut().enumerate() {
@@ -223,3 +230,27 @@ mod environment_value_tests;
 #[cfg(test)]
 #[path = "member_assignment_tests.rs"]
 mod member_assignment_tests;
+
+#[cfg(test)]
+#[path = "dynamic_context_tests.rs"]
+mod dynamic_context_tests;
+
+#[cfg(test)]
+#[path = "d1_value_tests.rs"]
+mod d1_value_tests;
+
+#[cfg(test)]
+#[path = "shared_value_tests.rs"]
+mod shared_value_tests;
+
+#[cfg(test)]
+#[path = "shared_lifetime_tests.rs"]
+mod shared_lifetime_tests;
+
+#[cfg(test)]
+#[path = "shared_attributes_tests.rs"]
+mod shared_attributes_tests;
+
+#[cfg(test)]
+#[path = "import_validation_tests.rs"]
+mod import_validation_tests;

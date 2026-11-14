@@ -17,8 +17,13 @@ pub(super) fn encode(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
         Sexp::Integer(values) => runs(values, |a, b| a.is_some() && a == b)?,
         // R compares adjacent doubles exactly; NaN and NA must each start a run.
         Sexp::Real(values) => runs(values, |a, b| a == b)?,
-        Sexp::String(values) => runs(values, |a, b| a.is_some() && a == b)?,
-        Sexp::List(values) => {
+        Sexp::String(values) | Sexp::AttributedCharacter { values, .. } => {
+            runs(values, |a, b| a.is_some() && a == b)?
+        }
+        Sexp::ClassedList {
+            elements: values, ..
+        }
+        | Sexp::List(values) => {
             if values.len() > 1 {
                 return Err(EvalError::Type(
                     "comparison of these types is not implemented".into(),
@@ -45,6 +50,9 @@ pub(super) fn encode(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
         | Sexp::Dots(_)
         | Sexp::Promise { .. }
         | Sexp::Closure { .. }
+        | Sexp::Char(_)
+        | Sexp::ListObject(_)
+        | Sexp::PairListObject(_)
         | Sexp::Environment(_)
         | Sexp::Primitive(_)
         | Sexp::Function { .. }
@@ -57,6 +65,7 @@ pub(super) fn encode(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
         | Sexp::Block(_)
         | Sexp::Subset { .. }
         | Sexp::Subset2D { .. }
+        | Sexp::ExtractArguments { .. }
         | Sexp::Extract { .. }
         | Sexp::Dollar { .. }
         | Sexp::Call { .. }
@@ -68,6 +77,7 @@ pub(super) fn encode(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
         | Sexp::ExtractAssignment { .. }
         | Sexp::DollarAssignment { .. }
         | Sexp::MemberAssignment { .. }
+        | Sexp::ReplacementAssignment { .. }
         | Sexp::NamesAssignment { .. }
         | Sexp::Binary { .. }
         | Sexp::Unary { .. }
@@ -136,7 +146,7 @@ impl RuntimeState {
         let values = dollar_value(&x.value, "values")?;
         if matches!(lengths, Sexp::Nil)
             || matches!(values, Sexp::Nil)
-            || value_len(&lengths) != value_len(&values)
+            || value_len(&lengths)? != value_len(&values)?
         {
             return Err(invalid());
         }

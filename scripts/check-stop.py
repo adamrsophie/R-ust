@@ -88,7 +88,7 @@ def compare(binary: Path, *, baseline: bool) -> int:
                 native_merged = run(invocation(mode, (str(snapshots[0]), str(snapshots[1])), source), merged=True)
                 reference_valid = matches(row, r, r_merged, reference=True)
                 assert reference_valid, f"live R disagrees with fixture: {mode}/{row.spec.label}: {r}"
-                supported = row.spec.lane != "limited-condition"
+                supported = True
                 passed = supported and matches(row, native, native_merged, reference=False)
                 comparisons.append(
                     Comparison(
@@ -121,7 +121,7 @@ def compare(binary: Path, *, baseline: bool) -> int:
                 "baseline": baseline,
                 "cases": [asdict(row) for row in comparisons],
                 "limits": [
-                    "Condition objects remain unsupported and are retained as LIMITED, never PASS.",
+                    "The original condition-object row is required to match its frozen custom error payload and termination across all five modes.",
                     "Requested messages, output, exit and event order are compared; call headers, Calls and Execution halted differ.",
                     "Raw call metadata is retained; call objects/tracebacks/translations/byte encodings are not certified.",
                 ],
@@ -142,7 +142,7 @@ def compare(binary: Path, *, baseline: bool) -> int:
     for row in failures:
         print(f"FAIL {row.mode}/{row.reference.spec.label}")
     print(
-        f"{sum(row.passed for row in comparisons)}/600 supported comparisons; {len(failures)} failures; 5 LIMITED; stable={stable}"
+        f"{sum(row.passed for row in comparisons)}/605 supported comparisons; {len(failures)} failures; 0 LIMITED; stable={stable}"
     )
     return 0 if baseline else int(bool(failures) or not stable)
 

@@ -1,6 +1,16 @@
 use super::*;
 
-pub(super) fn class_value(value: &Sexp) -> Sexp {
+pub(super) fn class_value(value: &Sexp) -> Result<Sexp, EvalError> {
+    if matches!(value, Sexp::Char(_)) {
+        return Err(EvalError::Domain(
+            "cannot have attributes on a CHARSXP".into(),
+        ));
+    }
+    let projection = ordinary_values::read(value)?;
+    let value = projection.as_ref();
+    if let Sexp::ClassedList { class, .. } = value {
+        return Ok(class.as_ref().clone());
+    }
     let values = match value {
         Sexp::Symbol(_) | Sexp::MissingValue => vec!["name".to_string()],
         Sexp::PairList(_) => vec!["pairlist".to_string()],
@@ -19,7 +29,7 @@ pub(super) fn class_value(value: &Sexp) -> Sexp {
         Sexp::Logical(_) => vec!["logical".to_string()],
         Sexp::Integer(_) => vec!["integer".to_string()],
         Sexp::Real(_) => vec!["numeric".to_string()],
-        Sexp::String(_) => vec!["character".to_string()],
+        Sexp::String(_) | Sexp::AttributedCharacter { .. } => vec!["character".to_string()],
         Sexp::Factor { ordered: true, .. } => {
             vec!["ordered".to_string(), "factor".to_string()]
         }
@@ -32,7 +42,7 @@ pub(super) fn class_value(value: &Sexp) -> Sexp {
         }
         _ => vec![typeof_value(value).to_string()],
     };
-    Sexp::String(values.into_iter().map(Some).collect())
+    Ok(Sexp::String(values.into_iter().map(Some).collect()))
 }
 
 pub(super) fn typeof_value(value: &Sexp) -> &'static str {
@@ -42,14 +52,20 @@ pub(super) fn typeof_value(value: &Sexp) -> &'static str {
         Sexp::Logical(_) => "logical",
         Sexp::Integer(_) | Sexp::Factor { .. } => "integer",
         Sexp::Real(_) => "double",
-        Sexp::String(_) => "character",
-        Sexp::DataFrame { .. } | Sexp::List(_) | Sexp::Vector(_) => "list",
+        Sexp::String(_) | Sexp::AttributedCharacter { .. } => "character",
+        Sexp::Char(_) => "char",
+        Sexp::DataFrame { .. }
+        | Sexp::ClassedList { .. }
+        | Sexp::List(_)
+        | Sexp::ListObject(_)
+        | Sexp::Vector(_) => "list",
         Sexp::Matrix { data, .. } => typeof_value(data),
         Sexp::Dots(_) => "...",
         Sexp::Promise { .. } => "promise",
         Sexp::Closure { .. } | Sexp::Function { .. } => "closure",
         Sexp::Primitive(id) => match id {
             r_ust_sexp::PrimitiveId::Sum
+            | r_ust_sexp::PrimitiveId::Nargs
             | r_ust_sexp::PrimitiveId::GlobalEnv
             | r_ust_sexp::PrimitiveId::BaseEnv
             | r_ust_sexp::PrimitiveId::EmptyEnv
@@ -67,10 +83,12 @@ pub(super) fn typeof_value(value: &Sexp) -> &'static str {
             | r_ust_sexp::PrimitiveId::Colon => "builtin",
             r_ust_sexp::PrimitiveId::Return
             | r_ust_sexp::PrimitiveId::Missing
-            | r_ust_sexp::PrimitiveId::Quote => "special",
+            | r_ust_sexp::PrimitiveId::Quote
+            | r_ust_sexp::PrimitiveId::UseMethod
+            | r_ust_sexp::PrimitiveId::OnExit => "special",
         },
         Sexp::Symbol(_) | Sexp::MissingValue => "symbol",
-        Sexp::PairList(_) => "pairlist",
+        Sexp::PairList(_) | Sexp::PairListObject(_) => "pairlist",
         _ => "language",
     }
 }
@@ -82,10 +100,27 @@ pub(super) fn mode_value(value: &Sexp) -> &'static str {
         Sexp::Nil => "NULL",
         Sexp::Logical(_) => "logical",
         Sexp::Integer(_) | Sexp::Real(_) | Sexp::Factor { .. } => "numeric",
-        Sexp::String(_) => "character",
-        Sexp::DataFrame { .. } | Sexp::List(_) | Sexp::Vector(_) => "list",
+        Sexp::String(_) | Sexp::AttributedCharacter { .. } => "character",
+        Sexp::Char(_) => "char",
+        Sexp::DataFrame { .. }
+        | Sexp::ClassedList { .. }
+        | Sexp::List(_)
+        | Sexp::ListObject(_)
+        | Sexp::Vector(_) => "list",
         Sexp::Matrix { data, .. } => mode_value(data),
         Sexp::Closure { .. } | Sexp::Function { .. } | Sexp::Primitive(_) => "function",
         _ => typeof_value(value),
     }
+}
+
+pub(super) fn is_vector_value(value: &Sexp) -> Result<bool, EvalError> {
+    let projection = ordinary_values::read(value)?;
+    let value = projection.as_ref();
+    if let Sexp::AttributedCharacter { attributes, .. } = value {
+        return Ok(attributes.is_empty());
+    }
+    Ok(matches!(
+        value,
+        Sexp::Logical(_) | Sexp::Integer(_) | Sexp::Real(_) | Sexp::String(_) | Sexp::List(_)
+    ))
 }

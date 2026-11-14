@@ -1,27 +1,15 @@
-use crate::{CallArgument, EvalError, EvalFlow, EvaluatedArgument, RuntimeState, Sexp};
+use crate::{EvalError, EvaluatedArgument, RuntimeState, Sexp};
 
 // R 4.6.0 src/main/seq.c do_sequence, GPL-2.0-or-later.
 // Copyright (C) 1998-2026 The R Core Team.
 // Copyright (C) 1995-1998 Robert Gentleman and Ross Ihaka.
 impl RuntimeState {
-    pub(super) fn sequence_dispatch(&mut self) -> Result<Sexp, EvalError> {
-        let EvalFlow::Value(_) = self.eval_flow(&Sexp::Symbol("nvec".into()))?;
-        let EvalFlow::Value(value) = self.eval_flow(&Sexp::Call {
-            function: Box::new(Sexp::Symbol("sequence.default".into())),
-            arguments: vec![
-                CallArgument::positional(Sexp::Symbol("nvec".into())),
-                CallArgument::positional(Sexp::Symbol("...".into())),
-            ],
-        })?;
-        Ok(value)
-    }
-
     pub(super) fn sequence(&mut self, args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
         let lengths = integer_values(&args[0].value, "nvec")?;
         let from = integer_values(&args[1].value, "from")?;
         let by = integer_values(&args[2].value, "by")?;
         let recycle_value = &args[3].value;
-        let recycle_length = crate::value_len(recycle_value);
+        let recycle_length = crate::value_len(recycle_value)?;
         if recycle_length > 1
             && matches!(
                 recycle_value,
@@ -29,6 +17,7 @@ impl RuntimeState {
                     | Sexp::Integer(_)
                     | Sexp::Real(_)
                     | Sexp::String(_)
+                    | Sexp::AttributedCharacter { .. }
                     | Sexp::Factor { .. }
                     | Sexp::Matrix { .. }
             )
@@ -55,10 +44,10 @@ impl RuntimeState {
         let mut count = lengths.len().max(from.len()).max(by.len());
         if !recycle && lengths.len() < count {
             if !self.warned_sequence_recycle && integer_values(recycle_value, "recycle").is_ok() {
-                self.record_parse_warnings(&[format!(
+                self.record_warnings_at(&[format!(
                     "length(nvec) {} < {count} = max(length(from), length(by)) -- future R`s default 'recycle = TRUE' will recycle 'nvec'",
                     lengths.len()
-                )])?;
+                )], Some(&self.source_current_call()))?;
                 self.warned_sequence_recycle = true;
             }
             count = lengths.len();

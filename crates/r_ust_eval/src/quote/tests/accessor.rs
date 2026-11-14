@@ -78,14 +78,14 @@ fn primitive_accessor_matches_r_identity_tags_forcing_and_validation(
                 );
                 assert_eq!(typeof_value(actual), observed[4], "{} typeof", case.id);
                 assert_eq!(
-                    class_value(actual),
+                    class_value(actual).unwrap(),
                     super::string(&decode(observed[5])?),
                     "{} class",
                     case.id
                 );
                 assert_eq!(mode_value(actual), observed[6], "{} mode", case.id);
                 assert_eq!(
-                    value_len(actual).to_string(),
+                    value_len(actual).unwrap().to_string(),
                     observed[7],
                     "{} length",
                     case.id

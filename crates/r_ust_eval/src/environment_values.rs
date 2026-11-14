@@ -4,7 +4,7 @@ use r_ust_sexp::{Environment, EnvironmentRole, Sexp};
 pub(super) fn length(value: &Sexp) -> Result<Sexp, EvalError> {
     let length = match value {
         Sexp::Environment(frame) => frame.local_len()?,
-        other => value_len(other),
+        other => value_len(other)?,
     };
     let length = i32::try_from(length)
         .map_err(|_| EvalError::Domain("length exceeds supported integer range".into()))?;
@@ -35,11 +35,12 @@ pub(super) fn coercion_error(target: &str) -> EvalError {
 impl RuntimeState {
     pub(super) fn environment_root(
         &mut self,
-        name: &str,
-        role: EnvironmentRole,
+        primitive: (&str, EnvironmentRole),
         arguments: &[EvaluatedArgument],
+        call: &Sexp,
     ) -> Result<Sexp, EvalError> {
-        arity(name, arguments.len(), 0)?;
+        let (name, role) = primitive;
+        arity((name, 0), arguments.len(), call)?;
         let frame = self.current.session_root(role)?;
         self.visible = true;
         Ok(Sexp::Environment(frame))
@@ -48,12 +49,14 @@ impl RuntimeState {
     pub(super) fn is_environment(
         &mut self,
         arguments: &[EvaluatedArgument],
+        call: &Sexp,
     ) -> Result<Sexp, EvalError> {
-        arity("is.environment", arguments.len(), 1)?;
+        arity(("is.environment", 1), arguments.len(), call)?;
         if let Some(name) = arguments[0].name.as_deref().filter(|name| *name != "x") {
-            return Err(EvalError::Arity(format!(
-                "supplied argument name '{name}' does not match 'x'"
-            )));
+            return Err(crate::SourceFault::arity(
+                format!("supplied argument name '{name}' does not match 'x'"),
+                call,
+            ));
         }
         self.visible = true;
         Ok(Sexp::Logical(vec![Some(matches!(
@@ -63,24 +66,28 @@ impl RuntimeState {
     }
 }
 
-fn arity(name: &str, count: usize, required: usize) -> Result<(), EvalError> {
+fn arity(specification: (&str, usize), count: usize, call: &Sexp) -> Result<(), EvalError> {
+    let (name, required) = specification;
     if count != required {
         let suffix = if count == 1 { "" } else { "s" };
-        return Err(EvalError::Arity(format!(
-            "{count} argument{suffix} passed to '{name}' which requires {required}"
-        )));
+        return Err(crate::SourceFault::arity(
+            format!("{count} argument{suffix} passed to '{name}' which requires {required}"),
+            call,
+        ));
     }
     Ok(())
 }
 
-pub(super) fn parent(value: &Sexp) -> Result<Sexp, EvalError> {
+pub(super) fn parent(value: &Sexp, call: &Sexp) -> Result<Sexp, EvalError> {
     let Sexp::Environment(frame) = value else {
-        return Err(EvalError::Type("argument is not an environment".into()));
+        return Err(crate::SourceFault::type_error(
+            "argument is not an environment".into(),
+            call,
+        ));
     };
-    frame
-        .parent()?
-        .map(Sexp::Environment)
-        .ok_or_else(|| EvalError::Domain("the empty environment has no parent".into()))
+    frame.parent()?.map(Sexp::Environment).ok_or_else(|| {
+        crate::SourceFault::domain("the empty environment has no parent".into(), call)
+    })
 }
 
 pub(super) fn name(value: &Sexp) -> Result<Sexp, EvalError> {

@@ -1,6 +1,9 @@
 use crate::{string_values, EvalError, Sexp};
 
 pub(super) fn deparse_value(value: &Sexp) -> Result<String, EvalError> {
+    crate::ordinary_cycles::check(value, "cyclic ordinary value coercion")?;
+    let projection = crate::ordinary_values::read(value)?;
+    let value = projection.as_ref();
     let (empty, parts) = match value {
         Sexp::Nil => return Ok("NULL".into()),
         Sexp::String(values) => (
@@ -50,7 +53,10 @@ pub(super) fn deparse_value(value: &Sexp) -> Result<String, EvalError> {
                 .map(|value| value.unwrap_or_else(|| "NA".into()))
                 .collect(),
         ),
-        Sexp::List(values) => {
+        Sexp::ClassedList {
+            elements: values, ..
+        }
+        | Sexp::List(values) => {
             let parts = values
                 .iter()
                 .map(|element| {
@@ -86,7 +92,8 @@ pub(super) fn deparse_value(value: &Sexp) -> Result<String, EvalError> {
                 .collect::<Result<Vec<_>, _>>()?;
             return deparse_value(&Sexp::Integer(values));
         }
-        Sexp::MissingArg(_)
+        Sexp::AttributedCharacter { .. }
+        | Sexp::MissingArg(_)
         | Sexp::Symbol(_)
         | Sexp::MissingValue
         | Sexp::PairList(_)
@@ -94,6 +101,9 @@ pub(super) fn deparse_value(value: &Sexp) -> Result<String, EvalError> {
         | Sexp::Dots(_)
         | Sexp::Promise { .. }
         | Sexp::Closure { .. }
+        | Sexp::Char(_)
+        | Sexp::ListObject(_)
+        | Sexp::PairListObject(_)
         | Sexp::Environment(_)
         | Sexp::Primitive(_)
         | Sexp::InternalCall { .. }
@@ -107,6 +117,7 @@ pub(super) fn deparse_value(value: &Sexp) -> Result<String, EvalError> {
         | Sexp::Block(_)
         | Sexp::Subset { .. }
         | Sexp::Subset2D { .. }
+        | Sexp::ExtractArguments { .. }
         | Sexp::Extract { .. }
         | Sexp::Dollar { .. }
         | Sexp::Call { .. }
@@ -117,6 +128,7 @@ pub(super) fn deparse_value(value: &Sexp) -> Result<String, EvalError> {
         | Sexp::ExtractAssignment { .. }
         | Sexp::DollarAssignment { .. }
         | Sexp::MemberAssignment { .. }
+        | Sexp::ReplacementAssignment { .. }
         | Sexp::NamesAssignment { .. }
         | Sexp::Binary { .. }
         | Sexp::Unary { .. }

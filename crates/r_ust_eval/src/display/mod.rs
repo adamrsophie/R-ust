@@ -1,4 +1,6 @@
-use crate::{format_line, format_number, format_numeric_line, primitive_calls, EvalError, Sexp};
+use crate::{format_number, format_numeric_line, primitive_calls, EvalError, Sexp};
+pub(crate) mod character;
+mod chars;
 mod closures;
 mod containers;
 mod lists;
@@ -13,7 +15,11 @@ use scalars::format_factor;
 /// Returns an error for unsupported language values or malformed canonical trees,
 /// including failures nested inside containers. No output is emitted here.
 pub fn format_sexp(value: &Sexp) -> Result<String, EvalError> {
+    crate::ordinary_cycles::check(value, "cyclic ordinary value printing")?;
     Ok(match value {
+        Sexp::ListObject(value) => format_sexp(&value.value()?)?,
+        Sexp::PairListObject(value) => lists::format_pairlist(&value.elements()?)?,
+        Sexp::Char(value) => chars::format(value)?,
         Sexp::MissingValue => String::new(),
         Sexp::PairList(values) => lists::format_pairlist(values.as_slice())?,
         Sexp::Environment(frame) => crate::environment_values::format(frame)?,
@@ -42,15 +48,7 @@ pub fn format_sexp(value: &Sexp) -> Result<String, EvalError> {
             values.iter().map(|value| format_number(*value)).collect(),
             "numeric(0)",
         ),
-        Sexp::String(values) => format_line(
-            values
-                .iter()
-                .map(|value| match value {
-                    Some(value) => format!("{value:?}"),
-                    None => "NA".to_string(),
-                })
-                .collect(),
-        ),
+        Sexp::String(_) | Sexp::AttributedCharacter { .. } => character::format(value, true)?,
         Sexp::Factor {
             codes,
             levels,
@@ -61,6 +59,9 @@ pub fn format_sexp(value: &Sexp) -> Result<String, EvalError> {
             .map(format_sexp)
             .collect::<Result<Vec<_>, _>>()?
             .join("\n"),
+        Sexp::ClassedList {
+            elements, class, ..
+        } => lists::format_classed(elements, class, "")?,
         Sexp::List(values) => format_list(values)?,
         Sexp::DataFrame { columns, nrow } => format_data_frame(columns, *nrow)?,
         Sexp::Matrix { data, nrow, ncol } => format_matrix(data, *nrow, *ncol)?,
@@ -84,6 +85,7 @@ pub fn format_sexp(value: &Sexp) -> Result<String, EvalError> {
         | Sexp::Block(_)
         | Sexp::Subset { .. }
         | Sexp::Subset2D { .. }
+        | Sexp::ExtractArguments { .. }
         | Sexp::Extract { .. }
         | Sexp::Dollar { .. }
         | Sexp::InternalCall { .. }
@@ -94,6 +96,7 @@ pub fn format_sexp(value: &Sexp) -> Result<String, EvalError> {
         | Sexp::ExtractAssignment { .. }
         | Sexp::DollarAssignment { .. }
         | Sexp::MemberAssignment { .. }
+        | Sexp::ReplacementAssignment { .. }
         | Sexp::NamesAssignment { .. }
         | Sexp::Binary { .. }
         | Sexp::Unary { .. }

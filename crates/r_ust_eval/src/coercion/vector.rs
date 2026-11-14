@@ -8,7 +8,7 @@ impl RuntimeState {
             value = data;
         }
         let invalid = || EvalError::Domain("invalid 'length' argument".into());
-        if crate::value_len(value) != 1 {
+        if crate::value_len(value)? != 1 {
             return Err(invalid());
         }
         match value {
@@ -21,7 +21,7 @@ impl RuntimeState {
                 return codes[0]
                     .ok_or_else(|| EvalError::Domain("vector size cannot be NA".into()));
             }
-            Sexp::Real(_) | Sexp::String(_) => {}
+            Sexp::Real(_) | Sexp::String(_) | Sexp::AttributedCharacter { .. } => {}
             Sexp::Nil
             | Sexp::MissingArg(_)
             | Sexp::Symbol(_)
@@ -29,12 +29,16 @@ impl RuntimeState {
             | Sexp::PairList(_)
             | Sexp::Logical(_)
             | Sexp::Vector(_)
+            | Sexp::ClassedList { .. }
             | Sexp::List(_)
             | Sexp::DataFrame { .. }
             | Sexp::Matrix { .. }
             | Sexp::Dots(_)
             | Sexp::Promise { .. }
             | Sexp::Closure { .. }
+            | Sexp::Char(_)
+            | Sexp::ListObject(_)
+            | Sexp::PairListObject(_)
             | Sexp::Environment(_)
             | Sexp::Primitive(_)
             | Sexp::InternalCall { .. }
@@ -48,6 +52,7 @@ impl RuntimeState {
             | Sexp::Block(_)
             | Sexp::Subset { .. }
             | Sexp::Subset2D { .. }
+            | Sexp::ExtractArguments { .. }
             | Sexp::Extract { .. }
             | Sexp::Dollar { .. }
             | Sexp::Call { .. }
@@ -58,6 +63,7 @@ impl RuntimeState {
             | Sexp::ExtractAssignment { .. }
             | Sexp::DollarAssignment { .. }
             | Sexp::MemberAssignment { .. }
+            | Sexp::ReplacementAssignment { .. }
             | Sexp::NamesAssignment { .. }
             | Sexp::Binary { .. }
             | Sexp::Unary { .. }

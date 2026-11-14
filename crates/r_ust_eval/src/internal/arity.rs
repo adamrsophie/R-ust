@@ -1,8 +1,20 @@
 use crate::EvalError;
 use r_ust_sexp::InternalOperation;
 
-pub(super) fn check(operation: InternalOperation, count: usize) -> Result<(), EvalError> {
+pub(super) fn check(
+    operation: InternalOperation,
+    count: usize,
+    call: Option<&crate::Sexp>,
+) -> Result<(), EvalError> {
     let (name, arity) = match operation {
+        InternalOperation::Environment => ("environment", 1),
+        InternalOperation::PrintDefault => ("print.default", 3),
+        InternalOperation::NewEnvironment => ("new.env", 3),
+        InternalOperation::ParentFrame => ("parent.frame", 1),
+        InternalOperation::SysFrame
+        | InternalOperation::SysFunction
+        | InternalOperation::SysParent
+        | InternalOperation::SysNFrame => return Ok(()),
         InternalOperation::ParentEnvironment => ("parent.env", 1),
         InternalOperation::EnvironmentName => ("environmentName", 1),
         InternalOperation::Formals => ("formals", 1),
@@ -20,30 +32,42 @@ pub(super) fn check(operation: InternalOperation, count: usize) -> Result<(), Ev
         InternalOperation::EncodeString => ("encodeString", 5),
         InternalOperation::EncodeStringWrapper => ("encodeString wrapper", 0),
         InternalOperation::Sequence => ("sequence", 4),
-        InternalOperation::SequenceDispatch => ("sequence dispatch", 0),
         InternalOperation::Utf8ToInt => ("utf8ToInt", 1),
         InternalOperation::IntToUtf8 => ("intToUtf8", 3),
         InternalOperation::FindInterval => ("findInterval", 6),
         InternalOperation::Strtoi => ("strtoi", 2),
         InternalOperation::Pmatch => ("pmatch", 4),
         InternalOperation::Charmatch => ("charmatch", 3),
+        InternalOperation::AsVector => ("as.vector", 2),
         InternalOperation::Vector => ("vector", 2),
         InternalOperation::Stop => ("stop", 2),
         InternalOperation::DefaultStop => (".dfltStop", 2),
+        InternalOperation::AddConditionHandlers => (".addCondHands", 5),
+        InternalOperation::ResetConditionHandlers => (".resetCondHands", 1),
+        InternalOperation::GetErrorMessage => ("geterrmessage", 0),
         InternalOperation::Inherits => ("inherits", 3),
         InternalOperation::Gettext => ("gettext", 3),
         InternalOperation::SignalCondition => (".signalCondition", 3),
     };
     let valid_arity = match operation {
+        InternalOperation::SysFrame
+        | InternalOperation::SysFunction
+        | InternalOperation::SysParent
+        | InternalOperation::SysNFrame => true,
         InternalOperation::Gettext => {
             if !(2..=3).contains(&count) {
-                return Err(EvalError::Arity(
+                return Err(arity_error(
                     "either 2 or 3 arguments are required".into(),
+                    call,
                 ));
             }
             true
         }
-        InternalOperation::BitwiseNot
+        InternalOperation::Environment
+        | InternalOperation::PrintDefault
+        | InternalOperation::NewEnvironment
+        | InternalOperation::ParentFrame
+        | InternalOperation::BitwiseNot
         | InternalOperation::ParentEnvironment
         | InternalOperation::EnvironmentName
         | InternalOperation::Formals
@@ -60,7 +84,7 @@ pub(super) fn check(operation: InternalOperation, count: usize) -> Result<(), Ev
         | InternalOperation::EncodeString
         | InternalOperation::EncodeStringWrapper
         | InternalOperation::Sequence
-        | InternalOperation::SequenceDispatch
+        | InternalOperation::AsVector
         | InternalOperation::Vector
         | InternalOperation::Utf8ToInt
         | InternalOperation::IntToUtf8
@@ -71,13 +95,24 @@ pub(super) fn check(operation: InternalOperation, count: usize) -> Result<(), Ev
         | InternalOperation::Stop
         | InternalOperation::Inherits
         | InternalOperation::SignalCondition
-        | InternalOperation::DefaultStop => count == arity,
+        | InternalOperation::DefaultStop
+        | InternalOperation::AddConditionHandlers
+        | InternalOperation::ResetConditionHandlers
+        | InternalOperation::GetErrorMessage => count == arity,
     };
     if !valid_arity {
         let suffix = if count == 1 { "" } else { "s" };
-        return Err(EvalError::Arity(format!(
-            "{count} argument{suffix} passed to .Internal({name}) which requires {arity}"
-        )));
+        return Err(arity_error(
+            format!("{count} argument{suffix} passed to .Internal({name}) which requires {arity}"),
+            call,
+        ));
     }
     Ok(())
+}
+
+fn arity_error(message: String, call: Option<&crate::Sexp>) -> EvalError {
+    match call {
+        Some(call) => crate::SourceFault::arity(message, call),
+        None => EvalError::Arity(message),
+    }
 }

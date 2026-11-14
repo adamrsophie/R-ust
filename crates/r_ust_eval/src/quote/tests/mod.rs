@@ -53,14 +53,14 @@ fn quote_matches_independent_r_trees_visibility_metadata_warnings_and_effects(
                 );
                 assert_eq!(typeof_value(actual), fields[4], "{} typeof", case.id);
                 assert_eq!(
-                    class_value(actual),
+                    class_value(actual).unwrap(),
                     string(&decode(fields[5])?),
                     "{} class",
                     case.id
                 );
                 assert_eq!(mode_value(actual), fields[6], "{} mode", case.id);
                 assert_eq!(
-                    value_len(actual).to_string(),
+                    value_len(actual).unwrap().to_string(),
                     fields[7],
                     "{} length",
                     case.id

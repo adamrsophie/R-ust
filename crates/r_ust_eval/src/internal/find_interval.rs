@@ -9,7 +9,7 @@ pub(super) fn find_interval(args: &[EvaluatedArgument]) -> Result<Sexp, EvalErro
         .map_err(|_| EvalError::Domain("long vector 'vec' is not supported".into()))?;
     let mut flags = [false; 3];
     for (flag, arg) in flags.iter_mut().zip(&args[2..5]) {
-        let len = value_len(&arg.value);
+        let len = value_len(&arg.value)?;
         if len > 1 {
             return Err(EvalError::Domain(format!(
                 "'length = {len}' in coercion to 'logical(1)'"

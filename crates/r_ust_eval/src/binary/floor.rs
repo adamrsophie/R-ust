@@ -84,7 +84,7 @@ impl RuntimeState {
             self.record_parse_warnings(&[message])?;
             return Ok(Sexp::Logical(vec![
                 None;
-                value_len(left).max(value_len(right))
+                value_len(left)?.max(value_len(right)?)
             ]));
         }
         let x = super::arithmetic_numbers(left)?;

@@ -25,6 +25,18 @@ impl StoredValue {
         Ok(Self { value, edges })
     }
 
+    pub(super) fn from_edges(mut value: Sexp) -> Result<Self, GraphError> {
+        let mut edges = Vec::new();
+        visit(&mut value, &mut |link| {
+            match link {
+                Link::Edge(id) => edges.push(*id),
+                Link::Root(_) => return Err(GraphError::WrongKind),
+            }
+            Ok(())
+        })?;
+        Ok(Self { value, edges })
+    }
+
     pub fn edges(&self, pending: &mut Vec<NodeId>) {
         pending.extend(&self.edges);
     }
@@ -71,7 +83,14 @@ fn visit(
         | Sexp::Factor { .. }
         | Sexp::Break
         | Sexp::Next => {}
+        Sexp::Char(value) => {
+            if value.as_ref().is_some_and(|value| value.contains('\0')) {
+                return Err(GraphError::InvalidCharacter);
+            }
+        }
         Sexp::Environment(frame) => map(&mut frame.0)?,
+        Sexp::ListObject(value) => map(&mut value.0)?,
+        Sexp::PairListObject(value) => map(&mut value.0)?,
         Sexp::Promise { state } => map(&mut state.0)?,
         Sexp::Closure {
             parameters,
@@ -107,7 +126,18 @@ fn visit(
                 visit(&mut value.value, map)?;
             }
         }
-        Sexp::List(values)
+        Sexp::ClassedList {
+            elements, class, ..
+        } => {
+            visit(class, map)?;
+            for element in elements {
+                visit(&mut element.value, map)?;
+            }
+        }
+        Sexp::AttributedCharacter {
+            attributes: values, ..
+        }
+        | Sexp::List(values)
         | Sexp::Dots(values)
         | Sexp::DataFrame {
             columns: values, ..
@@ -166,11 +196,16 @@ fn visit(
             visit(value, map)?;
             visit(index, map)?;
         }
-        Sexp::MemberAssignment { target, value, .. } => {
+        Sexp::ReplacementAssignment { target, value, .. }
+        | Sexp::MemberAssignment { target, value, .. } => {
             visit(target, map)?;
             visit(value, map)?;
         }
-        Sexp::Call {
+        Sexp::ExtractArguments {
+            value: function,
+            arguments,
+        }
+        | Sexp::Call {
             function,
             arguments,
         } => {

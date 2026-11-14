@@ -22,7 +22,7 @@ impl RuntimeState {
             }
             (matrix @ Sexp::Matrix { nrow, ncol, .. }, vector)
             | (vector, matrix @ Sexp::Matrix { nrow, ncol, .. }) => {
-                let (array_length, vector_length) = (value_len(matrix), value_len(vector));
+                let (array_length, vector_length) = (value_len(matrix)?, value_len(vector)?);
                 if array_length == 1 && vector_length != 1 {
                     if vector_length > 0 {
                         let order = if matches!(left, Sexp::Matrix { .. }) {
@@ -50,7 +50,7 @@ pub(super) fn attach(data: Sexp, dims: Option<(usize, usize)>) -> Result<Sexp, E
             let product = nrow
                 .checked_mul(ncol)
                 .ok_or_else(|| EvalError::Domain("matrix dimensions overflow".into()))?;
-            let length = value_len(&data);
+            let length = value_len(&data)?;
             if product != length {
                 return Err(EvalError::Domain(format!(
                     "dims [product {product}] do not match the length of object [{length}]"

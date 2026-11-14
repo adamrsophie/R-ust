@@ -40,7 +40,7 @@ pub(crate) fn encode(value: &str, quote: Option<char>) -> String {
     result
 }
 
-pub(super) fn width(value: &str) -> usize {
+pub(crate) fn width(value: &str) -> usize {
     value
         .chars()
         .map(|character| {

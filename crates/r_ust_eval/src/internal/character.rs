@@ -16,12 +16,17 @@ pub(super) fn character_values(value: &Sexp) -> Result<Vec<Option<String>>, Eval
         | Sexp::Integer(_)
         | Sexp::Real(_)
         | Sexp::String(_)
+        | Sexp::AttributedCharacter { .. }
         | Sexp::Vector(_)
+        | Sexp::ClassedList { .. }
         | Sexp::List(_)
         | Sexp::DataFrame { .. }
         | Sexp::Dots(_)
         | Sexp::Promise { .. }
         | Sexp::Closure { .. }
+        | Sexp::Char(_)
+        | Sexp::ListObject(_)
+        | Sexp::PairListObject(_)
         | Sexp::Environment(_)
         | Sexp::Primitive(_)
         | Sexp::InternalCall { .. }
@@ -35,6 +40,7 @@ pub(super) fn character_values(value: &Sexp) -> Result<Vec<Option<String>>, Eval
         | Sexp::Block(_)
         | Sexp::Subset { .. }
         | Sexp::Subset2D { .. }
+        | Sexp::ExtractArguments { .. }
         | Sexp::Extract { .. }
         | Sexp::Dollar { .. }
         | Sexp::Call { .. }
@@ -45,6 +51,7 @@ pub(super) fn character_values(value: &Sexp) -> Result<Vec<Option<String>>, Eval
         | Sexp::ExtractAssignment { .. }
         | Sexp::DollarAssignment { .. }
         | Sexp::MemberAssignment { .. }
+        | Sexp::ReplacementAssignment { .. }
         | Sexp::NamesAssignment { .. }
         | Sexp::Binary { .. }
         | Sexp::Unary { .. }

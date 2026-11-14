@@ -22,7 +22,6 @@ from scripts.sequence_capture import (
     LIMIT_SOURCE,
     Outcome,
     classify,
-    is_limit_case,
     matches,
 )
 from scripts.sequence_reference import FIXTURE_SHA, LOGICAL_SHA, read_cases, self_check
@@ -140,7 +139,7 @@ def compare(binary: Path, directory: Path, *, baseline: bool) -> int:
     programs_stable = all(digest(Path(path)) == value for path, value in program_hashes.items())
     reference_stable = all(digest(Path(path)) == value for path, value in references.items())
     failures = [row for row in results if row.outcome == Outcome.FAIL]
-    supported = [row for row in results if not is_limit_case(row.case)]
+    supported = results
     supported_passes = sum(row.passed for row in supported)
     limit_observations = sum(row.outcome == Outcome.LIMIT for row in results)
     report = directory / "report.json"
@@ -150,21 +149,21 @@ def compare(binary: Path, directory: Path, *, baseline: bool) -> int:
                 "fixture_sha256": FIXTURE_SHA,
                 "logical_list_fixture_sha256": LOGICAL_SHA,
                 "attempted_source_cases": 114,
-                "supported_sequence_cases": 89,
+                "supported_sequence_cases": 90,
                 "logical_list_source_cases": 24,
                 "supported_comparisons": len(supported),
                 "supported_passes": supported_passes,
                 "known_limit_observations": limit_observations,
-                "known_limit": {
+                "former_limit": {
                     "case_identifier": 69,
                     "source": LIMIT_SOURCE,
-                    "native_error": LIMIT_ERROR,
-                    "expected_observations": len(MODES),
-                    "counted_as_pass": False,
+                    "rejected_legacy_native_error": LIMIT_ERROR,
+                    "expected_observations": 0,
+                    "counted_as_pass": True,
                 },
                 "sdk_warn2_recovery": {
                     "executed_here": False,
-                    "scope": "Separate SDK host-boundary check; no CLI recovery or tryCatch support claimed.",
+                    "scope": "Separate SDK host-boundary check; CLI row 69 independently checks its represented tryCatch recovery.",
                 },
                 "reference_profile": profiles,
                 "reference_sha256": references,
@@ -187,9 +186,9 @@ def compare(binary: Path, directory: Path, *, baseline: bool) -> int:
                     "All 90 sequence and 24 logical-list original sources are attempted across five entry modes; no source is changed or excluded.",
                     "Exact error/warning payloads, status, order and after-error sentinel absence are checked inside CLI framing.",
                     "Integer/logical storage and values use the shared fixture-derived identical checks; general pretty-printing is not certified.",
-                    "Row 69 is never a PASS: only its exact missing-tryCatch diagnostic without effects is recognized as a known LIMIT; any other native result fails.",
+                    "Row 69 requires the original caught-error stdout, subsequent warning, integer result, and exact event order; the former missing-tryCatch diagnostic fails.",
                     "Row 69 reference output is matched in measured stdout-before-warning order; ordinary cases use the unchanged shared matcher.",
-                    "The separate SDK warn=2 recovery check is not a CLI recovery or tryCatch-support claim.",
+                    "The separate SDK warn=2 recovery check is not executed by this CLI checker.",
                     "R 4.6.0 aarch64 LDOUBLE8 JIT0 profile only; custom S3 and unrepresented language behavior are not certified.",
                     "A baseline records an older executable against current source inputs; it is not a revision-bound success claim.",
                 ],
@@ -209,7 +208,7 @@ def compare(binary: Path, directory: Path, *, baseline: bool) -> int:
         print(f"FAIL {row.mode}/{row.case.identifier}")
     stable = source_stable and programs_stable and reference_stable and binaries_stable
     print(
-        f"{supported_passes}/{len(supported)} supported CLI comparisons passed; {limit_observations}/{len(MODES)} expected LIMIT observations; {len(results)} total attempts; baseline={baseline}; stable={stable}"
+        f"{supported_passes}/{len(supported)} supported CLI comparisons passed; {limit_observations}/0 expected LIMIT observations; {len(results)} total attempts; baseline={baseline}; stable={stable}"
     )
     return int(not stable or (not baseline and bool(failures)))
 
@@ -223,7 +222,7 @@ def main() -> int:
         case Action.SELF_CHECK:
             self_check()
             print(
-                f"Comparator self-check passed; {len(read_cases())} attempted source rows; 113 supported and 1 known LIMIT"
+                f"Comparator self-check passed; {len(read_cases())} attempted source rows; 114 supported and 0 known LIMIT"
             )
             return 0
         case Action.COMPARE | Action.BASELINE:

@@ -1,10 +1,13 @@
 mod bitwise;
+mod conditions;
 mod constants;
 mod definitions;
 mod encode_string;
 mod environments;
 mod evaluation;
 mod formals;
+mod list_values;
+mod printing;
 mod registry;
 mod rowsum;
 mod run_length;
@@ -60,6 +63,15 @@ fn lower(value: &mut Sexp) -> Result<(), EvalError> {
                 }
             }
         }
+        Sexp::Function { parameters, body } => {
+            for parameter in parameters {
+                if let Some(default) = &mut parameter.default {
+                    lower(default)?;
+                }
+            }
+            lower(body)?;
+        }
+        Sexp::Dollar { value, .. } => lower(value)?,
         Sexp::If {
             condition,
             then_branch,
@@ -76,6 +88,26 @@ fn lower(value: &mut Sexp) -> Result<(), EvalError> {
                 lower(value)?;
             }
         }
+        Sexp::ReplacementAssignment { target, value, .. } => {
+            lower(target)?;
+            lower(value)?;
+        }
+        Sexp::ExtractArguments { value, arguments } => {
+            lower(value)?;
+            for argument in arguments {
+                lower(&mut argument.value)?;
+            }
+        }
+        Sexp::Subset { value, index } => {
+            lower(value)?;
+            if let Some(index) = index {
+                lower(index)?;
+            }
+        }
+        Sexp::Extract { value, index } => {
+            lower(value)?;
+            lower(index)?;
+        }
         Sexp::Assignment { value, .. } | Sexp::Unary { value, .. } | Sexp::Parenthesized(value) => {
             lower(value)?
         }
@@ -85,10 +117,12 @@ fn lower(value: &mut Sexp) -> Result<(), EvalError> {
         }
         Sexp::Nil | Sexp::Symbol(_) | Sexp::Logical(_) | Sexp::Integer(_) | Sexp::String(_) => {}
         Sexp::MissingArg(_)
+        | Sexp::AttributedCharacter { .. }
         | Sexp::MissingValue
         | Sexp::PairList(_)
         | Sexp::Real(_)
         | Sexp::Vector(_)
+        | Sexp::ClassedList { .. }
         | Sexp::List(_)
         | Sexp::Factor { .. }
         | Sexp::DataFrame { .. }
@@ -96,19 +130,18 @@ fn lower(value: &mut Sexp) -> Result<(), EvalError> {
         | Sexp::Dots(_)
         | Sexp::Promise { .. }
         | Sexp::Closure { .. }
+        | Sexp::Char(_)
+        | Sexp::ListObject(_)
+        | Sexp::PairListObject(_)
         | Sexp::Environment(_)
         | Sexp::Primitive(_)
         | Sexp::InternalCall { .. }
-        | Sexp::Function { .. }
         | Sexp::For { .. }
         | Sexp::While { .. }
         | Sexp::Repeat { .. }
         | Sexp::Break
         | Sexp::Next
-        | Sexp::Subset { .. }
         | Sexp::Subset2D { .. }
-        | Sexp::Extract { .. }
-        | Sexp::Dollar { .. }
         | Sexp::SuperAssignment { .. }
         | Sexp::Subassignment { .. }
         | Sexp::MatrixSubassignment { .. }

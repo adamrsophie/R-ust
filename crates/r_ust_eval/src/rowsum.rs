@@ -34,7 +34,7 @@ fn groups(value: &Sexp) -> Result<Vec<Group>, EvalError> {
                 }
             })
             .collect(),
-        Sexp::String(v) => v
+        Sexp::String(v) | Sexp::AttributedCharacter { values: v, .. } => v
             .iter()
             .map(|v| v.clone().map_or(Group::Missing, Group::Text))
             .collect(),
@@ -79,7 +79,7 @@ impl RuntimeState {
         let g = groups(&args[1].value)?;
         let rows = match x {
             Sexp::Matrix { nrow, .. } | Sexp::DataFrame { nrow, .. } => *nrow,
-            _ => value_len(x),
+            _ => value_len(x)?,
         };
         if g.len() != rows {
             return Err(EvalError::Domain("incorrect length for 'group'".into()));
@@ -152,7 +152,7 @@ struct Grouping {
 impl Grouping {
     fn sum(&self, x: &Sexp) -> Result<Sexp, EvalError> {
         let rows = self.indices.len();
-        let columns = value_len(x).checked_div(rows).unwrap_or(1);
+        let columns = value_len(x)?.checked_div(rows).unwrap_or(1);
         match x {
             Sexp::Integer(values) => {
                 let mut out = vec![Some(0i32); self.count * columns];

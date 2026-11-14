@@ -1,4 +1,7 @@
 mod arity;
+mod site;
+mod stop;
+pub(crate) use site::InternalSite;
 mod bitwise;
 mod character;
 mod conditions;
@@ -24,19 +27,21 @@ impl RuntimeState {
         &mut self,
         operation: InternalOperation,
         arguments: &[CallArgument],
+        site: InternalSite<'_>,
     ) -> Result<Sexp, EvalError> {
-        if operation == InternalOperation::SequenceDispatch {
-            arity::check(operation, arguments.len())?;
-            return self.sequence_dispatch();
-        }
         if operation == InternalOperation::EncodeStringWrapper {
             let value = self.encode_string_wrapper()?;
             self.visible = true;
             return Ok(value);
         }
-        let args = self.eval_arguments(arguments, true)?;
-        let value = self.call_internal(operation, &args)?;
-        self.visible = true;
+        let args = self.eval_arguments(arguments, true, Some(site.outer))?;
+        let value = self.call_internal(operation, &args, site.inner)?;
+        self.visible = !matches!(
+            operation,
+            InternalOperation::AddConditionHandlers
+                | InternalOperation::ResetConditionHandlers
+                | InternalOperation::PrintDefault
+        );
         Ok(value)
     }
 
@@ -44,15 +49,26 @@ impl RuntimeState {
         &mut self,
         operation: InternalOperation,
         args: &[EvaluatedArgument],
+        inner_call: Option<&Sexp>,
     ) -> Result<Sexp, EvalError> {
-        arity::check(operation, args.len())?;
+        self.internal_arity(operation, args.len(), inner_call)?;
         match operation {
+            InternalOperation::PrintDefault => self.print_default(args),
+            InternalOperation::Environment => self.function_environment(&args[0].value),
+            InternalOperation::NewEnvironment => self.new_environment(args),
+            InternalOperation::ParentFrame => self.parent_frame(&args[0].value),
+            InternalOperation::SysFrame
+            | InternalOperation::SysFunction
+            | InternalOperation::SysParent
+            | InternalOperation::SysNFrame => self.dynamic_frame(operation, args),
             InternalOperation::ParentEnvironment => {
-                crate::environment_values::parent(&args[0].value)
+                crate::environment_values::parent(&args[0].value, &self.source_current_call())
             }
             InternalOperation::EnvironmentName => crate::environment_values::name(&args[0].value),
-            InternalOperation::Formals => self.formals(&args[0].value),
-            InternalOperation::Body => self.body(&args[0].value),
+            InternalOperation::Formals => {
+                self.formals(&args[0].value, inner_call.unwrap_or(&Sexp::Nil))
+            }
+            InternalOperation::Body => self.body(&args[0].value, inner_call.unwrap_or(&Sexp::Nil)),
             InternalOperation::BitwiseNot => self.bitwise_not(&args[0].value),
             InternalOperation::BitwiseAnd => self.bitwise_binary(bitwise::Binary::And, args),
             InternalOperation::BitwiseOr => self.bitwise_binary(bitwise::Binary::Or, args),
@@ -68,19 +84,26 @@ impl RuntimeState {
             ),
             InternalOperation::EncodeStringWrapper => self.encode_string_wrapper(),
             InternalOperation::Sequence => self.sequence(args),
-            InternalOperation::SequenceDispatch => self.sequence_dispatch(),
             InternalOperation::Utf8ToInt => self.utf8_to_int(&args[0].value),
             InternalOperation::IntToUtf8 => self.int_to_utf8(args),
             InternalOperation::FindInterval => find_interval::find_interval(args),
             InternalOperation::Strtoi => strtoi::convert(&args[0].value, &args[1].value),
             InternalOperation::Pmatch => self.partial_match(args, false),
             InternalOperation::Charmatch => self.partial_match(args, true),
+            InternalOperation::AsVector => crate::list_attributes::as_vector(args),
             InternalOperation::Vector => self.make_vector(&args[0].value, &args[1].value),
-            InternalOperation::Stop => conditions::stop(args),
+            InternalOperation::Stop => stop::stop(
+                args,
+                &self.source_stop_call(as_logical(&args[0].value).unwrap_or(true)),
+            ),
             InternalOperation::Inherits => conditions::inherits(args),
             InternalOperation::Gettext => conditions::gettext(args),
-            InternalOperation::SignalCondition | InternalOperation::DefaultStop => {
-                Err(EvalError::NotImplemented("condition-object signaling"))
+            InternalOperation::SignalCondition => self.signal_condition(args),
+            InternalOperation::DefaultStop => self.default_condition_stop(args),
+            InternalOperation::AddConditionHandlers => self.add_condition_handlers(args),
+            InternalOperation::ResetConditionHandlers => self.reset_condition_handlers(args),
+            InternalOperation::GetErrorMessage => {
+                Ok(Sexp::String(vec![Some(self.conditions.message.clone())]))
             }
         }
     }

@@ -1,27 +1,12 @@
 use r_ust_eval::{EvalError, Frontend, OutputEvent};
-use r_ust_sexp::{InternalOperation, Sexp};
+use r_ust_sexp::{CallArgument, Sexp};
 
 fn install(frontend: &mut Frontend) {
-    let mut closure = frontend
-        .eval_source("function(nvec, ...) NULL")
-        .unwrap()
-        .pop()
-        .unwrap();
-    let Sexp::Closure { body, .. } = &mut closure else {
-        panic!("expected closure");
-    };
-    **body = Sexp::InternalCall {
-        operation: InternalOperation::SequenceDispatch,
-        arguments: vec![],
-    };
-    let Some(Sexp::Environment(global)) = frontend.runtime().get(".GlobalEnv").unwrap() else {
-        panic!("expected global");
-    };
-    global.insert("dispatch".into(), &closure).unwrap();
+    frontend.eval_source("dispatch <- sequence").unwrap();
 }
 
 #[test]
-fn synthetic_sequence_dispatch_preserves_lookup_force_order_visibility_and_transfer() {
+fn genuine_sequence_dispatch_preserves_lookup_force_order_visibility_and_transfer() {
     let mut frontend = Frontend::default();
     install(&mut frontend);
     frontend
@@ -79,13 +64,16 @@ fn synthetic_sequence_dispatch_preserves_lookup_force_order_visibility_and_trans
 }
 
 #[test]
-fn synthetic_sequence_body_has_an_explicit_source_boundary() {
+fn genuine_sequence_body_and_private_internal_boundary() {
     let mut frontend = Frontend::default();
     assert_eq!(
         frontend.eval_source("body(sequence)"),
-        Err(EvalError::NotImplemented(
-            "function body source representation"
-        ))
+        Ok(vec![Sexp::Call {
+            function: Box::new(Sexp::Symbol("UseMethod".into())),
+            arguments: vec![CallArgument::positional(Sexp::String(vec![Some(
+                "sequence".into()
+            )]))],
+        }])
     );
     assert_eq!(
         frontend.eval_source(".Internal(sequenceDispatch())"),
@@ -97,4 +85,12 @@ fn synthetic_sequence_body_has_an_explicit_source_boundary() {
         frontend.eval_source("sequence(c(2L,1L))").unwrap(),
         [Sexp::Integer(vec![Some(1), Some(2), Some(1)])]
     );
+}
+
+#[test]
+fn sequence_custom_method_and_alias_preserve_invisibility() {
+    let mut frontend = Frontend::default();
+    let result = frontend.eval_source("sequence.integer<-function(nvec,...)invisible(37L);p<-sequence;r<-withVisible((p)(1L));identical(r$value,37L)&&identical(r$visible,FALSE)").unwrap();
+    assert_eq!(result.last(), Some(&Sexp::Logical(vec![Some(true)])));
+    assert!(frontend.runtime_mut().take_output().is_empty());
 }

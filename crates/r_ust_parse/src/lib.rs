@@ -1,3 +1,4 @@
+mod calls;
 use r_ust_sexp::{BinaryOp, CallArgument, FunctionParameter, Sexp, UnaryOp};
 
 mod assignment;
@@ -794,115 +795,10 @@ impl SyntaxParser {
         })
     }
 
-    fn parse_call(&mut self) -> Result<Sexp, ParseError> {
-        let mut expr = self.parse_primary()?;
-        loop {
-            match self.peek() {
-                Token::LParen => {
-                    self.advance();
-                    let arguments = self.parse_call_arguments()?;
-                    self.expect(Token::RParen)?;
-                    expr = Sexp::Call {
-                        function: Box::new(expr),
-                        arguments,
-                    };
-                }
-                Token::LBracket => {
-                    self.advance();
-                    if matches!(self.peek(), Token::LBracket) {
-                        self.advance();
-                        let index = self.parse_expression()?;
-                        if matches!(self.peek(), Token::Comma) {
-                            return Err(ParseError::new(
-                                "only one-dimensional extraction is implemented",
-                            ));
-                        }
-                        self.expect(Token::RBracket)?;
-                        self.expect(Token::RBracket)?;
-                        expr = Sexp::Extract {
-                            value: Box::new(expr),
-                            index: Box::new(index),
-                        };
-                        continue;
-                    }
-                    let index = if matches!(self.peek(), Token::RBracket | Token::Comma) {
-                        None
-                    } else {
-                        Some(Box::new(self.parse_expression()?))
-                    };
-                    if matches!(self.peek(), Token::Comma) {
-                        self.advance();
-                        let col = if matches!(self.peek(), Token::RBracket) {
-                            None
-                        } else {
-                            Some(Box::new(self.parse_expression()?))
-                        };
-                        self.expect(Token::RBracket)?;
-                        expr = Sexp::Subset2D {
-                            value: Box::new(expr),
-                            row: index,
-                            col,
-                        };
-                        continue;
-                    }
-                    self.expect(Token::RBracket)?;
-                    expr = Sexp::Subset {
-                        value: Box::new(expr),
-                        index,
-                    };
-                }
-                Token::Dollar => {
-                    self.advance();
-                    let name = self.parse_member()?;
-                    expr = Sexp::Dollar {
-                        value: Box::new(expr),
-                        name,
-                    };
-                }
-                _ => break,
-            }
-        }
-        Ok(expr)
-    }
-
-    fn parse_call_arguments(&mut self) -> Result<Vec<CallArgument>, ParseError> {
-        let mut arguments = Vec::new();
-        if matches!(self.peek(), Token::RParen) {
-            return Ok(arguments);
-        }
-        loop {
-            let argument =
-                if let Token::Ident(name) | Token::QuotedIdent(name) = self.peek().clone() {
-                    if matches!(self.peek_n(1), Some(Token::AssignEqual)) {
-                        self.advance();
-                        self.advance();
-                        let value = if matches!(self.peek(), Token::Comma | Token::RParen) {
-                            Sexp::MissingArg(name.clone())
-                        } else {
-                            self.parse_expression()?
-                        };
-                        CallArgument::named(name, value)
-                    } else {
-                        CallArgument::positional(self.parse_expression()?)
-                    }
-                } else if matches!(self.peek(), Token::Comma | Token::RParen) {
-                    CallArgument::positional(Sexp::MissingArg(String::new()))
-                } else {
-                    CallArgument::positional(self.parse_expression()?)
-                };
-            arguments.push(argument);
-            if !matches!(self.peek(), Token::Comma) {
-                break;
-            }
-            self.advance();
-        }
-        Ok(arguments)
-    }
-
     fn parse_function_definition(&mut self) -> Result<Sexp, ParseError> {
-        self.expect(Token::LParen)?;
+        self.expect_token(Token::LParen)?;
         let parameters = self.parse_function_parameters()?;
-        self.expect(Token::RParen)?;
+        self.expect_token(Token::RParen)?;
         let body = self.parse_expression()?;
         Ok(Sexp::Function {
             parameters,
@@ -936,9 +832,9 @@ impl SyntaxParser {
     }
 
     fn parse_if_expression(&mut self) -> Result<Sexp, ParseError> {
-        self.expect(Token::LParen)?;
+        self.expect_token(Token::LParen)?;
         let condition = self.parse_expression()?;
-        self.expect(Token::RParen)?;
+        self.expect_token(Token::RParen)?;
         let then_branch = self.parse_expression()?;
 
         let saved = self.position;
@@ -961,7 +857,7 @@ impl SyntaxParser {
     }
 
     fn parse_for_expression(&mut self) -> Result<Sexp, ParseError> {
-        self.expect(Token::LParen)?;
+        self.expect_token(Token::LParen)?;
         let variable = self.parse_name("expected loop variable name")?;
         match self.advance().clone() {
             Token::Ident(keyword) if keyword == "in" => {}
@@ -969,7 +865,7 @@ impl SyntaxParser {
             other => return Err(ParseError::new(format!("expected in, found {other:?}"))),
         }
         let sequence = self.parse_expression()?;
-        self.expect(Token::RParen)?;
+        self.expect_token(Token::RParen)?;
         let body = self.parse_expression()?;
         Ok(Sexp::For {
             variable,
@@ -979,9 +875,9 @@ impl SyntaxParser {
     }
 
     fn parse_while_expression(&mut self) -> Result<Sexp, ParseError> {
-        self.expect(Token::LParen)?;
+        self.expect_token(Token::LParen)?;
         let condition = self.parse_expression()?;
-        self.expect(Token::RParen)?;
+        self.expect_token(Token::RParen)?;
         let body = self.parse_expression()?;
         Ok(Sexp::While {
             condition: Box::new(condition),
@@ -1009,7 +905,7 @@ impl SyntaxParser {
                 return Err(ParseError::new("expected expression separator in block"));
             }
         }
-        self.expect(Token::RBrace)?;
+        self.expect_token(Token::RBrace)?;
         self.block_depth -= 1;
         Ok(Sexp::Block(expressions))
     }
@@ -1029,7 +925,7 @@ impl SyntaxParser {
         consumed
     }
 
-    fn expect(&mut self, expected: Token) -> Result<(), ParseError> {
+    fn expect_token(&mut self, expected: Token) -> Result<(), ParseError> {
         self.consume_newlines();
         let actual = self.advance().clone();
         if std::mem::discriminant(&actual) == std::mem::discriminant(&expected) {

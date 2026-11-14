@@ -105,7 +105,20 @@ fn base_registry_bootstrap_propagates_malformed_and_unresolved_errors() {
 
 fn assert_root_free_body(value: &Sexp) {
     match value {
-        Sexp::Call {
+        Sexp::Function { parameters, body } => {
+            for parameter in parameters {
+                if let Some(default) = &parameter.default {
+                    assert_root_free_body(default);
+                }
+            }
+            assert_root_free_body(body);
+        }
+        Sexp::Dollar { value, .. } => assert_root_free_body(value),
+        Sexp::ExtractArguments {
+            value: function,
+            arguments,
+        }
+        | Sexp::Call {
             function,
             arguments,
         } => {
@@ -135,6 +148,20 @@ fn assert_root_free_body(value: &Sexp) {
                 assert_root_free_body(value);
             }
         }
+        Sexp::ReplacementAssignment { target, value, .. } => {
+            assert_root_free_body(target);
+            assert_root_free_body(value);
+        }
+        Sexp::Subset { value, index } => {
+            assert_root_free_body(value);
+            if let Some(index) = index {
+                assert_root_free_body(index);
+            }
+        }
+        Sexp::Extract { value, index } => {
+            assert_root_free_body(value);
+            assert_root_free_body(index);
+        }
         Sexp::Assignment { value, .. } | Sexp::Unary { value, .. } | Sexp::Parenthesized(value) => {
             assert_root_free_body(value);
         }
@@ -148,6 +175,20 @@ fn assert_root_free_body(value: &Sexp) {
         | Sexp::Integer(_)
         | Sexp::Real(_)
         | Sexp::String(_) => {}
+        Sexp::AttributedCharacter { attributes, .. } => {
+            for attribute in attributes {
+                assert_root_free_body(&attribute.value);
+            }
+        }
+        Sexp::ClassedList {
+            elements, class, ..
+        } => {
+            assert_root_free_body(class);
+            for element in elements {
+                assert_root_free_body(&element.value);
+            }
+            panic!("classed runtime value in bootstrap body");
+        }
         Sexp::MissingArg(_)
         | Sexp::MissingValue
         | Sexp::PairList(_)
@@ -157,20 +198,19 @@ fn assert_root_free_body(value: &Sexp) {
         | Sexp::DataFrame { .. }
         | Sexp::Matrix { .. }
         | Sexp::Dots(_)
+        | Sexp::Char(_)
+        | Sexp::ListObject(_)
+        | Sexp::PairListObject(_)
         | Sexp::Promise { .. }
         | Sexp::Closure { .. }
         | Sexp::Environment(_)
         | Sexp::Primitive(_)
-        | Sexp::Function { .. }
         | Sexp::For { .. }
         | Sexp::While { .. }
         | Sexp::Repeat { .. }
         | Sexp::Break
         | Sexp::Next
-        | Sexp::Subset { .. }
         | Sexp::Subset2D { .. }
-        | Sexp::Extract { .. }
-        | Sexp::Dollar { .. }
         | Sexp::SuperAssignment { .. }
         | Sexp::Subassignment { .. }
         | Sexp::MatrixSubassignment { .. }

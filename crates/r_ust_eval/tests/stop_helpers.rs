@@ -223,16 +223,24 @@ fn base_internal_bootstrap_has_r_formals_and_condition_operations_stay_explicit(
     );
     assert_eq!(parameters[1].default, Some(Sexp::Logical(vec![Some(true)])));
     assert_eq!(parameters[2].default, Some(Sexp::Nil));
-    for (operation, arguments) in [
+    for (operation, arguments, expected) in [
         (
             InternalOperation::SignalCondition,
             vec!["NULL", "'x'", "NULL"],
+            Ok(Sexp::Nil),
         ),
-        (InternalOperation::DefaultStop, vec!["'x'", "NULL"]),
+        (
+            InternalOperation::DefaultStop,
+            vec!["'x'", "NULL"],
+            Err(EvalError::Stop {
+                message: "x".into(),
+                call_requested: false,
+            }),
+        ),
     ] {
         assert_eq!(
             RuntimeState::default().eval(&internal(operation, &arguments)),
-            Err(EvalError::NotImplemented("condition-object signaling"))
+            expected
         );
     }
 }

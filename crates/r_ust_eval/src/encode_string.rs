@@ -1,5 +1,5 @@
 mod escape;
-pub(crate) use escape::encode;
+pub(crate) use escape::{encode, width};
 
 use crate::{EvalError, EvalFlow, RuntimeState, Sexp};
 
@@ -8,23 +8,17 @@ const CHOICES: [&str; 4] = ["left", "right", "centre", "none"];
 impl RuntimeState {
     pub(crate) fn encode_string_wrapper(&mut self) -> Result<Sexp, EvalError> {
         let EvalFlow::Value(x) = self.eval_flow(&Sexp::Symbol("x".into()))?;
-        let x = crate::string_values(&x)?;
+        let x = crate::character_attributes::with_values(&x, crate::string_values(&x)?);
         let EvalFlow::Value(justify) = self.eval_flow(&Sexp::Symbol("justify".into()))?;
         let justify = justification(&justify)?;
         let EvalFlow::Value(width) = self.eval_flow(&Sexp::Symbol("width".into()))?;
         let EvalFlow::Value(quote) = self.eval_flow(&Sexp::Symbol("quote".into()))?;
         let EvalFlow::Value(na) = self.eval_flow(&Sexp::Symbol("na.encode".into()))?;
-        self.encode_string_values(&[
-            Sexp::String(x),
-            width,
-            quote,
-            Sexp::Integer(vec![Some(justify)]),
-            na,
-        ])
+        self.encode_string_values(&[x, width, quote, Sexp::Integer(vec![Some(justify)]), na])
     }
 
     pub(crate) fn encode_string_values(&mut self, args: &[Sexp]) -> Result<Sexp, EvalError> {
-        let Sexp::String(values) = &args[0] else {
+        let (Sexp::String(values) | Sexp::AttributedCharacter { values, .. }) = &args[0] else {
             return Err(EvalError::Type(
                 "a character vector argument expected".into(),
             ));
@@ -33,7 +27,8 @@ impl RuntimeState {
         if width.is_some_and(|width| width < 0) {
             return Err(invalid("width"));
         }
-        let Sexp::String(quotes) = &args[2] else {
+        let (Sexp::String(quotes) | Sexp::AttributedCharacter { values: quotes, .. }) = &args[2]
+        else {
             return Err(invalid("quote"));
         };
         let [quote] = quotes.as_slice() else {
@@ -108,7 +103,7 @@ impl RuntimeState {
                 })
             })
             .collect();
-        Ok(Sexp::String(result))
+        Ok(crate::character_attributes::with_values(&args[0], result))
     }
 }
 
@@ -120,7 +115,7 @@ fn justification(value: &Sexp) -> Result<i32, EvalError> {
     if matches!(value, Sexp::Nil) {
         return Ok(0);
     }
-    let Sexp::String(values) = value else {
+    let (Sexp::String(values) | Sexp::AttributedCharacter { values, .. }) = value else {
         return Err(EvalError::Domain(
             "'arg' must be NULL or a character vector".into(),
         ));

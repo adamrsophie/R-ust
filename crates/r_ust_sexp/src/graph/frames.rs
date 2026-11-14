@@ -7,13 +7,13 @@ impl Store {
     pub(super) fn frame(&self, id: NodeId) -> Result<&Frame, GraphError> {
         match self.node(id)? {
             Node::Frame(frame) => Ok(frame),
-            Node::Promise(_) => Err(GraphError::WrongKind),
+            Node::Promise(_) | Node::Vector(_) | Node::Cons(_) => Err(GraphError::WrongKind),
         }
     }
     pub(super) fn frame_mut(&mut self, id: NodeId) -> Result<&mut Frame, GraphError> {
         match self.node_mut(id)? {
             Node::Frame(frame) => Ok(frame),
-            Node::Promise(_) => Err(GraphError::WrongKind),
+            Node::Promise(_) | Node::Vector(_) | Node::Cons(_) => Err(GraphError::WrongKind),
         }
     }
 }
@@ -80,6 +80,14 @@ impl Environment {
             .bindings
             .contains_key(name))
     }
+    /// Validates rooted same-heap import without publishing a binding or allocating a node.
+    pub fn validate_import(&self, value: &Sexp) -> Result<(), GraphError> {
+        let heap = self.0.heap()?;
+        heap.lock().frame(self.0.id())?;
+        StoredValue::new(value, heap)?;
+        Ok(())
+    }
+
     pub fn insert(&self, name: String, value: &Sexp) -> Result<(), GraphError> {
         let heap = self.0.heap()?;
         let value = StoredValue::new(value, heap)?;

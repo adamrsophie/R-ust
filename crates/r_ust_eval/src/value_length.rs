@@ -1,7 +1,10 @@
 use super::*;
 
-pub(super) fn value_len(value: &Sexp) -> usize {
-    match value {
+pub(super) fn value_len(value: &Sexp) -> Result<usize, EvalError> {
+    Ok(match value {
+        Sexp::ListObject(value) => value_len(&value.value()?)?,
+        Sexp::PairListObject(value) => value.elements()?.len(),
+        Sexp::Char(value) => value.as_deref().unwrap_or("NA").len(),
         Sexp::Nil => 0,
         Sexp::MissingArg(_) => 1,
         Sexp::Primitive(_) | Sexp::Environment(_) => 1,
@@ -11,12 +14,15 @@ pub(super) fn value_len(value: &Sexp) -> usize {
         Sexp::Logical(values) => values.len(),
         Sexp::Integer(values) => values.len(),
         Sexp::Real(values) => values.len(),
-        Sexp::String(values) => values.len(),
+        Sexp::String(values) | Sexp::AttributedCharacter { values, .. } => values.len(),
         Sexp::Vector(values) => values.len(),
-        Sexp::List(values) => values.len(),
+        Sexp::ClassedList {
+            elements: values, ..
+        }
+        | Sexp::List(values) => values.len(),
         Sexp::Factor { codes, .. } => codes.len(),
         Sexp::DataFrame { columns, .. } => columns.len(),
-        Sexp::Matrix { data, .. } => value_len(data),
+        Sexp::Matrix { data, .. } => value_len(data)?,
         Sexp::Dots(values) => values.len(),
         Sexp::Promise { .. } => 1,
         Sexp::Closure { .. }
@@ -30,6 +36,7 @@ pub(super) fn value_len(value: &Sexp) -> usize {
         | Sexp::Block(_)
         | Sexp::Subset { .. }
         | Sexp::Subset2D { .. }
+        | Sexp::ExtractArguments { .. }
         | Sexp::Extract { .. }
         | Sexp::Dollar { .. }
         | Sexp::InternalCall { .. }
@@ -40,9 +47,10 @@ pub(super) fn value_len(value: &Sexp) -> usize {
         | Sexp::ExtractAssignment { .. }
         | Sexp::DollarAssignment { .. }
         | Sexp::MemberAssignment { .. }
+        | Sexp::ReplacementAssignment { .. }
         | Sexp::NamesAssignment { .. }
         | Sexp::Binary { .. }
         | Sexp::Unary { .. }
         | Sexp::Parenthesized(_) => 1,
-    }
+    })
 }

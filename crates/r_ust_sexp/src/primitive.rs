@@ -8,6 +8,9 @@ pub enum PrimitiveId {
     Invisible,
     Return,
     Missing,
+    UseMethod,
+    OnExit,
+    Nargs,
     Add,
     Subtract,
     Multiply,
@@ -32,6 +35,9 @@ impl PrimitiveId {
             "invisible" => Some(Self::Invisible),
             "return" => Some(Self::Return),
             "missing" => Some(Self::Missing),
+            "UseMethod" => Some(Self::UseMethod),
+            "on.exit" => Some(Self::OnExit),
+            "nargs" => Some(Self::Nargs),
             "quote" => Some(Self::Quote),
             ".Primitive" => Some(Self::Primitive),
             "globalenv" => Some(Self::GlobalEnv),
@@ -57,6 +63,9 @@ impl PrimitiveId {
             Self::Invisible => "invisible",
             Self::Return => "return",
             Self::Missing => "missing",
+            Self::UseMethod => "UseMethod",
+            Self::OnExit => "on.exit",
+            Self::Nargs => "nargs",
             Self::Quote => "quote",
             Self::Primitive => ".Primitive",
             Self::GlobalEnv => "globalenv",
@@ -77,6 +86,7 @@ impl PrimitiveId {
     pub const fn sexptype(self) -> SexpType {
         match self {
             Self::Sum
+            | Self::Nargs
             | Self::GlobalEnv
             | Self::BaseEnv
             | Self::EmptyEnv
@@ -92,7 +102,9 @@ impl PrimitiveId {
             | Self::Modulo
             | Self::IntegerDivide
             | Self::Colon => SexpType::Builtin,
-            Self::Return | Self::Missing | Self::Quote => SexpType::Special,
+            Self::Return | Self::Missing | Self::Quote | Self::UseMethod | Self::OnExit => {
+                SexpType::Special
+            }
         }
     }
 }

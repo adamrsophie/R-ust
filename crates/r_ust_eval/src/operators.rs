@@ -35,13 +35,15 @@ impl RuntimeState {
         let (left, right) = operands;
         let function = self.require_function(name, true)?;
         if !matches!(function, super::ApplyFunction::Builtin(_)) {
-            return self.call_resolved(
-                function,
-                &[
-                    CallArgument::positional(left.clone()),
-                    CallArgument::positional(right.clone()),
-                ],
-            );
+            let arguments = [
+                CallArgument::positional(left.clone()),
+                CallArgument::positional(right.clone()),
+            ];
+            let call = Sexp::Call {
+                function: Box::new(Sexp::Symbol(name.into())),
+                arguments: arguments.to_vec(),
+            };
+            return self.call_resolved(function, &arguments, &call);
         }
         let EvalFlow::Value(left) = self.eval_flow(left)?;
         if matches!(op, BinaryOp::AndScalar | BinaryOp::OrScalar) {
@@ -78,7 +80,12 @@ impl RuntimeState {
         };
         let function = self.require_function(name, true)?;
         if !matches!(function, super::ApplyFunction::Builtin(_)) {
-            return self.call_resolved(function, &[CallArgument::positional(value.clone())]);
+            let arguments = [CallArgument::positional(value.clone())];
+            let call = Sexp::Call {
+                function: Box::new(Sexp::Symbol(name.into())),
+                arguments: arguments.to_vec(),
+            };
+            return self.call_resolved(function, &arguments, &call);
         }
         let EvalFlow::Value(value) = self.eval_flow(value)?;
         let result = eval_unary(op, &value)?;
@@ -110,7 +117,10 @@ impl RuntimeState {
             | PrimitiveId::Invisible
             | PrimitiveId::Return
             | PrimitiveId::Missing
-            | PrimitiveId::Quote => {
+            | PrimitiveId::Quote
+            | PrimitiveId::UseMethod
+            | PrimitiveId::OnExit
+            | PrimitiveId::Nargs => {
                 return Err(EvalError::NotImplemented("non-arithmetic primitive"))
             }
         };
@@ -145,7 +155,10 @@ impl RuntimeState {
                 | PrimitiveId::Invisible
                 | PrimitiveId::Return
                 | PrimitiveId::Missing
-                | PrimitiveId::Quote => Err(EvalError::NotImplemented("non-unary primitive")),
+                | PrimitiveId::Quote
+                | PrimitiveId::UseMethod
+                | PrimitiveId::OnExit
+                | PrimitiveId::Nargs => Err(EvalError::NotImplemented("non-unary primitive")),
             },
             _ => Err(EvalError::Arity(
                 "operator needs one or two arguments".into(),

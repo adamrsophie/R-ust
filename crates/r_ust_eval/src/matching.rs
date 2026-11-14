@@ -11,7 +11,10 @@ pub(super) fn match_indices(
         while let Sexp::Matrix { data, .. } = value {
             value = data;
         }
-        matches!(value, Sexp::String(_) | Sexp::Factor { .. })
+        matches!(
+            value,
+            Sexp::String(_) | Sexp::AttributedCharacter { .. } | Sexp::Factor { .. }
+        )
     });
     if character {
         table_keys = match_keys(&Sexp::String(string_values(table)?))?;

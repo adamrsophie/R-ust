@@ -1,8 +1,8 @@
 use super::{
-    bool_arg, console_event, data_args, dispatch_call, expand_dots_call_arguments, format_line,
-    format_sexp, logical_scalar, named_arg, named_bool_arg, output_strings, positional,
-    string_scalar, value_len, visibility_result, CallArgument, EvalError, EvalFlow,
-    EvaluatedArgument, OutputEvent, RuntimeState, Sexp,
+    bool_arg, console_event, data_args, dispatch_call, expand_dots_call_arguments, logical_scalar,
+    named_arg, named_bool_arg, output_strings, positional, string_scalar, value_len,
+    visibility_result, CallArgument, EvalError, EvalFlow, EvaluatedArgument, OutputEvent,
+    RuntimeState, Sexp,
 };
 
 impl RuntimeState {
@@ -10,12 +10,17 @@ impl RuntimeState {
         &mut self,
         arguments: &[CallArgument],
         empty_is_error: bool,
+        call: Option<&Sexp>,
     ) -> Result<Vec<EvaluatedArgument>, EvalError> {
         let arguments = expand_dots_call_arguments(arguments, &self.current)?;
         let mut values = Vec::with_capacity(arguments.len());
         for (index, argument) in arguments.iter().enumerate() {
             if empty_is_error && matches!(argument.value, Sexp::MissingArg(_)) {
-                return Err(EvalError::Arity(format!("argument {} is empty", index + 1)));
+                let message = format!("argument {} is empty", index + 1);
+                return Err(match call {
+                    Some(call) => crate::SourceFault::arity(message, call),
+                    None => EvalError::Arity(message),
+                });
             }
             let EvalFlow::Value(value) = self.eval_flow(&argument.value)?;
             values.push(EvaluatedArgument {
@@ -50,7 +55,37 @@ impl RuntimeState {
                 let EvalFlow::Value(value) = result?;
                 return Ok(value);
             }
-            "anyNA" => return self.call_any_na(args),
+            "attr" => {
+                let value = positional(args, 0, "x")?;
+                let name = string_scalar(positional(args, 1, "which")?, "which")?;
+                crate::character_attributes::get(
+                    value,
+                    &name,
+                    bool_arg(args, 2, &["exact"], Some(false))?,
+                )?
+            }
+            "attributes" => {
+                if args.len() != 1 {
+                    return Err(EvalError::Arity("attributes requires one argument".into()));
+                }
+                crate::list_attributes::attributes(&args[0].value)?
+            }
+            "is.object" => {
+                if args.len() != 1 {
+                    return Err(EvalError::Arity("is.object requires one argument".into()));
+                }
+                Sexp::Logical(vec![Some(matches!(
+                    crate::ordinary_values::read(&args[0].value)?.as_ref(),
+                    Sexp::ClassedList { .. } | Sexp::Factor { .. } | Sexp::DataFrame { .. }
+                ))])
+            }
+            "anyNA" => return self.call_any_na(args, None),
+            "is.na" if args.len() == 1 && matches!(&args[0].value, Sexp::Char(_)) => {
+                self.record_parse_warnings(&[
+                    "is.na() applied to non-(list or vector) of type 'char'".into(),
+                ])?;
+                Sexp::Logical(crate::is_na_values(&args[0].value)?)
+            }
             "options" => return self.call_options(args),
             "as.numeric" | "as.double" | "as.real" | "as.integer" => {
                 self.call_numeric_coercion(name, args)?
@@ -62,27 +97,6 @@ impl RuntimeState {
                     ));
                 }
                 Sexp::Logical(vec![Some(self.interactive)])
-            }
-            "print" => {
-                let value = positional(args, 0, "x")?.clone();
-                let quote = named_bool_arg(args, &["quote"], true)?;
-                let text = if !quote {
-                    if let Sexp::String(values) = &value {
-                        format_line(
-                            values
-                                .iter()
-                                .map(|value| value.clone().unwrap_or_else(|| "NA".to_string()))
-                                .collect(),
-                        )
-                    } else {
-                        format_sexp(&value)?
-                    }
-                } else {
-                    format_sexp(&value)?
-                };
-                self.emit(OutputEvent::Stdout(format!("{text}\n")))?;
-                self.visible = false;
-                value
             }
             "invisible" | "withVisible" => {
                 if args.len() > 1 || (name == "withVisible" && args.is_empty()) {
@@ -114,7 +128,7 @@ impl RuntimeState {
                 }
                 let separator = named_arg(args, &["sep"])
                     .map(|value| {
-                        if value_len(value) != 1 {
+                        if value_len(value)? != 1 {
                             return Err(EvalError::NotImplemented("multiple cat separators"));
                         }
                         string_scalar(value, "sep")
@@ -139,7 +153,7 @@ impl RuntimeState {
                     return Err(EvalError::NotImplemented("writeLines connections"));
                 }
                 let value = positional(args, 0, "text")?;
-                let Sexp::String(values) = value else {
+                let Some(values) = value.character_values() else {
                     return Err(EvalError::Type(
                         "can only write character objects".to_string(),
                     ));

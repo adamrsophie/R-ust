@@ -13,7 +13,10 @@ impl RuntimeState {
         if character
             && !matches!(
                 (&args[0].value, &args[1].value),
-                (Sexp::String(_), Sexp::String(_))
+                (
+                    Sexp::String(_) | Sexp::AttributedCharacter { .. },
+                    Sexp::String(_) | Sexp::AttributedCharacter { .. }
+                )
             )
         {
             return Err(EvalError::Type("argument is not of mode character".into()));
@@ -25,7 +28,10 @@ impl RuntimeState {
             super::as_logical(&args[3].value)
                 .ok_or_else(|| EvalError::Domain("invalid 'duplicates.ok' argument".into()))?
         };
-        let (Sexp::String(input), Sexp::String(table)) = (&args[0].value, &args[1].value) else {
+        let (Some(input), Some(table)) = (
+            args[0].value.character_values(),
+            args[1].value.character_values(),
+        ) else {
             return Err(EvalError::Type("argument is not of mode character".into()));
         };
         i32::try_from(table.len())

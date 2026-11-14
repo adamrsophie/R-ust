@@ -13,11 +13,11 @@ fn distinguishes_missing_doubles_from_nan() {
     let mut frontend = Frontend::default();
     for (source, expected) in [
         ("is.nan(c(NA, NaN))", "[1] FALSE  TRUE"),
-        ("c(typeof(NA_integer_), typeof(NA_real_), typeof(NA_character_))", "[1] \"integer\" \"double\" \"character\""),
+        ("c(typeof(NA_integer_), typeof(NA_real_), typeof(NA_character_))", "[1] \"integer\"   \"double\"    \"character\""),
         ("c(NA_real_, NaN)", "[1]  NA NaN"),
         ("is.na(c(NA_real_, NaN, Inf, 0))", "[1]  TRUE  TRUE FALSE FALSE"),
         ("is.nan(as.double(c(NA_integer_, 1)))", "[1] FALSE FALSE"),
-        ("as.character(c(NA_real_, NaN))", "[1] NA \"NaN\""),
+        ("as.character(c(NA_real_, NaN))", "[1] NA    \"NaN\""),
         ("as.double(c(NA_character_, \"NaN\", \"bad\"))", "[1]  NA NaN  NA"),
         ("as.double(NA) == \"NaN\"", "[1] NA"),
         ("x <- c(1, NaN); x[c(2, 3, NA)]", "[1] NaN  NA  NA"),

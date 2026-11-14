@@ -24,8 +24,12 @@ fn format_nested(
             Some(name) => format!("{prefix}${name}"),
             None => format!("{prefix}[[{}]]", index + 1),
         };
-        let body = match &element.value {
+        let projection = crate::ordinary_values::read(&element.value)?;
+        let body = match projection.as_ref() {
             Sexp::List(nested) | Sexp::Dots(nested) => format_nested(nested, &label, false)?,
+            Sexp::ClassedList {
+                elements, class, ..
+            } => format_classed(elements, class, &label)?,
             Sexp::PairList(nested) => format_nested(nested.as_slice(), &label, true)?,
             value => format_sexp(value)?,
         };
@@ -42,4 +46,17 @@ fn pairlist_name(name: &str) -> Result<String, EvalError> {
     } else {
         format!("`{}`", crate::encode_string::encode(name, None))
     })
+}
+
+pub(super) fn format_classed(
+    values: &[ListElement],
+    class: &Sexp,
+    _prefix: &str,
+) -> Result<String, EvalError> {
+    crate::character_attributes::validate_class(class)?;
+    Ok(format!(
+        "{}\nattr(,\"class\")\n{}",
+        format_nested(values, "", false)?,
+        super::character::render(class, true, "attr(,\"class\")")?
+    ))
 }

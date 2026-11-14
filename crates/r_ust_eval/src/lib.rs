@@ -1,10 +1,42 @@
+mod character_attributes;
+mod character_operations;
+use character_operations::{call_chartr, call_strtrim, call_sub_gsub, call_substr, call_trimws};
+mod list_attributes;
+mod list_prompt;
+mod ordinary_cycles;
+mod ordinary_values;
+mod pairlist_values;
+mod replacement_calls;
+use list_prompt::readline_prompt;
+mod list_sampling;
+use list_sampling::sample_population;
+mod list_dataframe;
+use list_dataframe::{bind_data_frame_columns, bind_data_frame_rows};
+mod list_predicates;
+use list_predicates::{is_na_values, numeric_predicate_values};
+mod list_repetition;
+use list_repetition::{call_rep, call_rep_len, lengths_values, list_like_elements};
+mod list_sets;
+use list_sets::{
+    duplicated_value, is_list_set_value, set_list_equal, set_list_operation, set_list_values,
+    unique_value,
+};
+mod list_conversion;
+use list_conversion::{as_list_value, call_c, call_unlist};
+mod list_names;
+use list_names::{names_assign_value, names_value};
+mod list_indexing;
+use list_indexing::{subassign_value, subset_linear_positions, subset_value};
+mod list_iteration;
+use list_iteration::{apply_elements, data_mask_scope, list_replacement_values, sequence_elements};
 #[cfg(test)]
 mod canonical_language_tests;
 mod identity;
 mod metadata;
+mod shared_identity;
 mod value_length;
 use identity::sexp_identical;
-use metadata::{class_value, mode_value, typeof_value};
+use metadata::{class_value, is_vector_value, mode_value, typeof_value};
 use std::collections::HashMap;
 use value_length::value_len;
 
@@ -21,14 +53,22 @@ mod binary;
 mod builtins;
 mod closure_calls;
 mod coercion;
+mod conditions;
 mod control;
+pub use conditions::{ConditionJump, SourceFault};
+mod data_mask;
+mod dispatch;
 mod dots;
+mod dynamic_context;
+mod dynamic_frames;
 mod encode_string;
 mod environment;
 mod environment_members;
 mod environment_values;
 mod member_assignment;
 mod member_values;
+mod new_environment;
+mod printing;
 use environment_members::MemberKey;
 use member_assignment::{MemberTarget, Selector};
 use member_values::{assign_list_name, dollar_value};
@@ -41,7 +81,7 @@ mod quote;
 #[cfg(test)]
 mod test_support;
 use dots::expand_dots_call_arguments;
-use promises::{is_missing_binding, promise};
+use promises::is_missing_binding;
 mod display;
 mod formatting;
 mod language_print;
@@ -105,6 +145,7 @@ use environment::ApplyFunction;
 
 #[derive(Debug)]
 pub struct RuntimeState {
+    conditions: conditions::Conditions,
     gc: Gc,
     current: Environment,
     global: Environment,
@@ -137,6 +178,7 @@ impl RuntimeState {
             current: global.clone(),
             global,
             control: control::ControlState::default(),
+            conditions: conditions::Conditions::default(),
             visible: true,
             output: Vec::new(),
             output_sink: None,
@@ -169,26 +211,41 @@ impl RuntimeState {
     }
 
     pub fn eval(&mut self, expr: &Sexp) -> Result<Sexp, EvalError> {
-        let EvalFlow::Value(result) = self.eval_flow(expr).map_err(|error| match error {
-            EvalError::Transfer(transfer) => EvalError::Control(transfer.inactive_message().into()),
-            other => other,
-        })?;
+        let saved_head = self.conditions.head.clone();
+        let result = self.eval_flow(expr);
+        if result.is_err() {
+            self.conditions.head = saved_head;
+        }
+        let EvalFlow::Value(result) = result.map_err(EvalError::unhandled)?;
         self.gc.alloc_header(result.sexptype());
         Ok(result)
     }
 
-    fn eval_flow(&mut self, expr: &Sexp) -> Result<EvalFlow, EvalError> {
+    fn eval_flow_body(&mut self, expr: &Sexp) -> Result<EvalFlow, EvalError> {
+        character_attributes::validate(expr)?;
         base::initialize(&self.current)?;
         self.visible = true;
         let result = match expr {
+            Sexp::Char(value) if value.as_ref().is_some_and(|value| value.contains('\0')) => {
+                return Err(EvalError::NotImplemented("CHARSXP with embedded NUL"));
+            }
+            Sexp::Char(_) => {
+                return Err(EvalError::Type(
+                    "unimplemented type 'char' in 'eval'\n".into(),
+                ))
+            }
             Sexp::Nil
+            | Sexp::ListObject(_)
+            | Sexp::PairListObject(_)
             | Sexp::Environment(_)
             | Sexp::Primitive(_)
             | Sexp::Logical(_)
             | Sexp::Integer(_)
             | Sexp::Real(_)
             | Sexp::String(_)
+            | Sexp::AttributedCharacter { .. }
             | Sexp::Vector(_)
+            | Sexp::ClassedList { .. }
             | Sexp::List(_)
             | Sexp::PairList(_)
             | Sexp::MissingValue
@@ -200,18 +257,17 @@ impl RuntimeState {
             Sexp::InternalCall {
                 operation,
                 arguments,
-            } => EvalFlow::Value(self.eval_internal(*operation, arguments)?),
-            Sexp::MissingArg(name) => return Err(EvalError::MissingArgument(name.clone())),
+            } => EvalFlow::Value(self.eval_internal(
+                *operation,
+                arguments,
+                internal::InternalSite {
+                    outer: &Sexp::Nil,
+                    inner: None,
+                },
+            )?),
+            Sexp::MissingArg(name) => return Err(self.evaluated_missing(name)),
             Sexp::Promise { .. } => EvalFlow::Value(self.force_value(expr.clone())?),
-            Sexp::Symbol(name) if name == "..." => {
-                return Err(EvalError::Domain(
-                    "'...' used in an incorrect context".into(),
-                ));
-            }
-            Sexp::Symbol(name) => self
-                .lookup(name)?
-                .ok_or_else(|| EvalError::UndefinedSymbol(name.clone()))
-                .map(EvalFlow::Value)?,
+            Sexp::Symbol(name) => self.eval_symbol(name)?,
             Sexp::Function { parameters, body } => EvalFlow::Value(Sexp::Closure {
                 parameters: parameters.clone(),
                 body: body.clone(),
@@ -241,8 +297,16 @@ impl RuntimeState {
             } => self.eval_for(variable, sequence, body)?,
             Sexp::While { condition, body } => self.eval_while(condition, body)?,
             Sexp::Repeat { body } => self.eval_repeat(body)?,
-            Sexp::Break => return Err(self.control.loop_signal(ControlTransfer::Break)),
-            Sexp::Next => return Err(self.control.loop_signal(ControlTransfer::Next)),
+            Sexp::Break => {
+                return Err(self
+                    .control
+                    .loop_signal(&self.current, ControlTransfer::Break))
+            }
+            Sexp::Next => {
+                return Err(self
+                    .control
+                    .loop_signal(&self.current, ControlTransfer::Next))
+            }
             Sexp::Block(expressions) => {
                 let mut last = Sexp::Nil;
                 for expression in expressions {
@@ -280,6 +344,12 @@ impl RuntimeState {
                     None
                 };
                 EvalFlow::Value(subset_2d_value(&value, row.as_ref(), col.as_ref())?)
+            }
+            Sexp::ExtractArguments { value, arguments } => {
+                self.eval_extract_arguments(value, arguments)?
+            }
+            Sexp::ReplacementAssignment { target, value, .. } => {
+                self.eval_replacement_call(target, value)?
             }
             Sexp::Extract { value, index } => {
                 let EvalFlow::Value(value) = self.eval_flow(value)?;
@@ -407,11 +477,14 @@ impl RuntimeState {
                 | Sexp::Unary { .. }
                 | Sexp::Subset { .. }
                 | Sexp::Subset2D { .. }
+                | Sexp::ExtractArguments { .. }
                 | Sexp::Extract { .. }
                 | Sexp::Dollar { .. }
         ) {
             self.visible = true;
         }
+        let EvalFlow::Value(value) = &result;
+        character_attributes::validate(value)?;
         Ok(result)
     }
 
@@ -664,7 +737,7 @@ impl RuntimeState {
                     value: element.clone(),
                 }];
                 arguments.extend(extra_args.iter().cloned());
-                self.call_eager_primitive(*id, &arguments)
+                self.call_eager_primitive(*id, &arguments, &Sexp::Nil)
             }
             ApplyFunction::Closure(value) => {
                 let mut call_args = vec![CallArgument::positional(element.clone())];
@@ -672,7 +745,9 @@ impl RuntimeState {
                     name: argument.name.clone(),
                     value: argument.value.clone(),
                 }));
-                let EvalFlow::Value(value) = self.call_value(value.clone(), &call_args)?;
+                // shortcut: legacy apply discarded its callback call, retain Partial until genuine apply is ported.
+                let EvalFlow::Value(value) =
+                    self.call_value(value.clone(), &call_args, &Sexp::Nil)?;
                 Ok(value)
             }
             ApplyFunction::Builtin(name) => {
@@ -753,20 +828,6 @@ impl RuntimeState {
             out = assign_list_name(&out, &name, &value)?;
         }
         Ok(out)
-    }
-
-    fn eval_in_data_mask(&mut self, data: &Sexp, expression: &Sexp) -> Result<Sexp, EvalError> {
-        let scope = data_mask_scope(data)?;
-        let frame = self.current.child()?;
-        for (name, value) in scope {
-            frame.insert(name, &value)?;
-        }
-        let (id, previous) = self.control.enter_return_context()?;
-        let saved = std::mem::replace(&mut self.current, frame);
-        let result = self.eval_flow(expression);
-        self.current = saved;
-        let EvalFlow::Value(value) = self.control.leave_return_context(id, previous, result)?;
-        Ok(value)
     }
 
     fn eval_matrix_apply_call(&mut self, arguments: &[CallArgument]) -> Result<Sexp, EvalError> {
@@ -1019,35 +1080,18 @@ fn bind_named_arguments<'a, const N: usize>(
     Ok(bound)
 }
 
-fn readline_prompt(value: &Sexp) -> Result<Option<String>, EvalError> {
-    match value {
-        Sexp::Nil => Ok(Some(String::new())),
-        Sexp::Matrix { data, .. } => readline_prompt(data),
-        Sexp::Factor { codes, .. } => Ok(codes
-            .first()
-            .map(|code| code.map_or_else(|| "NA".to_string(), |code| code.to_string()))),
-        Sexp::List(values)
-        | Sexp::DataFrame {
-            columns: values, ..
-        } => values
-            .first()
-            .map(|element| readline_list_prompt(&element.value))
-            .transpose(),
-        Sexp::Vector(values) => values.first().map(readline_list_prompt).transpose(),
-        _ => Ok(string_values(value)?
-            .first()
-            .map(|value| value.clone().unwrap_or_else(|| "NA".to_string()))),
-    }
-}
-
 fn readline_list_prompt(value: &Sexp) -> Result<String, EvalError> {
     if matches!(value, Sexp::Nil) {
         return Ok("NULL".to_string());
     }
     if !matches!(
         value,
-        Sexp::String(_) | Sexp::Integer(_) | Sexp::Logical(_) | Sexp::Real(_)
-    ) || value_len(value) != 1
+        Sexp::String(_)
+            | Sexp::AttributedCharacter { .. }
+            | Sexp::Integer(_)
+            | Sexp::Logical(_)
+            | Sexp::Real(_)
+    ) || value_len(value)? != 1
     {
         return Err(EvalError::NotImplemented("compound prompt deparsing"));
     }
@@ -1082,11 +1126,13 @@ fn output_strings(
 fn console_event(target: Option<&Sexp>, text: String) -> Result<OutputEvent, EvalError> {
     match target {
         None => Ok(OutputEvent::Stdout(text)),
-        Some(Sexp::String(values)) if values.len() == 1 && values[0].as_deref() == Some("") => {
+        Some(Sexp::String(values) | Sexp::AttributedCharacter { values, .. })
+            if values.len() == 1 && values[0].as_deref() == Some("") =>
+        {
             Ok(OutputEvent::Stdout(text))
         }
         Some(value)
-            if matches!(value, Sexp::Real(_) | Sexp::Integer(_)) && value_len(value) == 1 =>
+            if matches!(value, Sexp::Real(_) | Sexp::Integer(_)) && value_len(value)? == 1 =>
         {
             match numeric_scalar(value, "connection")? {
                 1.0 => Ok(OutputEvent::Stdout(text)),
@@ -1108,6 +1154,7 @@ fn is_assignment(expr: &Sexp) -> bool {
             | Sexp::ExtractAssignment { .. }
             | Sexp::DollarAssignment { .. }
             | Sexp::MemberAssignment { .. }
+            | Sexp::ReplacementAssignment { .. }
             | Sexp::NamesAssignment { .. }
     )
 }
@@ -1168,24 +1215,6 @@ fn transform_arguments(arguments: &[CallArgument]) -> Vec<&CallArgument> {
         .collect()
 }
 
-fn data_mask_scope(data: &Sexp) -> Result<HashMap<String, Sexp>, EvalError> {
-    let mut scope = HashMap::new();
-    match data {
-        Sexp::DataFrame { columns, .. } | Sexp::List(columns) | Sexp::Dots(columns) => {
-            for element in columns {
-                if let Some(name) = &element.name {
-                    scope.insert(name.clone(), element.value.clone());
-                }
-            }
-            Ok(scope)
-        }
-        other => Err(EvalError::Type(format!(
-            "data mask expected a data frame or named list, found {:?}",
-            other.sexptype()
-        ))),
-    }
-}
-
 fn select_index_value(expr: &Sexp, runtime: &mut RuntimeState) -> Result<Sexp, EvalError> {
     let mut names = Vec::new();
     if collect_select_names(expr, &mut names)? {
@@ -1200,7 +1229,7 @@ fn collect_select_names(expr: &Sexp, names: &mut Vec<String>) -> Result<bool, Ev
             names.push(name.clone());
             Ok(true)
         }
-        Sexp::String(values) => {
+        Sexp::String(values) | Sexp::AttributedCharacter { values, .. } => {
             for value in values {
                 let Some(value) = value else {
                     return Err(EvalError::Domain(
@@ -1240,6 +1269,9 @@ fn is_builtin(name: &str) -> bool {
             | "apply"
             | "lapply"
             | "sapply"
+            | "attributes"
+            | "attr"
+            | "is.object"
             | "names"
             | "seq"
             | "seq.int"
@@ -1493,7 +1525,6 @@ fn is_builtin(name: &str) -> bool {
             | "rnchisq"
             | "rsignrank"
             | "rwilcox"
-            | "print"
             | "invisible"
             | "withVisible"
             | "cat"
@@ -1512,7 +1543,7 @@ fn dispatch_call(name: &str, args: &[EvaluatedArgument]) -> Result<Sexp, EvalErr
         "list" => call_list(args),
         "names" => {
             let value = positional(args, 0, "x")?;
-            Ok(names_value(value))
+            names_value(value)
         }
         "seq" | "seq.int" => call_seq(args),
         "seq_len" => call_seq_len(args),
@@ -1553,24 +1584,8 @@ fn dispatch_call(name: &str, args: &[EvaluatedArgument]) -> Result<Sexp, EvalErr
             ))
         }
         "nzchar" => call_nzchar(args),
-        "toupper" => {
-            let value = positional(args, 0, "x")?;
-            Ok(Sexp::String(
-                string_values(value)?
-                    .into_iter()
-                    .map(|value| value.map(|value| value.to_uppercase()))
-                    .collect(),
-            ))
-        }
-        "tolower" => {
-            let value = positional(args, 0, "x")?;
-            Ok(Sexp::String(
-                string_values(value)?
-                    .into_iter()
-                    .map(|value| value.map(|value| value.to_lowercase()))
-                    .collect(),
-            ))
-        }
+        "toupper" => character_operations::call_case(args, true),
+        "tolower" => character_operations::call_case(args, false),
         "chartr" => call_chartr(args),
         "substr" => call_substr(args, false),
         "substring" => call_substr(args, true),
@@ -1652,7 +1667,7 @@ fn dispatch_call(name: &str, args: &[EvaluatedArgument]) -> Result<Sexp, EvalErr
         "colMeans" => call_matrix_margin(args, MatrixMargin::Cols, MatrixSummary::Mean),
         "class" => {
             let value = positional(args, 0, "x")?;
-            Ok(class_value(value))
+            class_value(value)
         }
         "typeof" => {
             let value = positional(args, 0, "x")?;
@@ -1724,32 +1739,32 @@ fn dispatch_call(name: &str, args: &[EvaluatedArgument]) -> Result<Sexp, EvalErr
         "identical" => {
             let x = positional(args, 0, "x")?;
             let y = positional(args, 1, "y")?;
-            Ok(Sexp::Logical(vec![Some(sexp_identical(x, y))]))
+            Ok(Sexp::Logical(vec![Some(sexp_identical(x, y)?)]))
         }
         "is.na" => {
             let value = positional(args, 0, "x")?;
-            Ok(Sexp::Logical(is_na_values(value)))
+            Ok(Sexp::Logical(is_na_values(value)?))
         }
         "is.nan" => {
             let value = positional(args, 0, "x")?;
             Ok(Sexp::Logical(numeric_predicate_values(
                 value,
                 NumericPredicate::Nan,
-            )))
+            )?))
         }
         "is.finite" => {
             let value = positional(args, 0, "x")?;
             Ok(Sexp::Logical(numeric_predicate_values(
                 value,
                 NumericPredicate::Finite,
-            )))
+            )?))
         }
         "is.infinite" => {
             let value = positional(args, 0, "x")?;
             Ok(Sexp::Logical(numeric_predicate_values(
                 value,
                 NumericPredicate::Infinite,
-            )))
+            )?))
         }
         "complete.cases" => call_complete_cases(args),
         "na.omit" => {
@@ -1798,7 +1813,12 @@ fn dispatch_call(name: &str, args: &[EvaluatedArgument]) -> Result<Sexp, EvalErr
             let value = positional(args, 0, "x")?;
             Ok(Sexp::Logical(vec![Some(matches!(
                 value,
-                Sexp::List(_) | Sexp::PairList(_) | Sexp::DataFrame { .. }
+                Sexp::ClassedList { .. }
+                    | Sexp::List(_)
+                    | Sexp::PairList(_)
+                    | Sexp::ListObject(_)
+                    | Sexp::PairListObject(_)
+                    | Sexp::DataFrame { .. }
             ))]))
         }
         "is.atomic" => {
@@ -1807,7 +1827,7 @@ fn dispatch_call(name: &str, args: &[EvaluatedArgument]) -> Result<Sexp, EvalErr
         }
         "is.vector" => {
             let value = positional(args, 0, "x")?;
-            Ok(Sexp::Logical(vec![Some(is_vector_value(value))]))
+            Ok(Sexp::Logical(vec![Some(is_vector_value(value)?)]))
         }
         "is.data.frame" => {
             let value = positional(args, 0, "x")?;
@@ -2581,62 +2601,6 @@ fn numeric_scalar(value: &Sexp, label: &str) -> Result<f64, EvalError> {
         .ok_or_else(|| EvalError::Arity(format!("{label} has length 0")))
 }
 
-fn sequence_elements(value: &Sexp) -> Result<Vec<Sexp>, EvalError> {
-    match value {
-        Sexp::Nil => Ok(Vec::new()),
-        Sexp::Logical(values) => Ok(values
-            .iter()
-            .copied()
-            .map(|value| Sexp::Logical(vec![value]))
-            .collect()),
-        Sexp::Integer(values) => Ok(values
-            .iter()
-            .copied()
-            .map(|value| Sexp::Integer(vec![value]))
-            .collect()),
-        Sexp::Real(values) => Ok(values
-            .iter()
-            .copied()
-            .map(|value| Sexp::Real(vec![value]))
-            .collect()),
-        Sexp::String(values) => Ok(values
-            .iter()
-            .cloned()
-            .map(|value| Sexp::String(vec![value]))
-            .collect()),
-        Sexp::Factor {
-            codes,
-            levels,
-            ordered,
-        } => Ok(factor_elements(codes, levels, *ordered)),
-        Sexp::DataFrame { columns, .. } => Ok(columns
-            .iter()
-            .map(|element| element.value.clone())
-            .collect()),
-        Sexp::Matrix { data, .. } => sequence_elements(data),
-        Sexp::Vector(values) => Ok(values.clone()),
-        Sexp::List(values) | Sexp::Dots(values) => {
-            Ok(values.iter().map(|element| element.value.clone()).collect())
-        }
-        other => Err(EvalError::Type(format!(
-            "cannot iterate over value of type {:?}",
-            other.sexptype()
-        ))),
-    }
-}
-
-fn apply_elements(value: &Sexp) -> Result<Vec<ListElement>, EvalError> {
-    match value {
-        Sexp::Nil => Ok(Vec::new()),
-        Sexp::List(values) | Sexp::Dots(values) => Ok(values.clone()),
-        Sexp::DataFrame { columns, .. } => Ok(columns.clone()),
-        other => Ok(sequence_elements(other)?
-            .into_iter()
-            .map(|value| ListElement { name: None, value })
-            .collect()),
-    }
-}
-
 fn simplify_sapply(values: Vec<ListElement>) -> Result<Sexp, EvalError> {
     if values.is_empty() {
         return Ok(Sexp::List(values));
@@ -2644,7 +2608,7 @@ fn simplify_sapply(values: Vec<ListElement>) -> Result<Sexp, EvalError> {
     let lengths = values
         .iter()
         .map(|element| value_len(&element.value))
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, _>>()?;
     let Some(first_len) = lengths.first().copied() else {
         return Ok(Sexp::List(values));
     };
@@ -2670,67 +2634,6 @@ fn simplify_sapply(values: Vec<ListElement>) -> Result<Sexp, EvalError> {
         nrow: first_len,
         ncol: values.len(),
     })
-}
-
-fn subset_value(value: &Sexp, index: Option<&Sexp>) -> Result<Sexp, EvalError> {
-    let Some(index) = index else {
-        return Ok(value.clone());
-    };
-    if let (Sexp::DataFrame { columns, nrow }, Sexp::String(_)) = (value, index) {
-        return Ok(Sexp::DataFrame {
-            columns: subset_list_by_names(columns, &string_values(index)?),
-            nrow: *nrow,
-        });
-    }
-    if let (Sexp::List(values), Sexp::String(_)) = (value, index) {
-        return Ok(Sexp::List(subset_list_by_names(
-            values,
-            &string_values(index)?,
-        )));
-    }
-    let positions = subset_positions(value_len(value), index)?;
-
-    match value {
-        Sexp::Nil => Ok(Sexp::Nil),
-        Sexp::Logical(_)
-        | Sexp::Integer(_)
-        | Sexp::Real(_)
-        | Sexp::String(_)
-        | Sexp::Factor { .. }
-        | Sexp::Vector(_)
-        | Sexp::List(_) => subset_linear_positions(value, &positions),
-        Sexp::DataFrame { columns, nrow } => Ok(Sexp::DataFrame {
-            columns: subset_list(columns, &positions),
-            nrow: *nrow,
-        }),
-        Sexp::Matrix { data, .. } => subset_linear_positions(data, &positions),
-        other => Err(EvalError::Type(format!(
-            "cannot subset value of type {:?}",
-            other.sexptype()
-        ))),
-    }
-}
-
-fn subset_linear_positions(value: &Sexp, positions: &[Option<usize>]) -> Result<Sexp, EvalError> {
-    match value {
-        Sexp::Nil => Ok(Sexp::Nil),
-        Sexp::Logical(values) => Ok(Sexp::Logical(subset_optional(values, positions))),
-        Sexp::Integer(values) => Ok(Sexp::Integer(subset_optional(values, positions))),
-        Sexp::Real(values) => Ok(Sexp::Real(subset_real(values, positions))),
-        Sexp::String(values) => Ok(Sexp::String(subset_optional(values, positions))),
-        Sexp::Factor {
-            codes,
-            levels,
-            ordered,
-        } => Ok(subset_factor_positions(codes, levels, *ordered, positions)),
-        Sexp::Vector(values) => Ok(Sexp::Vector(subset_vector(values, positions))),
-        Sexp::List(values) => Ok(Sexp::List(subset_list(values, positions))),
-        Sexp::Matrix { data, .. } => subset_linear_positions(data, positions),
-        other => Err(EvalError::Type(format!(
-            "cannot subset value of type {:?}",
-            other.sexptype()
-        ))),
-    }
 }
 
 fn subset_2d_value(
@@ -2836,7 +2739,7 @@ fn data_frame_column_positions(
     let Some(col) = col else {
         return Ok((0..columns.len()).collect());
     };
-    if let Sexp::String(names) = col {
+    if let Some(names) = col.character_values() {
         return names
             .iter()
             .map(|name| {
@@ -2877,7 +2780,7 @@ fn extraction_position(index: &Sexp) -> Result<usize, EvalError> {
 fn subset_positions(len: usize, index: &Sexp) -> Result<Vec<Option<usize>>, EvalError> {
     match index {
         Sexp::Logical(values) => Ok(logical_subset_positions(len, values)),
-        Sexp::String(_) => Err(EvalError::Type(
+        Sexp::String(_) | Sexp::AttributedCharacter { .. } => Err(EvalError::Type(
             "character subsetting is only implemented for lists".to_string(),
         )),
         _ => numeric_subset_positions(len, &numeric_index_values(index)?),
@@ -3002,84 +2905,6 @@ fn subset_list_by_names(values: &[ListElement], names: &[Option<String>]) -> Vec
         .collect()
 }
 
-fn subassign_value(
-    value: &Sexp,
-    index: Option<&Sexp>,
-    replacement: &Sexp,
-) -> Result<Sexp, EvalError> {
-    let positions = assignment_positions(index, value_len(value))?;
-    if positions.is_empty() {
-        return Ok(value.clone());
-    }
-
-    if matches!(value, Sexp::Logical(_) | Sexp::Integer(_) | Sexp::Real(_))
-        && is_character_value(replacement)
-    {
-        let mut out = string_values(value)?;
-        assign_optional_values(&mut out, &positions, &string_values(replacement)?)?;
-        return Ok(Sexp::String(out));
-    }
-    if matches!(value, Sexp::Logical(_) | Sexp::Integer(_)) && is_double_value(replacement) {
-        let mut out = numeric_values(value)?;
-        assign_real_values(&mut out, &positions, &numeric_values(replacement)?)?;
-        return Ok(Sexp::Real(out));
-    }
-    if matches!(value, Sexp::Logical(_)) && typeof_value(replacement) == "integer" {
-        let mut out = coerce_integer_values(value)?;
-        assign_optional_values(&mut out, &positions, &coerce_integer_values(replacement)?)?;
-        return Ok(Sexp::Integer(out));
-    }
-
-    match value {
-        Sexp::Nil => subassign_nil(&positions, replacement),
-        Sexp::Logical(values) => {
-            let mut out = values.clone();
-            let replacement = logical_values(replacement)?;
-            assign_optional_values(&mut out, &positions, &replacement)?;
-            Ok(Sexp::Logical(out))
-        }
-        Sexp::Integer(values) => {
-            let mut out = values.clone();
-            let replacement = coerce_integer_values(replacement)?;
-            assign_optional_values(&mut out, &positions, &replacement)?;
-            Ok(Sexp::Integer(out))
-        }
-        Sexp::Real(values) => {
-            let mut out = values.clone();
-            assign_real_values(&mut out, &positions, &numeric_values(replacement)?)?;
-            Ok(Sexp::Real(out))
-        }
-        Sexp::String(values) => {
-            let mut out = values.clone();
-            let replacement = string_values(replacement)?;
-            assign_optional_values(&mut out, &positions, &replacement)?;
-            Ok(Sexp::String(out))
-        }
-        Sexp::Vector(values) => {
-            let mut out = values.clone();
-            assign_vector_values(&mut out, &positions, &sequence_elements(replacement)?)?;
-            Ok(Sexp::Vector(out))
-        }
-        Sexp::List(values) => {
-            let mut out = values.clone();
-            assign_list_values(&mut out, &positions, &list_replacement_values(replacement)?)?;
-            Ok(Sexp::List(out))
-        }
-        Sexp::Matrix { data, nrow, ncol } => {
-            let data = subassign_value(data, index, replacement)?;
-            Ok(Sexp::Matrix {
-                data: Box::new(data),
-                nrow: *nrow,
-                ncol: *ncol,
-            })
-        }
-        other => Err(EvalError::Type(format!(
-            "cannot assign through subset of type {:?}",
-            other.sexptype()
-        ))),
-    }
-}
-
 fn subassign_nil(positions: &[usize], replacement: &Sexp) -> Result<Sexp, EvalError> {
     match replacement {
         Sexp::Logical(_) => {
@@ -3097,7 +2922,7 @@ fn subassign_nil(positions: &[usize], replacement: &Sexp) -> Result<Sexp, EvalEr
             assign_real_values(&mut out, positions, &numeric_values(replacement)?)?;
             Ok(Sexp::Real(out))
         }
-        Sexp::String(_) => {
+        Sexp::String(_) | Sexp::AttributedCharacter { .. } => {
             let mut out = Vec::new();
             assign_optional_values(&mut out, positions, &string_values(replacement)?)?;
             Ok(Sexp::String(out))
@@ -3348,15 +3173,6 @@ fn assign_list_values(
     Ok(())
 }
 
-fn list_replacement_values(value: &Sexp) -> Result<Vec<Sexp>, EvalError> {
-    match value {
-        Sexp::List(values) | Sexp::Dots(values) => {
-            Ok(values.iter().map(|element| element.value.clone()).collect())
-        }
-        _ => sequence_elements(value),
-    }
-}
-
 fn call_list(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
     Ok(Sexp::List(
         args.iter()
@@ -3379,7 +3195,7 @@ fn call_data_frame(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
 
     let mut nrow = 0usize;
     for arg in &data_args {
-        let len = value_len(&arg.value);
+        let len = value_len(&arg.value)?;
         if len > nrow {
             nrow = len;
         }
@@ -3430,7 +3246,7 @@ fn recycle_data_frame_column(value: &Sexp, nrow: usize) -> Result<Sexp, EvalErro
         });
     }
 
-    let len = value_len(value);
+    let len = value_len(value)?;
     if len == nrow {
         return Ok(value.clone());
     }
@@ -3452,123 +3268,6 @@ fn recycle_data_frame_column(value: &Sexp, nrow: usize) -> Result<Sexp, EvalErro
         .map(|index| values[index % values.len()].clone())
         .collect::<Vec<_>>();
     scalar_elements_to_vector(&out)
-}
-
-fn names_value(value: &Sexp) -> Sexp {
-    match value {
-        Sexp::DataFrame { columns, .. } => {
-            if columns.iter().all(|element| element.name.is_none()) {
-                Sexp::Nil
-            } else {
-                Sexp::String(columns.iter().map(|element| element.name.clone()).collect())
-            }
-        }
-        Sexp::List(values) => {
-            if values.iter().all(|element| element.name.is_none()) {
-                Sexp::Nil
-            } else {
-                Sexp::String(values.iter().map(|element| element.name.clone()).collect())
-            }
-        }
-        _ => Sexp::Nil,
-    }
-}
-
-fn names_assign_value(value: &Sexp, replacement: &Sexp) -> Result<Sexp, EvalError> {
-    if let Sexp::DataFrame { columns, nrow } = value {
-        let names = string_values(replacement)?;
-        if names.len() > columns.len() {
-            return Err(EvalError::Domain(format!(
-                "'names' attribute [{}] must be the same length as the vector [{}]",
-                names.len(),
-                columns.len()
-            )));
-        }
-        let mut out = columns.clone();
-        for (index, element) in out.iter_mut().enumerate() {
-            element.name = names.get(index).cloned().unwrap_or(None);
-        }
-        return Ok(Sexp::DataFrame {
-            columns: out,
-            nrow: *nrow,
-        });
-    }
-    let Sexp::List(values) = value else {
-        return Err(EvalError::Type(format!(
-            "cannot set names on value of type {:?}",
-            value.sexptype()
-        )));
-    };
-    let names = string_values(replacement)?;
-    if names.len() > values.len() {
-        return Err(EvalError::Domain(format!(
-            "'names' attribute [{}] must be the same length as the vector [{}]",
-            names.len(),
-            values.len()
-        )));
-    }
-
-    let mut out = values.clone();
-    for (index, element) in out.iter_mut().enumerate() {
-        element.name = names.get(index).cloned().unwrap_or(None);
-    }
-    Ok(Sexp::List(out))
-}
-
-fn call_c(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
-    if args.iter().all(|arg| matches!(arg.value, Sexp::Nil)) {
-        return Ok(Sexp::Nil);
-    }
-    if args.iter().any(|arg| matches!(arg.value, Sexp::List(_))) {
-        let mut out = Vec::new();
-        for arg in args {
-            match &arg.value {
-                Sexp::Nil => {}
-                Sexp::List(values) => out.extend(values.clone()),
-                other => {
-                    for value in sequence_elements(other)? {
-                        out.push(ListElement {
-                            name: arg.name.clone(),
-                            value,
-                        });
-                    }
-                }
-            }
-        }
-        return Ok(Sexp::List(out));
-    }
-    if args
-        .iter()
-        .any(|arg| matches!(&arg.value, Sexp::Factor { .. }))
-        && args
-            .iter()
-            .all(|arg| matches!(&arg.value, Sexp::Nil | Sexp::Factor { .. }))
-    {
-        return concatenate_factors(args);
-    }
-    if args.iter().any(|arg| is_character_value(&arg.value)) {
-        let mut out = Vec::new();
-        for arg in args {
-            out.extend(string_values(&arg.value)?);
-        }
-        return Ok(Sexp::String(out));
-    }
-    if args.iter().any(|arg| is_double_value(&arg.value)) {
-        return Ok(Sexp::Real(flatten_numeric_args(args)?));
-    }
-    if args.iter().any(|arg| typeof_value(&arg.value) == "integer") {
-        return Ok(Sexp::Integer(
-            flatten_numeric_args(args)?
-                .into_iter()
-                .map(real_to_integer)
-                .collect(),
-        ));
-    }
-    let mut out = Vec::new();
-    for arg in args {
-        out.extend(logical_values(&arg.value)?);
-    }
-    Ok(Sexp::Logical(out))
 }
 
 fn concatenate_factors(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
@@ -3650,6 +3349,8 @@ fn bind_matrix_columns(args: &[&EvaluatedArgument]) -> Result<Sexp, EvalError> {
     let nrow = args
         .iter()
         .map(|arg| bind_nrow(&arg.value))
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
         .max()
         .unwrap_or(0);
     if nrow == 0 {
@@ -3696,6 +3397,8 @@ fn bind_matrix_rows(args: &[&EvaluatedArgument]) -> Result<Sexp, EvalError> {
     let ncol = args
         .iter()
         .map(|arg| bind_ncol(&arg.value))
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
         .max()
         .unwrap_or(0);
     if ncol == 0 {
@@ -3717,7 +3420,7 @@ fn bind_matrix_rows(args: &[&EvaluatedArgument]) -> Result<Sexp, EvalError> {
                     )));
                 }
                 for row in 0..*nrow {
-                    rows.push(matrix_row_values(data, *nrow, *matrix_ncol, row)?);
+                    rows.push(matrix_row_values(data, (*nrow, *matrix_ncol), row)?);
                 }
             }
             value => rows.push(recycle_bind_values(value, ncol, "rbind row")?),
@@ -3740,189 +3443,21 @@ fn bind_matrix_rows(args: &[&EvaluatedArgument]) -> Result<Sexp, EvalError> {
     })
 }
 
-fn bind_data_frame_columns(args: &[&EvaluatedArgument]) -> Result<Sexp, EvalError> {
-    let nrow = data_frame_cbind_nrow(args);
-    let mut columns = Vec::new();
-
-    for arg in args {
-        match &arg.value {
-            Sexp::Nil => {}
-            Sexp::DataFrame {
-                columns: source_columns,
-                ..
-            } => {
-                for column in source_columns {
-                    columns.push(ListElement {
-                        name: column.name.clone(),
-                        value: recycle_data_frame_column(&column.value, nrow)?,
-                    });
-                }
-            }
-            Sexp::Matrix {
-                data,
-                nrow: matrix_nrow,
-                ncol,
-            } => {
-                for col in 0..*ncol {
-                    let values = matrix_column_values(data, *matrix_nrow, col)?;
-                    let value = scalar_elements_to_vector(&values)?;
-                    let name = bind_column_name(arg.name.as_deref(), *ncol, col, columns.len());
-                    columns.push(ListElement {
-                        name: Some(name),
-                        value: recycle_data_frame_column(&value, nrow)?,
-                    });
-                }
-            }
-            Sexp::List(values) | Sexp::Dots(values) => {
-                for (index, element) in values.iter().enumerate() {
-                    let name = element.name.clone().unwrap_or_else(|| {
-                        bind_column_name(arg.name.as_deref(), values.len(), index, columns.len())
-                    });
-                    columns.push(ListElement {
-                        name: Some(name),
-                        value: recycle_data_frame_column(&element.value, nrow)?,
-                    });
-                }
-            }
-            value => {
-                let name = arg
-                    .name
-                    .clone()
-                    .unwrap_or_else(|| default_bind_column_name(columns.len()));
-                columns.push(ListElement {
-                    name: Some(name),
-                    value: recycle_data_frame_column(value, nrow)?,
-                });
-            }
-        }
-    }
-
-    Ok(Sexp::DataFrame { columns, nrow })
-}
-
-fn bind_data_frame_rows(args: &[&EvaluatedArgument]) -> Result<Sexp, EvalError> {
-    let Some(first_arg) = args.first() else {
-        return Ok(Sexp::Nil);
-    };
-    let Sexp::DataFrame {
-        columns: template, ..
-    } = &first_arg.value
-    else {
-        return Err(EvalError::Type(
-            "rbind() with data frames expects the first argument to be a data frame".to_string(),
-        ));
-    };
-
-    let ncol = template.len();
-    let names = template
-        .iter()
-        .map(|column| column.name.clone())
-        .collect::<Vec<_>>();
-    let mut out_columns = vec![Vec::new(); ncol];
-    let mut nrow = 0usize;
-
-    for arg in args {
-        match &arg.value {
-            Sexp::Nil => {}
-            Sexp::DataFrame {
-                columns,
-                nrow: rows,
-            } => {
-                let order = data_frame_rbind_column_order(template, columns)?;
-                for (target_index, source_index) in order.into_iter().enumerate() {
-                    let column = columns.get(source_index).ok_or_else(|| {
-                        EvalError::Domain("data frame column index out of bounds".to_string())
-                    })?;
-                    let value = recycle_data_frame_column(&column.value, *rows)?;
-                    out_columns[target_index].extend(sequence_elements(&value)?);
-                }
-                nrow += *rows;
-            }
-            Sexp::Matrix {
-                data,
-                nrow: matrix_nrow,
-                ncol: matrix_ncol,
-            } => {
-                if *matrix_ncol != ncol {
-                    return Err(EvalError::Arity(format!(
-                        "rbind data-frame row has {matrix_ncol} values, expected {ncol}"
-                    )));
-                }
-                for row in 0..*matrix_nrow {
-                    append_data_frame_row(
-                        &mut out_columns,
-                        &matrix_row_values(data, *matrix_nrow, *matrix_ncol, row)?,
-                    )?;
-                    nrow += 1;
-                }
-            }
-            Sexp::List(values) | Sexp::Dots(values) => {
-                let row = values
-                    .iter()
-                    .map(|element| element.value.clone())
-                    .collect::<Vec<_>>();
-                append_data_frame_row(&mut out_columns, &row)?;
-                nrow += 1;
-            }
-            value => {
-                append_data_frame_row(
-                    &mut out_columns,
-                    &recycle_bind_values(value, ncol, "rbind data-frame row")?,
-                )?;
-                nrow += 1;
-            }
-        }
-    }
-
-    let columns = names
-        .into_iter()
-        .zip(out_columns)
-        .map(|(name, values)| {
-            Ok(ListElement {
-                name,
-                value: scalar_elements_to_vector(&values)?,
-            })
-        })
-        .collect::<Result<Vec<_>, EvalError>>()?;
-    Ok(Sexp::DataFrame { columns, nrow })
-}
-
-fn bind_nrow(value: &Sexp) -> usize {
-    match value {
+fn bind_nrow(value: &Sexp) -> Result<usize, EvalError> {
+    Ok(match value {
         Sexp::Nil => 0,
         Sexp::DataFrame { nrow, .. } | Sexp::Matrix { nrow, .. } => *nrow,
-        _ => value_len(value),
-    }
+        _ => value_len(value)?,
+    })
 }
 
-fn bind_ncol(value: &Sexp) -> usize {
-    match value {
+fn bind_ncol(value: &Sexp) -> Result<usize, EvalError> {
+    Ok(match value {
         Sexp::Nil => 0,
         Sexp::DataFrame { columns, .. } => columns.len(),
         Sexp::Matrix { ncol, .. } => *ncol,
-        _ => value_len(value),
-    }
-}
-
-fn data_frame_cbind_nrow(args: &[&EvaluatedArgument]) -> usize {
-    let mut nrow = 0usize;
-    for arg in args {
-        match &arg.value {
-            Sexp::Nil => {}
-            Sexp::DataFrame { nrow: rows, .. } | Sexp::Matrix { nrow: rows, .. } => {
-                nrow = nrow.max(*rows);
-            }
-            Sexp::List(values) | Sexp::Dots(values) => {
-                for element in values {
-                    nrow = nrow.max(value_len(&element.value));
-                }
-            }
-            value => {
-                nrow = nrow.max(value_len(value));
-            }
-        }
-    }
-    nrow
+        _ => value_len(value)?,
+    })
 }
 
 fn data_frame_rbind_column_order(
@@ -4002,79 +3537,6 @@ fn default_bind_column_name(index: usize) -> String {
     format!("X{}", index + 1)
 }
 
-fn as_list_value(value: &Sexp) -> Result<Sexp, EvalError> {
-    match value {
-        Sexp::Nil => Ok(Sexp::List(Vec::new())),
-        Sexp::DataFrame { columns, .. } => Ok(Sexp::List(columns.clone())),
-        Sexp::List(values) | Sexp::Dots(values) => Ok(Sexp::List(values.clone())),
-        Sexp::Matrix { data, .. } => as_list_value(data),
-        Sexp::Logical(_)
-        | Sexp::Integer(_)
-        | Sexp::Real(_)
-        | Sexp::String(_)
-        | Sexp::Factor { .. }
-        | Sexp::Vector(_) => Ok(Sexp::List(
-            sequence_elements(value)?
-                .into_iter()
-                .map(|value| ListElement { name: None, value })
-                .collect(),
-        )),
-        other => Err(EvalError::Type(format!(
-            "cannot coerce value of type {:?} to list",
-            other.sexptype()
-        ))),
-    }
-}
-
-fn call_unlist(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
-    let value = positional(args, 0, "x")?;
-    let recursive = named_bool_arg(args, &["recursive"], true)?;
-    let mut values = Vec::new();
-    flatten_unlist_values(value, recursive, &mut values)?;
-    unlisted_values(values)
-}
-
-fn flatten_unlist_values(
-    value: &Sexp,
-    recursive: bool,
-    out: &mut Vec<Sexp>,
-) -> Result<(), EvalError> {
-    match value {
-        Sexp::Nil => {}
-        Sexp::DataFrame { columns, .. } if recursive => {
-            for element in columns {
-                flatten_unlist_values(&element.value, recursive, out)?;
-            }
-        }
-        Sexp::DataFrame { columns, .. } => {
-            for element in columns {
-                out.push(element.value.clone());
-            }
-        }
-        Sexp::List(values) | Sexp::Dots(values) if recursive => {
-            for element in values {
-                flatten_unlist_values(&element.value, recursive, out)?;
-            }
-        }
-        Sexp::List(values) | Sexp::Dots(values) => {
-            for element in values {
-                out.push(element.value.clone());
-            }
-        }
-        Sexp::Vector(values) if recursive => {
-            for value in values {
-                flatten_unlist_values(value, recursive, out)?;
-            }
-        }
-        other => out.extend(sequence_elements(other)?),
-    }
-    Ok(())
-}
-
-fn unlisted_values(values: Vec<Sexp>) -> Result<Sexp, EvalError> {
-    scalar_elements_to_vector(&values)
-}
-
 fn call_paste(args: &[EvaluatedArgument], default_sep: &str) -> Result<Sexp, EvalError> {
     let sep = named_arg(args, &["sep"])
         .map(|value| string_scalar(value, "argument sep"))
@@ -4127,34 +3589,6 @@ fn call_paste(args: &[EvaluatedArgument], default_sep: &str) -> Result<Sexp, Eva
     }
 }
 
-fn call_substr(args: &[EvaluatedArgument], substring: bool) -> Result<Sexp, EvalError> {
-    let text = positional(args, 0, if substring { "text" } else { "x" })?;
-    let start = positional(args, 1, if substring { "first" } else { "start" })?;
-    let stop = if substring {
-        optional_positional_numeric_vector(args, 2, &["last"], vec![1_000_000.0])?
-    } else {
-        numeric_arg_vec(args, 2, &["stop"], None)?
-    };
-    let text = string_values(text)?;
-    let start = numeric_values(start)?;
-    let len = recycled_len(&[text.len(), start.len(), stop.len()]);
-    let mut out = Vec::with_capacity(len);
-    for index in 0..len {
-        let value = match (
-            &text[index % text.len()],
-            start[index % start.len()],
-            stop[index % stop.len()],
-        ) {
-            (Some(value), start, stop) if start.is_finite() && stop.is_finite() => Some(
-                substring_chars(value, start.trunc() as isize, stop.trunc() as isize),
-            ),
-            _ => None,
-        };
-        out.push(value);
-    }
-    Ok(Sexp::String(out))
-}
-
 fn optional_positional_numeric_vector(
     args: &[EvaluatedArgument],
     position: usize,
@@ -4162,15 +3596,6 @@ fn optional_positional_numeric_vector(
     default: Vec<f64>,
 ) -> Result<Vec<f64>, EvalError> {
     numeric_arg_vec(args, position, names, Some(default))
-}
-
-fn substring_chars(value: &str, start: isize, stop: isize) -> String {
-    let start = start.max(1) as usize;
-    if stop < start as isize {
-        return String::new();
-    }
-    let take = stop as usize - start + 1;
-    value.chars().skip(start - 1).take(take).collect()
 }
 
 #[derive(Clone, Copy)]
@@ -4288,23 +3713,6 @@ fn split_string_value(value: &str, split: &str, fixed: bool) -> Vec<Option<Strin
     out
 }
 
-fn call_sub_gsub(args: &[EvaluatedArgument], global: bool) -> Result<Sexp, EvalError> {
-    let pattern = string_scalar(positional(args, 0, "pattern")?, "pattern")?;
-    let replacement = string_scalar(positional(args, 1, "replacement")?, "replacement")?;
-    let x = string_values(positional(args, 2, "x")?)?;
-    let ignore_case = named_bool_arg(args, &["ignore.case"], false)?;
-    let fixed = named_bool_arg(args, &["fixed"], false)?;
-    Ok(Sexp::String(
-        x.into_iter()
-            .map(|value| {
-                value.map(|value| {
-                    replace_pattern(&pattern, &replacement, &value, ignore_case, fixed, global)
-                })
-            })
-            .collect(),
-    ))
-}
-
 fn replace_pattern(
     pattern: &str,
     replacement: &str,
@@ -4336,26 +3744,6 @@ fn replace_pattern(
     out
 }
 
-fn call_trimws(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
-    let x = string_values(positional(args, 0, "x")?)?;
-    let which = optional_string_arg(args, 1, &["which"], "both")?;
-    let trim = match which.as_str() {
-        "both" => str::trim,
-        "left" => str::trim_start,
-        "right" => str::trim_end,
-        _ => {
-            return Err(EvalError::Domain(
-                "argument which must be \"both\", \"left\", or \"right\"".to_string(),
-            ))
-        }
-    };
-    Ok(Sexp::String(
-        x.into_iter()
-            .map(|value| value.map(|value| trim(&value).to_string()))
-            .collect(),
-    ))
-}
-
 fn call_nzchar(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
     let x = string_values(positional(args, 0, "x")?)?;
     let keep_na = named_bool_arg(args, &["keepNA"], false)?;
@@ -4366,51 +3754,6 @@ fn call_nzchar(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
                 None if keep_na => None,
                 None => Some(true),
             })
-            .collect(),
-    ))
-}
-
-fn call_chartr(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
-    let old = string_scalar(positional(args, 0, "old")?, "old")?;
-    let new = string_scalar(positional(args, 1, "new")?, "new")?;
-    let x = string_values(positional(args, 2, "x")?)?;
-    let old_chars = old.chars().collect::<Vec<_>>();
-    let new_chars = new.chars().collect::<Vec<_>>();
-    if old_chars.len() != new_chars.len() {
-        return Err(EvalError::Domain(
-            "old and new must have the same length".to_string(),
-        ));
-    }
-    Ok(Sexp::String(
-        x.into_iter()
-            .map(|value| {
-                value.map(|value| {
-                    value
-                        .chars()
-                        .map(|ch| {
-                            old_chars
-                                .iter()
-                                .position(|old| *old == ch)
-                                .and_then(|position| new_chars.get(position).copied())
-                                .unwrap_or(ch)
-                        })
-                        .collect()
-                })
-            })
-            .collect(),
-    ))
-}
-
-fn call_strtrim(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
-    let x = string_values(positional(args, 0, "x")?)?;
-    let width = numeric_arg_scalar(args, 1, &["width"], None)?;
-    if width.is_nan() || !width.is_finite() || width < 0.0 {
-        return Err(EvalError::Domain("invalid width argument".to_string()));
-    }
-    let width = width.trunc() as usize;
-    Ok(Sexp::String(
-        x.into_iter()
-            .map(|value| value.map(|value| value.chars().take(width).collect()))
             .collect(),
     ))
 }
@@ -4513,7 +3856,7 @@ enum HeadTail {
 fn call_head_tail(args: &[EvaluatedArgument], mode: HeadTail) -> Result<Sexp, EvalError> {
     let value = positional(args, 0, "x")?;
     let n = numeric_arg_scalar(args, 1, &["n"], Some(6.0))?.trunc() as isize;
-    let len = value_len(value);
+    let len = value_len(value)?;
     let (start, end) = match (mode, n >= 0) {
         (HeadTail::Head, true) => (0, len.min(n as usize)),
         (HeadTail::Head, false) => (0, len.saturating_sub(n.unsigned_abs())),
@@ -4527,7 +3870,7 @@ fn call_head_tail(args: &[EvaluatedArgument], mode: HeadTail) -> Result<Sexp, Ev
 }
 
 fn rev_value(value: &Sexp) -> Result<Sexp, EvalError> {
-    let len = value_len(value);
+    let len = value_len(value)?;
     subset_positions_1_based(value, (0..len).rev().map(|index| index + 1))
 }
 
@@ -4590,7 +3933,7 @@ fn sort_value(value: &Sexp, decreasing: bool) -> Result<Sexp, EvalError> {
             }
             Ok(Sexp::Real(out))
         }
-        Sexp::String(values) => {
+        Sexp::String(values) | Sexp::AttributedCharacter { values, .. } => {
             let mut out = values
                 .iter()
                 .filter_map(|value| value.clone())
@@ -4734,7 +4077,7 @@ fn sort_keys(value: &Sexp) -> Result<Vec<SortKey>, EvalError> {
                 }
             })
             .collect()),
-        Sexp::String(values) => Ok(values
+        Sexp::String(values) | Sexp::AttributedCharacter { values, .. } => Ok(values
             .iter()
             .map(|value| match value {
                 Some(value) => SortKey::String(value.clone()),
@@ -4877,94 +4220,6 @@ fn tie_method_arg(args: &[EvaluatedArgument]) -> Result<TieMethod, EvalError> {
     }
 }
 
-fn unique_value(value: &Sexp) -> Result<Sexp, EvalError> {
-    match value {
-        Sexp::Nil => Ok(Sexp::Nil),
-        Sexp::List(values) => {
-            let mut out: Vec<ListElement> = Vec::new();
-            for element in values {
-                if !out.iter().any(|seen| seen.value == element.value) {
-                    out.push(element.clone());
-                }
-            }
-            Ok(Sexp::List(out))
-        }
-        Sexp::Vector(values) => {
-            let mut out: Vec<Sexp> = Vec::new();
-            for value in values {
-                if !out.iter().any(|seen| seen == value) {
-                    out.push(value.clone());
-                }
-            }
-            Ok(Sexp::Vector(out))
-        }
-        _ => {
-            let keys = match_keys(value)?;
-            let mut seen = Vec::new();
-            let positions = keys.into_iter().enumerate().filter_map(|(index, key)| {
-                if seen.contains(&key) {
-                    None
-                } else {
-                    seen.push(key);
-                    Some(index + 1)
-                }
-            });
-            subset_positions_1_based(value, positions)
-        }
-    }
-}
-
-fn duplicated_value(value: &Sexp) -> Result<Sexp, EvalError> {
-    match value {
-        Sexp::Nil => Ok(Sexp::Logical(Vec::new())),
-        Sexp::List(values) => {
-            let mut seen: Vec<Sexp> = Vec::new();
-            Ok(Sexp::Logical(
-                values
-                    .iter()
-                    .map(|element| {
-                        let duplicated = seen.contains(&element.value);
-                        if !duplicated {
-                            seen.push(element.value.clone());
-                        }
-                        Some(duplicated)
-                    })
-                    .collect(),
-            ))
-        }
-        Sexp::Vector(values) => {
-            let mut seen: Vec<Sexp> = Vec::new();
-            Ok(Sexp::Logical(
-                values
-                    .iter()
-                    .map(|value| {
-                        let duplicated = seen.iter().any(|seen| seen == value);
-                        if !duplicated {
-                            seen.push(value.clone());
-                        }
-                        Some(duplicated)
-                    })
-                    .collect(),
-            ))
-        }
-        _ => {
-            let mut seen = Vec::new();
-            Ok(Sexp::Logical(
-                match_keys(value)?
-                    .into_iter()
-                    .map(|key| {
-                        let duplicated = seen.contains(&key);
-                        if !duplicated {
-                            seen.push(key);
-                        }
-                        Some(duplicated)
-                    })
-                    .collect(),
-            ))
-        }
-    }
-}
-
 #[derive(Clone, Copy)]
 enum SetOperation {
     Union,
@@ -4986,14 +4241,14 @@ fn any_duplicated_index(value: &Sexp, from_last: bool) -> Result<i32, EvalError>
         let mut seen: Vec<Sexp> = Vec::new();
         if from_last {
             for (index, value) in values.iter().enumerate().rev() {
-                if seen.iter().any(|seen| seen == value) {
+                if list_sets::has_identical(seen.iter(), value)? {
                     return Ok(index as i32 + 1);
                 }
                 seen.push(value.clone());
             }
         } else {
             for (index, value) in values.iter().enumerate() {
-                if seen.iter().any(|seen| seen == value) {
+                if list_sets::has_identical(seen.iter(), value)? {
                     return Ok(index as i32 + 1);
                 }
                 seen.push(value.clone());
@@ -5115,7 +4370,7 @@ fn empty_like_atomic(value: &Sexp) -> Sexp {
         Sexp::Logical(_) => Sexp::Logical(Vec::new()),
         Sexp::Integer(_) => Sexp::Integer(Vec::new()),
         Sexp::Real(_) => Sexp::Real(Vec::new()),
-        Sexp::String(_) => Sexp::String(Vec::new()),
+        Sexp::String(_) | Sexp::AttributedCharacter { .. } => Sexp::String(Vec::new()),
         Sexp::Factor {
             levels, ordered, ..
         } => Sexp::Factor {
@@ -5138,66 +4393,6 @@ fn unique_keys<T: Clone + PartialEq>(values: Vec<T>) -> Vec<T> {
     out
 }
 
-fn set_list_operation(x: &Sexp, y: &Sexp, operation: SetOperation) -> Result<Sexp, EvalError> {
-    let x_values = set_list_values(x)?;
-    let y_values = set_list_values(y)?;
-    let mut seen = Vec::new();
-    let mut out = Vec::new();
-
-    match operation {
-        SetOperation::Union => {
-            for value in x_values.into_iter().chain(y_values) {
-                if !seen.iter().any(|seen| seen == &value) {
-                    seen.push(value.clone());
-                    out.push(ListElement { name: None, value });
-                }
-            }
-        }
-        SetOperation::Intersect => {
-            for value in x_values {
-                if y_values.iter().any(|candidate| candidate == &value)
-                    && !seen.iter().any(|seen| seen == &value)
-                {
-                    seen.push(value.clone());
-                    out.push(ListElement { name: None, value });
-                }
-            }
-        }
-        SetOperation::SetDiff => {
-            for value in x_values {
-                if !y_values.iter().any(|candidate| candidate == &value)
-                    && !seen.iter().any(|seen| seen == &value)
-                {
-                    seen.push(value.clone());
-                    out.push(ListElement { name: None, value });
-                }
-            }
-        }
-    }
-
-    Ok(Sexp::List(out))
-}
-
-fn set_list_equal(x: &Sexp, y: &Sexp) -> Result<bool, EvalError> {
-    let x_values = unique_keys(set_list_values(x)?);
-    let y_values = unique_keys(set_list_values(y)?);
-    Ok(x_values.len() == y_values.len() && x_values.iter().all(|value| y_values.contains(value)))
-}
-
-fn is_list_set_value(value: &Sexp) -> bool {
-    matches!(value, Sexp::List(_) | Sexp::Vector(_) | Sexp::Dots(_))
-}
-
-fn set_list_values(value: &Sexp) -> Result<Vec<Sexp>, EvalError> {
-    match value {
-        Sexp::List(values) | Sexp::Dots(values) => {
-            Ok(values.iter().map(|element| element.value.clone()).collect())
-        }
-        Sexp::Vector(values) => Ok(values.clone()),
-        _ => sequence_elements(value),
-    }
-}
-
 #[derive(Clone, Debug, PartialEq)]
 struct Grouping {
     labels: Vec<Option<String>>,
@@ -5208,7 +4403,7 @@ fn call_split(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
     let x = positional(args, 0, "x")?;
     let f = positional(args, 1, "f")?;
     let drop_empty = named_bool_arg(args, &["drop"], false)?;
-    let len = split_value_len(x);
+    let len = split_value_len(x)?;
     let grouping = grouping_for_split(f, len, drop_empty)?;
     let mut out = grouping
         .levels
@@ -5335,11 +4530,11 @@ fn call_tabulate(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
     Ok(Sexp::Integer(counts.into_iter().map(Some).collect()))
 }
 
-fn split_value_len(value: &Sexp) -> usize {
-    match value {
+fn split_value_len(value: &Sexp) -> Result<usize, EvalError> {
+    Ok(match value {
         Sexp::DataFrame { nrow, .. } | Sexp::Matrix { nrow, .. } => *nrow,
-        _ => value_len(value),
-    }
+        _ => value_len(value)?,
+    })
 }
 
 fn split_group_value(value: &Sexp, positions: &[usize]) -> Result<Sexp, EvalError> {
@@ -5545,7 +4740,7 @@ fn is_logical_value(value: &Sexp) -> bool {
 }
 
 fn is_character_value(value: &Sexp) -> bool {
-    matches!(value, Sexp::String(_))
+    matches!(value, Sexp::String(_) | Sexp::AttributedCharacter { .. })
         || matches!(value, Sexp::Matrix { data, .. } if is_character_value(data))
 }
 
@@ -5555,21 +4750,16 @@ fn is_logical_scalar_value(value: &Sexp, expected: bool) -> bool {
 
 fn is_atomic_value(value: &Sexp) -> bool {
     match value {
-        Sexp::Logical(_)
+        Sexp::Char(_)
+        | Sexp::Logical(_)
         | Sexp::Integer(_)
         | Sexp::Real(_)
         | Sexp::String(_)
+        | Sexp::AttributedCharacter { .. }
         | Sexp::Factor { .. } => true,
         Sexp::Matrix { data, .. } => is_atomic_value(data),
         _ => false,
     }
-}
-
-fn is_vector_value(value: &Sexp) -> bool {
-    matches!(
-        value,
-        Sexp::Logical(_) | Sexp::Integer(_) | Sexp::Real(_) | Sexp::String(_) | Sexp::List(_)
-    )
 }
 
 fn factor_strings(codes: &[Option<usize>], levels: &[String]) -> Vec<Option<String>> {
@@ -5621,7 +4811,7 @@ fn call_matrix(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
         .unwrap_or(&default_data);
     let nrow = optional_numeric_arg_scalar(args, 1, &["nrow"])?;
     let ncol = optional_numeric_arg_scalar(args, 2, &["ncol"])?;
-    let data_len = value_len(data).max(1);
+    let data_len = value_len(data)?.max(1);
     let (nrow, ncol) = match (nrow, ncol) {
         (Some(nrow), Some(ncol)) => (matrix_dim(nrow, "nrow")?, matrix_dim(ncol, "ncol")?),
         (Some(nrow), None) => {
@@ -5638,7 +4828,7 @@ fn call_matrix(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
     };
     let byrow = named_bool_arg(args, &["byrow"], false)?;
     Ok(Sexp::Matrix {
-        data: Box::new(matrix_data(data, nrow, ncol, byrow)?),
+        data: Box::new(matrix_data(data, (nrow, ncol), byrow)?),
         nrow,
         ncol,
     })
@@ -5696,7 +4886,7 @@ fn call_diag(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
         ));
     }
 
-    let scalar_size = explicit_nrow.is_none() && explicit_ncol.is_none() && value_len(x) == 1;
+    let scalar_size = explicit_nrow.is_none() && explicit_ncol.is_none() && value_len(x)? == 1;
     let nrow = if let Some(nrow) = explicit_nrow {
         matrix_dim(nrow, "nrow")?
     } else if scalar_size {
@@ -5755,7 +4945,10 @@ fn diag_scalar_size(value: &Sexp) -> Result<usize, EvalError> {
 fn diag_zero_element(values: &[Sexp]) -> Sexp {
     if values.iter().all(|value| matches!(value, Sexp::Logical(_))) {
         Sexp::Logical(vec![Some(false)])
-    } else if values.iter().all(|value| matches!(value, Sexp::String(_))) {
+    } else if values
+        .iter()
+        .all(|value| matches!(value, Sexp::String(_) | Sexp::AttributedCharacter { .. }))
+    {
         Sexp::String(vec![Some("".to_string())])
     } else if values.iter().all(|value| matches!(value, Sexp::Integer(_))) {
         Sexp::Integer(vec![Some(0)])
@@ -5949,7 +5142,10 @@ fn scalar_elements_to_vector(values: &[Sexp]) -> Result<Sexp, EvalError> {
     {
         return concatenate_factor_values(values);
     }
-    if values.iter().any(|value| matches!(value, Sexp::String(_))) {
+    if values
+        .iter()
+        .any(|value| matches!(value, Sexp::String(_) | Sexp::AttributedCharacter { .. }))
+    {
         let mut out = Vec::new();
         for value in values {
             out.extend(string_values(value)?);
@@ -6165,97 +5361,22 @@ fn call_seq_len(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
 
 fn call_seq_along(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
     let value = positional(args, 0, "along.with")?;
-    if value_len(value) == 0 {
+    if value_len(value)? == 0 {
         Ok(Sexp::Integer(Vec::new()))
     } else {
-        colon_sequence(1.0, value_len(value) as f64)
-    }
-}
-
-fn call_rep(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
-    let value = positional(args, 0, "x")?;
-    let times = numeric_arg_scalar(args, 1, &["times"], Some(1.0))?
-        .trunc()
-        .max(0.0) as usize;
-
-    match value {
-        Sexp::Nil => Ok(Sexp::Nil),
-        Sexp::Logical(values) => Ok(Sexp::Logical(repeat_slice(values, times))),
-        Sexp::Integer(values) => Ok(Sexp::Integer(repeat_slice(values, times))),
-        Sexp::Real(values) => Ok(Sexp::Real(repeat_slice(values, times))),
-        Sexp::String(values) => Ok(Sexp::String(repeat_slice(values, times))),
-        Sexp::Factor {
-            codes,
-            levels,
-            ordered,
-        } => Ok(Sexp::Factor {
-            codes: repeat_slice(codes, times),
-            levels: levels.clone(),
-            ordered: *ordered,
-        }),
-        Sexp::Vector(values) => Ok(Sexp::Vector(repeat_slice(values, times))),
-        Sexp::List(values) => Ok(Sexp::List(repeat_slice(values, times))),
-        other => Err(EvalError::Type(format!(
-            "cannot rep value of type {:?}",
-            other.sexptype()
-        ))),
-    }
-}
-
-fn call_rep_len(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
-    let value = positional(args, 0, "x")?;
-    let length_out = numeric_arg_scalar(args, 1, &["length.out"], None)?
-        .trunc()
-        .max(0.0) as usize;
-    if length_out == 0 {
-        return Ok(match value {
-            Sexp::Nil => Sexp::Nil,
-            Sexp::Logical(_) => Sexp::Logical(Vec::new()),
-            Sexp::Integer(_) => Sexp::Integer(Vec::new()),
-            Sexp::Real(_) => Sexp::Real(Vec::new()),
-            Sexp::String(_) => Sexp::String(Vec::new()),
-            Sexp::Factor {
-                levels, ordered, ..
-            } => Sexp::Factor {
-                codes: Vec::new(),
-                levels: levels.clone(),
-                ordered: *ordered,
-            },
-            Sexp::List(_) => Sexp::List(Vec::new()),
-            Sexp::Vector(_) => Sexp::Vector(Vec::new()),
-            _ => Sexp::Nil,
-        });
-    }
-    match value {
-        Sexp::Nil => Err(EvalError::Arity(
-            "cannot replicate NULL to a non-zero length".to_string(),
-        )),
-        Sexp::Logical(values) => Ok(Sexp::Logical(repeat_to_length(values, length_out)?)),
-        Sexp::Integer(values) => Ok(Sexp::Integer(repeat_to_length(values, length_out)?)),
-        Sexp::Real(values) => Ok(Sexp::Real(repeat_to_length(values, length_out)?)),
-        Sexp::String(values) => Ok(Sexp::String(repeat_to_length(values, length_out)?)),
-        Sexp::Factor {
-            codes,
-            levels,
-            ordered,
-        } => Ok(Sexp::Factor {
-            codes: repeat_to_length(codes, length_out)?,
-            levels: levels.clone(),
-            ordered: *ordered,
-        }),
-        Sexp::Vector(values) => Ok(Sexp::Vector(repeat_to_length(values, length_out)?)),
-        Sexp::List(values) => Ok(Sexp::List(repeat_to_length(values, length_out)?)),
-        other => Err(EvalError::Type(format!(
-            "cannot rep_len value of type {:?}",
-            other.sexptype()
-        ))),
+        colon_sequence(
+            1.0,
+            f64::from(i32::try_from(value_len(value)?).map_err(|_| {
+                EvalError::Domain("sequence length exceeds supported integer range".into())
+            })?),
+        )
     }
 }
 
 fn call_append(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
     let x = positional(args, 0, "x")?;
     let values = positional(args, 1, "values")?;
-    if list_like_elements(x).is_some() || list_like_elements(values).is_some() {
+    if list_like_elements(x)?.is_some() || list_like_elements(values)?.is_some() {
         let mut x_elements = append_list_elements(x)?;
         let values_elements = append_list_elements(values)?;
         let after = append_after(args, 2, x_elements.len())?;
@@ -6281,7 +5402,7 @@ fn call_lengths(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
     let x = positional(args, 0, "x")?;
     let _use_names = named_bool_arg(args, &["use.names"], true)?;
     Ok(Sexp::Integer(
-        lengths_values(x)
+        lengths_values(x)?
             .into_iter()
             .map(|value| Some(value as i32))
             .collect(),
@@ -6321,39 +5442,14 @@ fn append_after(
     Ok((after.trunc().max(0.0) as usize).min(current_len))
 }
 
-fn list_like_elements(value: &Sexp) -> Option<Vec<ListElement>> {
-    match value {
-        Sexp::List(values) | Sexp::Dots(values) => Some(values.clone()),
-        Sexp::DataFrame { columns, .. } => Some(columns.clone()),
-        _ => None,
-    }
-}
-
 fn append_list_elements(value: &Sexp) -> Result<Vec<ListElement>, EvalError> {
-    if let Some(values) = list_like_elements(value) {
+    if let Some(values) = list_like_elements(value)? {
         return Ok(values);
     }
     Ok(sequence_elements(value)?
         .into_iter()
         .map(|value| ListElement { name: None, value })
         .collect())
-}
-
-fn lengths_values(value: &Sexp) -> Vec<usize> {
-    match value {
-        Sexp::Nil => Vec::new(),
-        Sexp::List(values) | Sexp::Dots(values) => values
-            .iter()
-            .map(|element| value_len(&element.value))
-            .collect(),
-        Sexp::DataFrame { columns, .. } => columns
-            .iter()
-            .map(|column| value_len(&column.value))
-            .collect(),
-        Sexp::Matrix { data, .. } => vec![1; value_len(data)],
-        Sexp::Vector(values) => values.iter().map(value_len).collect(),
-        _ => vec![1; value_len(value)],
-    }
 }
 
 fn make_sequence(from: f64, to: f64, by: f64) -> Result<Vec<f64>, EvalError> {
@@ -6773,38 +5869,6 @@ fn reject_sample_prob(args: &[EvaluatedArgument], position: usize) -> Result<(),
     Ok(())
 }
 
-fn sample_population(value: &Sexp) -> Result<SamplePopulation, EvalError> {
-    if let Some(n) = sample_integer_shortcut(value)? {
-        return Ok(SamplePopulation {
-            values: (1..=n)
-                .map(|value| ListElement {
-                    name: None,
-                    value: Sexp::Integer(vec![Some(value as i32)]),
-                })
-                .collect(),
-            output: SampleOutputKind::Atomic,
-        });
-    }
-
-    match value {
-        Sexp::List(values) | Sexp::Dots(values) => Ok(SamplePopulation {
-            values: values.clone(),
-            output: SampleOutputKind::List,
-        }),
-        Sexp::DataFrame { columns, .. } => Ok(SamplePopulation {
-            values: columns.clone(),
-            output: SampleOutputKind::List,
-        }),
-        other => Ok(SamplePopulation {
-            values: sequence_elements(other)?
-                .into_iter()
-                .map(|value| ListElement { name: None, value })
-                .collect(),
-            output: SampleOutputKind::Atomic,
-        }),
-    }
-}
-
 fn sample_integer_shortcut(value: &Sexp) -> Result<Option<usize>, EvalError> {
     let values = match value {
         Sexp::Integer(_) | Sexp::Real(_) => numeric_values(value)?,
@@ -6979,7 +6043,7 @@ fn complete_cases_value(value: &Sexp) -> Result<Vec<bool>, EvalError> {
         Sexp::DataFrame { columns, nrow } => {
             let mut out = vec![true; *nrow];
             for column in columns {
-                let missing = is_na_values(&column.value);
+                let missing = is_na_values(&column.value)?;
                 if missing.len() != *nrow {
                     return Err(EvalError::Arity(
                         "data frame column length mismatch".to_string(),
@@ -6994,7 +6058,7 @@ fn complete_cases_value(value: &Sexp) -> Result<Vec<bool>, EvalError> {
             Ok(out)
         }
         Sexp::Matrix { data, nrow, ncol } => {
-            let missing = is_na_values(data);
+            let missing = is_na_values(data)?;
             let mut out = vec![true; *nrow];
             for row in 0..*nrow {
                 for col in 0..*ncol {
@@ -7006,7 +6070,7 @@ fn complete_cases_value(value: &Sexp) -> Result<Vec<bool>, EvalError> {
             }
             Ok(out)
         }
-        other => Ok(is_na_values(other)
+        other => Ok(is_na_values(other)?
             .into_iter()
             .map(|value| value != Some(true))
             .collect()),
@@ -7026,7 +6090,7 @@ fn na_omit_value(value: &Sexp) -> Result<Sexp, EvalError> {
             subset_matrix_rows_no_drop(data, *nrow, *ncol, &keep)
         }
         other => {
-            let positions = is_na_values(other)
+            let positions = is_na_values(other)?
                 .into_iter()
                 .enumerate()
                 .filter_map(|(index, missing)| {
@@ -7130,7 +6194,7 @@ fn match_keys(value: &Sexp) -> Result<Vec<MatchKey>, EvalError> {
                 }
             })
             .collect()),
-        Sexp::String(values) => Ok(values
+        Sexp::String(values) | Sexp::AttributedCharacter { values, .. } => Ok(values
             .iter()
             .map(|value| match value {
                 Some(value) => MatchKey::String(value.clone()),
@@ -7152,99 +6216,11 @@ fn match_keys(value: &Sexp) -> Result<Vec<MatchKey>, EvalError> {
     }
 }
 
-fn is_na_values(value: &Sexp) -> Vec<Option<bool>> {
-    match value {
-        Sexp::Nil => Vec::new(),
-        Sexp::Logical(values) => values.iter().map(|value| Some(value.is_none())).collect(),
-        Sexp::Integer(values) => values.iter().map(|value| Some(value.is_none())).collect(),
-        Sexp::Real(values) => values.iter().map(|value| Some(value.is_nan())).collect(),
-        Sexp::String(values) => values.iter().map(|value| Some(value.is_none())).collect(),
-        Sexp::Factor { codes, .. } => codes.iter().map(|value| Some(value.is_none())).collect(),
-        Sexp::DataFrame { columns, .. } => {
-            let mut out = Vec::new();
-            for column in columns {
-                out.extend(is_na_values(&column.value));
-            }
-            out
-        }
-        Sexp::Matrix { data, .. } => is_na_values(data),
-        Sexp::Vector(values) => values
-            .iter()
-            .map(|value| {
-                Some(matches!(
-                    value,
-                    Sexp::Logical(values) if values.len() == 1 && values[0].is_none()
-                ))
-            })
-            .collect(),
-        Sexp::List(values) => values
-            .iter()
-            .map(|element| {
-                Some(matches!(
-                    element.value,
-                    Sexp::Logical(ref values) if values.len() == 1 && values[0].is_none()
-                ))
-            })
-            .collect(),
-        Sexp::Dots(values) => values
-            .iter()
-            .map(|element| {
-                Some(matches!(
-                    element.value,
-                    Sexp::Logical(ref values) if values.len() == 1 && values[0].is_none()
-                ))
-            })
-            .collect(),
-        _ => vec![Some(false)],
-    }
-}
-
 #[derive(Clone, Copy)]
 enum NumericPredicate {
     Nan,
     Finite,
     Infinite,
-}
-
-fn numeric_predicate_values(value: &Sexp, predicate: NumericPredicate) -> Vec<Option<bool>> {
-    match value {
-        Sexp::Nil => Vec::new(),
-        Sexp::Logical(values) => values
-            .iter()
-            .map(|value| {
-                Some(match predicate {
-                    NumericPredicate::Nan | NumericPredicate::Infinite => false,
-                    NumericPredicate::Finite => value.is_some(),
-                })
-            })
-            .collect(),
-        Sexp::Integer(values) => values
-            .iter()
-            .map(|value| {
-                Some(match predicate {
-                    NumericPredicate::Nan | NumericPredicate::Infinite => false,
-                    NumericPredicate::Finite => value.is_some(),
-                })
-            })
-            .collect(),
-        Sexp::Real(values) => values
-            .iter()
-            .map(|value| {
-                Some(match predicate {
-                    NumericPredicate::Nan => value.is_nan() && !is_na_real(*value),
-                    NumericPredicate::Finite => value.is_finite(),
-                    NumericPredicate::Infinite => value.is_infinite(),
-                })
-            })
-            .collect(),
-        Sexp::String(values) => values.iter().map(|_| Some(false)).collect(),
-        Sexp::Factor { codes, .. } => codes.iter().map(|_| Some(false)).collect(),
-        Sexp::Matrix { data, .. } => numeric_predicate_values(data, predicate),
-        Sexp::Vector(values) => values.iter().map(|_| Some(false)).collect(),
-        Sexp::List(values) | Sexp::Dots(values) => values.iter().map(|_| Some(false)).collect(),
-        Sexp::DataFrame { columns, .. } => columns.iter().map(|_| Some(false)).collect(),
-        _ => vec![Some(false)],
-    }
 }
 
 fn map_one_arg(
@@ -7822,7 +6798,7 @@ fn logical_values(value: &Sexp) -> Result<Vec<Option<bool>>, EvalError> {
 }
 
 fn string_scalar(value: &Sexp, label: &str) -> Result<String, EvalError> {
-    let Sexp::String(values) = value else {
+    let Some(values) = value.character_values() else {
         return Err(EvalError::Type(format!("{label} must be a string")));
     };
     values

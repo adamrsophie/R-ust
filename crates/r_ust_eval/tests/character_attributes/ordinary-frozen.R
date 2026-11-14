@@ -1,0 +1,1 @@
+x<-structure(c("b","c"),previous=c("a","b","c"));y<-x;y[1L]<-"z";z<-x;z[[1L]]<-"z";ans<-list(original=x,subset=x[1L],subset.all=x[],extract=x[[1L]],character=as.character(x),combined=c(x),repeated=rep(x,2L),subset.assign=y,extract.assign=z,plain.equal=identical(x,c("b","c")),same.equal=identical(x,structure(c("b","c"),previous=c("a","b","c"))));dput(ans)

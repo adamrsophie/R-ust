@@ -5,12 +5,24 @@ impl RuntimeState {
         &mut self,
         arguments: &[&CallArgument],
     ) -> Result<String, EvalError> {
+        let arguments = arguments
+            .iter()
+            .map(|argument| {
+                Ok(CallArgument {
+                    name: argument.name.clone(),
+                    value: match &argument.value {
+                        Sexp::Promise { state } => state.expression()?,
+                        value => value.clone(),
+                    },
+                })
+            })
+            .collect::<Result<Vec<_>, EvalError>>()?;
         // Snapshot immediate missingness before forcing any inner forwarded promise.
         let alist = arguments
             .iter()
             .any(|argument| matches!(argument.value, Sexp::MissingArg(_)));
         let mut parts = Vec::with_capacity(arguments.len());
-        for argument in arguments {
+        for argument in &arguments {
             parts.push(self.deparse_argument(argument, 0)?);
         }
         let contents = parts.join(", ");
@@ -56,11 +68,15 @@ impl RuntimeState {
                 None => "NA",
             }
             .into()),
-            Sexp::String(values) if values.len() == 1 => Ok(values[0]
-                .as_ref()
-                .map_or_else(|| "NA_character_".into(), |value| quoted(value, '"'))),
+            Sexp::String(values) | Sexp::AttributedCharacter { values, .. }
+                if values.len() == 1 =>
+            {
+                Ok(values[0]
+                    .as_ref()
+                    .map_or_else(|| "NA_character_".into(), |value| quoted(value, '"')))
+            }
             Sexp::Promise { .. } => {
-                // Direct ASTs already shed the supplied promise layer; this is an inner promise.
+                // Matching has shed one supplied promise layer; a remaining promise is forwarded.
                 let value = self.force_value(expression.clone())?;
                 self.deparse_argument_expression(&value, indent)
             }
@@ -98,7 +114,9 @@ impl RuntimeState {
             | Sexp::Integer(_)
             | Sexp::Real(_)
             | Sexp::String(_)
+            | Sexp::AttributedCharacter { .. }
             | Sexp::Vector(_)
+            | Sexp::ClassedList { .. }
             | Sexp::List(_)
             | Sexp::PairList(_)
             | Sexp::Factor { .. }
@@ -106,6 +124,9 @@ impl RuntimeState {
             | Sexp::Matrix { .. }
             | Sexp::Dots(_)
             | Sexp::Closure { .. }
+            | Sexp::Char(_)
+            | Sexp::ListObject(_)
+            | Sexp::PairListObject(_)
             | Sexp::Environment(_)
             | Sexp::Primitive(_)
             | Sexp::InternalCall { .. }
@@ -116,6 +137,7 @@ impl RuntimeState {
             | Sexp::Repeat { .. }
             | Sexp::Subset { .. }
             | Sexp::Subset2D { .. }
+            | Sexp::ExtractArguments { .. }
             | Sexp::Extract { .. }
             | Sexp::Dollar { .. }
             | Sexp::Assignment { .. }
@@ -125,6 +147,7 @@ impl RuntimeState {
             | Sexp::ExtractAssignment { .. }
             | Sexp::DollarAssignment { .. }
             | Sexp::MemberAssignment { .. }
+            | Sexp::ReplacementAssignment { .. }
             | Sexp::NamesAssignment { .. }
             | Sexp::Binary { .. }
             | Sexp::Unary { .. } => Err(EvalError::NotImplemented(

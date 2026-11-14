@@ -51,7 +51,7 @@ fn data_frame_display_values(value: &Sexp) -> Result<Vec<String>, EvalError> {
             .map(|value| value.map_or_else(|| "NA".to_string(), |value| value.to_string()))
             .collect(),
         Sexp::Real(values) => values.iter().map(|value| format_number(*value)).collect(),
-        Sexp::String(values) => values
+        Sexp::String(values) | Sexp::AttributedCharacter { values, .. } => values
             .iter()
             .map(|value| match value {
                 Some(value) => format!("{value:?}"),
@@ -114,7 +114,7 @@ fn matrix_display_values(data: &Sexp) -> Result<Vec<String>, EvalError> {
             .map(|value| value.map_or_else(|| "NA".to_string(), |value| value.to_string()))
             .collect(),
         Sexp::Real(values) => values.iter().map(|value| format_number(*value)).collect(),
-        Sexp::String(values) => values
+        Sexp::String(values) | Sexp::AttributedCharacter { values, .. } => values
             .iter()
             .map(|value| match value {
                 Some(value) => format!("{value:?}"),

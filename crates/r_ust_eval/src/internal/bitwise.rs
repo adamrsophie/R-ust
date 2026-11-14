@@ -84,8 +84,11 @@ impl RuntimeState {
                 | Sexp::Integer(_)
                 | Sexp::Real(_)
                 | Sexp::String(_)
+                | Sexp::AttributedCharacter { .. }
                 | Sexp::Vector(_)
+                | Sexp::ClassedList { .. }
                 | Sexp::List(_)
+                | Sexp::ListObject(_)
                 | Sexp::Factor { .. }
                 | Sexp::DataFrame { .. }
         ) {

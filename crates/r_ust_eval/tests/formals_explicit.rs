@@ -34,11 +34,14 @@ fn formals_retains_its_real_defaults_and_unsupported_lookup_boundaries() {
             "$fun\nsys.function(sys.parent())\n\n$envir\nparent.frame()\n\n".into()
         )]
     );
+    frontend.eval_source_printed("formals()").unwrap();
+    assert_eq!(
+        frontend.runtime_mut().take_output(),
+        [OutputEvent::Stdout(
+            "$fun\nsys.function(sys.parent())\n\n$envir\nparent.frame()\n\n".into()
+        )]
+    );
     for (source, error) in [
-        (
-            "formals()",
-            EvalError::UndefinedFunction("sys.function".into()),
-        ),
         (
             "formals('identity')",
             EvalError::UndefinedFunction("get".into()),

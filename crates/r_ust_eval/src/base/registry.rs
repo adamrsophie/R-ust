@@ -3,8 +3,8 @@ use std::sync::OnceLock;
 use r_ust_sexp::{ClosureEnvironment, PrimitiveId};
 
 use super::{
-    bitwise, constants, definitions, encode_string, environments, evaluation, formals, lower,
-    rowsum, run_length, sequence, EvalError, Parser, Sexp,
+    bitwise, constants, definitions, encode_string, environments, evaluation, formals, list_values,
+    lower, printing, rowsum, run_length, sequence, EvalError, Parser, Sexp,
 };
 
 const SEQUENCE_DEFINITIONS: &[(&str, &str)] = &[
@@ -15,6 +15,7 @@ const SEQUENCE_DEFINITIONS: &[(&str, &str)] = &[
 fn definitions() -> impl Iterator<Item = &'static (&'static str, &'static str)> {
     definitions::DEFINITIONS
         .iter()
+        .chain(super::conditions::DEFINITIONS.iter())
         .chain(bitwise::DEFINITIONS.iter())
         .chain(run_length::DEFINITIONS.iter())
         .chain(rowsum::DEFINITIONS.iter())
@@ -22,6 +23,8 @@ fn definitions() -> impl Iterator<Item = &'static (&'static str, &'static str)> 
         .chain(evaluation::DEFINITIONS.iter())
         .chain(environments::DEFINITIONS.iter())
         .chain(formals::DEFINITIONS.iter())
+        .chain(list_values::DEFINITIONS.iter())
+        .chain(printing::DEFINITIONS.iter())
         .chain(SEQUENCE_DEFINITIONS.iter())
 }
 
@@ -35,8 +38,6 @@ fn template(name: &str, source: &str) -> Result<Sexp, EvalError> {
     let mut body = body.clone();
     if let Some(kernel) = run_length::lower(name) {
         *body = kernel;
-    } else if name == "sequence" {
-        sequence::lower_generic(&mut body);
     } else if name == "encodeString" {
         *body = Sexp::InternalCall {
             operation: r_ust_sexp::InternalOperation::EncodeStringWrapper,

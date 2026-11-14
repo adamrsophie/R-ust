@@ -1,6 +1,4 @@
-use super::{
-    promise, CallArgument, EvalError, FunctionParameter, HashMap, ListElement, RuntimeState, Sexp,
-};
+use super::{CallArgument, EvalError, FunctionParameter, HashMap, ListElement, RuntimeState, Sexp};
 
 #[derive(Clone, Copy, PartialEq)]
 enum MatchUse {
@@ -10,11 +8,11 @@ enum MatchUse {
 }
 
 impl RuntimeState {
-    pub(super) fn bind_supplied_argument_promises(
+    pub(super) fn bind_promised_arguments(
         &mut self,
         parameters: &[FunctionParameter],
         supplied: &[CallArgument],
-        caller_environment: &r_ust_sexp::Environment,
+        call: Option<&Sexp>,
     ) -> Result<HashMap<String, Sexp>, EvalError> {
         let dots = parameters
             .iter()
@@ -32,10 +30,10 @@ impl RuntimeState {
                     continue;
                 }
                 if formal_use[formal] == MatchUse::Exact {
-                    return Err(duplicate_formal(&parameter.name));
+                    return Err(duplicate_formal(&parameter.name, call));
                 }
                 if actual_use[actual] == MatchUse::Exact {
-                    return Err(ambiguous_actual(actual));
+                    return Err(ambiguous_actual(actual, call));
                 }
                 matched[formal] = Some(argument);
                 formal_use[formal] = MatchUse::Exact;
@@ -58,12 +56,12 @@ impl RuntimeState {
                     continue;
                 }
                 if actual_use[actual] == MatchUse::Partial {
-                    return Err(ambiguous_actual(actual));
+                    return Err(ambiguous_actual(actual, call));
                 }
                 if formal_use[formal] == MatchUse::Partial {
-                    return Err(duplicate_formal(&parameter.name));
+                    return Err(duplicate_formal(&parameter.name, call));
                 }
-                self.warn_partial_argument(name, &parameter.name)?;
+                self.warn_partial_argument(name, &parameter.name, call)?;
                 matched[formal] = Some(argument);
                 formal_use[formal] = MatchUse::Partial;
                 actual_use[actual] = MatchUse::Partial;
@@ -91,20 +89,12 @@ impl RuntimeState {
             .filter_map(|(argument, used)| (*used == MatchUse::Unused).then_some(argument))
             .collect::<Vec<_>>();
         if dots.is_none() && !unused.is_empty() {
-            return Err(EvalError::Arity(self.render_unused_arguments(&unused)?));
+            return Err(matching_error(self.render_unused_arguments(&unused)?, call));
         }
         let mut scope = HashMap::new();
         for (parameter, argument) in parameters.iter().zip(matched) {
             if let Some(argument) = argument {
-                scope.insert(
-                    parameter.name.clone(),
-                    promise(
-                        argument.value.clone(),
-                        caller_environment.clone(),
-                        self.control.origin.clone(),
-                        true,
-                    )?,
-                );
+                scope.insert(parameter.name.clone(), argument.value.clone());
             }
         }
         if dots.is_some() {
@@ -120,12 +110,7 @@ impl RuntimeState {
                                     Sexp::MissingArg(_) | Sexp::MissingValue => {
                                         Sexp::MissingArg(String::new())
                                     }
-                                    value => promise(
-                                        value.clone(),
-                                        caller_environment.clone(),
-                                        self.control.origin.clone(),
-                                        true,
-                                    )?,
+                                    value => value.clone(),
                                 },
                             })
                         })
@@ -137,15 +122,23 @@ impl RuntimeState {
     }
 }
 
-fn duplicate_formal(name: &str) -> EvalError {
-    EvalError::Arity(format!(
-        "formal argument \"{name}\" matched by multiple actual arguments"
-    ))
+fn duplicate_formal(name: &str, call: Option<&Sexp>) -> EvalError {
+    matching_error(
+        format!("formal argument \"{name}\" matched by multiple actual arguments"),
+        call,
+    )
 }
 
-fn ambiguous_actual(index: usize) -> EvalError {
-    EvalError::Arity(format!(
-        "argument {} matches multiple formal arguments",
-        index + 1
-    ))
+fn ambiguous_actual(index: usize, call: Option<&Sexp>) -> EvalError {
+    matching_error(
+        format!("argument {} matches multiple formal arguments", index + 1),
+        call,
+    )
+}
+
+fn matching_error(message: String, call: Option<&Sexp>) -> EvalError {
+    match call {
+        Some(call) => crate::SourceFault::arity(message, call),
+        None => EvalError::Arity(message),
+    }
 }

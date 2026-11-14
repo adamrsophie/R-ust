@@ -85,3 +85,12 @@ fn body_wrapper_retains_genuine_source_and_default() {
         OutputEvent::Stdout("{\n    if (is.character(fun)) \n        fun <- get(fun, mode = \"function\", envir = parent.frame())\n    .Internal(body(fun))\n}\n".into()),
     ]);
 }
+
+#[test]
+fn body_default_at_top_level_returns_its_own_source() {
+    let mut frontend = Frontend::default();
+    frontend.eval_source_printed("body()").unwrap();
+    assert_eq!(frontend.runtime_mut().take_output(), [OutputEvent::Stdout(
+        "{\n    if (is.character(fun)) \n        fun <- get(fun, mode = \"function\", envir = parent.frame())\n    .Internal(body(fun))\n}\n".into()
+    )]);
+}

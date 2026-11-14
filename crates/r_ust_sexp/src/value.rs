@@ -1,6 +1,6 @@
 use super::{
     AssignmentOperator, BinaryOp, CallArgument, Environment, FunctionParameter, ListElement,
-    MemberName, PairList, PrimitiveId, PromiseState, UnaryOp,
+    ListObject, MemberName, PairList, PairListObject, PrimitiveId, PromiseState, UnaryOp,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -11,6 +11,14 @@ pub enum ClosureEnvironment {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum InternalOperation {
+    Environment,
+    PrintDefault,
+    NewEnvironment,
+    ParentFrame,
+    SysFrame,
+    SysFunction,
+    SysParent,
+    SysNFrame,
     ParentEnvironment,
     EnvironmentName,
     Formals,
@@ -28,7 +36,6 @@ pub enum InternalOperation {
     EncodeString,
     EncodeStringWrapper,
     Sequence,
-    SequenceDispatch,
     Utf8ToInt,
     IntToUtf8,
     FindInterval,
@@ -36,11 +43,15 @@ pub enum InternalOperation {
     Pmatch,
     Charmatch,
     Vector,
+    AsVector,
     Stop,
     Inherits,
     Gettext,
     SignalCondition,
     DefaultStop,
+    AddConditionHandlers,
+    ResetConditionHandlers,
+    GetErrorMessage,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -55,8 +66,20 @@ pub enum Sexp {
     Integer(Vec<Option<i32>>),
     Real(Vec<f64>),
     String(Vec<Option<String>>),
+    AttributedCharacter {
+        values: Vec<Option<String>>,
+        attributes: Vec<ListElement>,
+    },
+    Char(Option<String>),
+    ListObject(ListObject),
+    PairListObject(PairListObject),
     Vector(Vec<Sexp>),
     List(Vec<ListElement>),
+    ClassedList {
+        elements: Vec<ListElement>,
+        class: Box<Sexp>,
+        class_first: bool,
+    },
     PairList(PairList),
     Factor {
         codes: Vec<Option<usize>>,
@@ -122,6 +145,10 @@ pub enum Sexp {
         value: Box<Sexp>,
         index: Box<Sexp>,
     },
+    ExtractArguments {
+        value: Box<Sexp>,
+        arguments: Vec<CallArgument>,
+    },
     Dollar {
         value: Box<Sexp>,
         name: MemberName,
@@ -165,6 +192,11 @@ pub enum Sexp {
         value: Box<Sexp>,
     },
     MemberAssignment {
+        operator: AssignmentOperator,
+        target: Box<Sexp>,
+        value: Box<Sexp>,
+    },
+    ReplacementAssignment {
         operator: AssignmentOperator,
         target: Box<Sexp>,
         value: Box<Sexp>,

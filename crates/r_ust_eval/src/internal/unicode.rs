@@ -6,7 +6,7 @@ impl RuntimeState {
         if let Sexp::Matrix { data, .. } = value {
             return self.utf8_to_int(data);
         }
-        let Sexp::String(values) = value else {
+        let (Sexp::String(values) | Sexp::AttributedCharacter { values, .. }) = value else {
             return Err(EvalError::Domain(
                 "argument must be a character vector of length 1".into(),
             ));

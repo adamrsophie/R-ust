@@ -17,6 +17,9 @@ pub enum EvalError {
     },
     Control(String),
     Transfer(ControlTransfer),
+    Condition(crate::ConditionJump),
+    Signaled(Box<EvalError>),
+    Fresh(Box<crate::SourceFault>),
     MissingArgument(String),
     Output(String),
     Input(String),
@@ -41,6 +44,9 @@ impl fmt::Display for EvalError {
             Self::Stop { message, .. } => f.write_str(message),
             Self::Control(message) => write!(f, "control-flow error: {message}"),
             Self::Transfer(transfer) => write!(f, "{}", transfer.inactive_message()),
+            Self::Condition(_) => f.write_str("no function to return from, jumping to top level"),
+            Self::Signaled(error) => error.fmt(f),
+            Self::Fresh(fault) => fault.original.fmt(f),
             Self::MissingArgument(name) => {
                 if name.is_empty() {
                     write!(f, "argument is missing, with no default")
@@ -74,8 +80,9 @@ impl From<r_ust_sexp::GraphError> for EvalError {
 impl std::error::Error for EvalError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::WithWarnings { error, .. } => Some(error.as_ref()),
+            Self::WithWarnings { error, .. } | Self::Signaled(error) => Some(error.as_ref()),
             Self::Graph(error) => Some(error),
+            Self::Fresh(fault) => Some(fault.original.as_ref()),
             _ => None,
         }
     }

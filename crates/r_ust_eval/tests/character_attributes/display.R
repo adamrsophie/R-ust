@@ -1,0 +1,5 @@
+x<-structure(c("b",NA_character_),previous=c("a","b"),custom=list(1L,"z"))
+print(x)
+print(x,quote=FALSE)
+print(structure(character(),custom="empty"))
+print(structure(rep("abcdefgh",10L),custom="wrapped"))

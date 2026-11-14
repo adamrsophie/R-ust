@@ -1,9 +1,15 @@
 use super::*;
 
 pub(super) fn string_values(value: &Sexp) -> Result<Vec<Option<String>>, EvalError> {
+    crate::ordinary_cycles::check(value, "cyclic ordinary value coercion")?;
+    let projection = crate::ordinary_values::read(value)?;
+    let value = projection.as_ref();
     match value {
         Sexp::Environment(_) => Err(environment_values::coercion_error("character")),
-        Sexp::List(values) => values
+        Sexp::ClassedList {
+            elements: values, ..
+        }
+        | Sexp::List(values) => values
             .iter()
             .map(|element| message_helpers::list_character(&element.value).map(Some))
             .collect(),
@@ -13,7 +19,7 @@ pub(super) fn string_values(value: &Sexp) -> Result<Vec<Option<String>>, EvalErr
             .collect(),
         Sexp::Nil => Ok(Vec::new()),
         Sexp::Matrix { data, .. } => string_values(data),
-        Sexp::String(values) => Ok(values.clone()),
+        Sexp::String(values) | Sexp::AttributedCharacter { values, .. } => Ok(values.clone()),
         Sexp::Real(values) => Ok(values
             .iter()
             .map(|value| {
@@ -51,7 +57,7 @@ pub(super) fn string_values(value: &Sexp) -> Result<Vec<Option<String>>, EvalErr
 pub(super) fn coerce_logical_values(value: &Sexp) -> Result<Vec<Option<bool>>, EvalError> {
     match value {
         Sexp::Environment(_) => Err(environment_values::coercion_error("logical")),
-        Sexp::String(values) => Ok(values
+        Sexp::String(values) | Sexp::AttributedCharacter { values, .. } => Ok(values
             .iter()
             .map(|value| match value.as_deref() {
                 Some("TRUE") | Some("True") | Some("true") | Some("T") => Some(true),

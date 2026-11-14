@@ -78,11 +78,16 @@ impl Writer {
             | Sexp::Real(_)
             | Sexp::String(_) => self.atom(value),
             Sexp::PairList(_)
+            | Sexp::AttributedCharacter { .. }
             | Sexp::MissingArg(_)
+            | Sexp::Char(_)
+            | Sexp::ListObject(_)
+            | Sexp::PairListObject(_)
             | Sexp::Environment(_)
             | Sexp::Primitive(_)
             | Sexp::Factor { .. }
             | Sexp::Vector(_)
+            | Sexp::ClassedList { .. }
             | Sexp::List(_)
             | Sexp::DataFrame { .. }
             | Sexp::Matrix { .. }
@@ -99,6 +104,7 @@ impl Writer {
             | Sexp::Block(_)
             | Sexp::Subset { .. }
             | Sexp::Subset2D { .. }
+            | Sexp::ExtractArguments { .. }
             | Sexp::Extract { .. }
             | Sexp::Dollar { .. }
             | Sexp::InternalCall { .. }
@@ -109,6 +115,7 @@ impl Writer {
             | Sexp::ExtractAssignment { .. }
             | Sexp::DollarAssignment { .. }
             | Sexp::MemberAssignment { .. }
+            | Sexp::ReplacementAssignment { .. }
             | Sexp::NamesAssignment { .. }
             | Sexp::Binary { .. }
             | Sexp::Unary { .. }

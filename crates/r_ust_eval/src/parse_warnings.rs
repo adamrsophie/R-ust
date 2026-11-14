@@ -7,18 +7,28 @@ impl RuntimeState {
         &mut self,
         name: &str,
         formal: &str,
+        call: Option<&Sexp>,
     ) -> Result<(), EvalError> {
         if matches!(self.get_option("warnPartialMatchArgs"), Some(Sexp::Logical(values)) if values.as_slice() == [Some(true)])
         {
-            self.record_parse_warnings(&[format!(
-                "partial argument match of '{name}' to '{formal}'"
-            )])?;
+            self.record_warnings_at(
+                &[format!("partial argument match of '{name}' to '{formal}'")],
+                call,
+            )?;
         }
         Ok(())
     }
 
     /// Applies warn policy; deferred warnings must be finished after result output or cleanup.
     pub fn record_parse_warnings(&mut self, warnings: &[String]) -> Result<(), EvalError> {
+        self.record_warnings_at(warnings, None)
+    }
+
+    pub(crate) fn record_warnings_at(
+        &mut self,
+        warnings: &[String],
+        call: Option<&Sexp>,
+    ) -> Result<(), EvalError> {
         if warnings.is_empty() {
             return Ok(());
         }
@@ -32,8 +42,10 @@ impl RuntimeState {
         if level < 0 {
             return Ok(());
         }
-        let limit = self.warning_option("warning.length", 1000).clamp(0, 8191) as usize;
-        let capacity = self.warning_option("nwarnings", 50).max(0) as usize;
+        let limit = usize::try_from(self.warning_option("warning.length", 1000).clamp(0, 8191))
+            .map_err(|_| EvalError::Domain("warning limit exceeds supported size".into()))?;
+        let capacity = usize::try_from(self.warning_option("nwarnings", 50).max(0))
+            .map_err(|_| EvalError::Domain("warning capacity exceeds supported size".into()))?;
         for warning in warnings {
             let mut end = limit.min(warning.len());
             while !warning.is_char_boundary(end) {
@@ -49,7 +61,11 @@ impl RuntimeState {
                 while !converted.is_char_boundary(end) {
                     end -= 1;
                 }
-                return Err(EvalError::Domain(converted[..end].to_string()));
+                let message = converted[..end].to_string();
+                return Err(match call {
+                    Some(call) => crate::SourceFault::domain(message, call),
+                    None => EvalError::Domain(message),
+                });
             }
             if level == 1 {
                 self.emit(OutputEvent::Stderr(format!("Warning: {message}\n")))?;
@@ -82,7 +98,8 @@ impl RuntimeState {
                 text.push_str(&format!("{}: {warning} \n", index + 1));
             }
         } else {
-            let capacity = self.warning_option("nwarnings", 50).max(0) as usize;
+            let capacity = usize::try_from(self.warning_option("nwarnings", 50).max(0))
+                .map_err(|_| EvalError::Domain("warning capacity exceeds supported size".into()))?;
             text = if warnings.len() < capacity {
                 format!(
                     "There were {} warnings (use warnings() to see them)\n",

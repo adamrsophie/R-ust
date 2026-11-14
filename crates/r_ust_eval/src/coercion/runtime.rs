@@ -4,7 +4,7 @@ use crate::{EvalError, EvaluatedArgument, RuntimeState, Sexp};
 impl RuntimeState {
     pub(crate) fn scalar_real_with_warning(&mut self, value: &Sexp) -> Result<f64, EvalError> {
         let (number, warnings) = atomic::scalar_real(value, BlankPolicy::environment());
-        self.record_parse_warnings(&warnings.messages())?;
+        self.record_warnings_at(&warnings.messages(), Some(&self.source_current_call()))?;
         Ok(number)
     }
 
@@ -13,7 +13,7 @@ impl RuntimeState {
         value: &Sexp,
     ) -> Result<Option<i32>, EvalError> {
         let (integer, warnings) = atomic::scalar_integer(value, BlankPolicy::environment());
-        self.record_parse_warnings(&warnings.messages())?;
+        self.record_warnings_at(&warnings.messages(), Some(&self.source_current_call()))?;
         Ok(integer)
     }
 
@@ -40,8 +40,7 @@ impl RuntimeState {
         }
         lists::convert(
             &first.value,
-            integer,
-            BlankPolicy::environment(),
+            (integer, BlankPolicy::environment()),
             |warnings| self.record_parse_warnings(&warnings.messages()),
         )
     }

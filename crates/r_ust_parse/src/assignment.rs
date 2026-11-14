@@ -70,9 +70,14 @@ impl SyntaxParser {
                     index,
                     value: Box::new(value),
                 }),
-                _ => Err(ParseError::new(
-                    "left side of subset assignment must target a name",
-                )),
+                other => Ok(Sexp::ReplacementAssignment {
+                    operator,
+                    target: Box::new(Sexp::Subset {
+                        value: Box::new(other),
+                        index,
+                    }),
+                    value: Box::new(value),
+                }),
             },
             Sexp::Subset2D {
                 value: target,
@@ -109,6 +114,11 @@ impl SyntaxParser {
                     operator,
                 ),
             },
+            target @ Sexp::ExtractArguments { .. } => Ok(Sexp::ReplacementAssignment {
+                operator,
+                target: Box::new(target),
+                value: Box::new(value),
+            }),
             Sexp::Dollar {
                 value: target,
                 name,
@@ -151,9 +161,14 @@ impl SyntaxParser {
                         _ => Err(ParseError::new("names assignment must target a name")),
                     }
                 }
-                _ => Err(ParseError::new(
-                    "left side of assignment must be a name, subset, or replacement call",
-                )),
+                function => Ok(Sexp::ReplacementAssignment {
+                    operator,
+                    target: Box::new(Sexp::Call {
+                        function: Box::new(function),
+                        arguments,
+                    }),
+                    value: Box::new(value),
+                }),
             },
             _ => Err(ParseError::new(
                 "left side of assignment must be a name or subset",

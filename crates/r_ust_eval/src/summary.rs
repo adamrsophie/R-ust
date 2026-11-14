@@ -45,11 +45,11 @@ fn arguments(args: &[EvaluatedArgument], operation: &str) -> Result<bool, EvalEr
     if matches!(
         typeof_value(value),
         "logical" | "integer" | "double" | "character"
-    ) && value_len(value) > 1
+    ) && value_len(value)? > 1
     {
         return Err(EvalError::Domain(format!(
             "'length = {}' in coercion to 'logical(1)'",
-            value_len(value)
+            value_len(value)?
         )));
     }
     let logical = match value {

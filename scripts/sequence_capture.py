@@ -41,10 +41,7 @@ def matches(row: Case, runs: tuple[Run, Run], *, reference: bool) -> bool:
 
 
 def classify(row: Case, runs: tuple[Run, Run]) -> Outcome:
-    if is_limit_case(row):
-        diagnostic = replace(row, storage="error", fingerprint="-", error=LIMIT_ERROR, warnings=(), stdout="")
-        return Outcome.LIMIT if shared_matches(diagnostic, runs, reference=False) else Outcome.FAIL
-    return Outcome.PASS if shared_matches(row, runs, reference=False) else Outcome.FAIL
+    return Outcome.PASS if matches(row, runs, reference=False) else Outcome.FAIL
 
 
 def sample_run(stdout: str, stderr: str, status: int) -> Run:
@@ -67,7 +64,7 @@ def self_check(row: Case, ordinary: Case) -> None:
         separate = sample_run(row.stdout + "TRUE\n", warnings, 0)
         merged = sample_run(row.stdout + warnings + "TRUE\n", "", 0)
         assert matches(row, (separate, merged), reference=reference)
-        assert classify(row, (separate, merged)) == Outcome.FAIL
+        assert classify(row, (separate, merged)) == Outcome.PASS
         for altered in (
             (replace(separate, status=1), merged),
             (separate, replace(merged, status=1)),
@@ -81,7 +78,7 @@ def self_check(row: Case, ordinary: Case) -> None:
             assert not matches(row, altered, reference=reference)
     separate = sample_run("", LIMIT_ERROR + "\n", 1)
     merged = sample_run(LIMIT_ERROR + "\n", "", 1)
-    assert classify(row, (separate, merged)) == Outcome.LIMIT
+    assert classify(row, (separate, merged)) == Outcome.FAIL
     assert not matches(row, (separate, merged), reference=False)
     assert classify(replace(row, identifier=68), (separate, merged)) == Outcome.FAIL
     assert classify(replace(row, source="sequence(1)"), (separate, merged)) == Outcome.FAIL

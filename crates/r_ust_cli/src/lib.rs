@@ -128,7 +128,9 @@ fn run_session(
                 "continue"
             };
             let prompt = match frontend.runtime().get_option(key) {
-                Some(Sexp::String(values)) => values.first().and_then(Option::as_ref).cloned(),
+                Some(Sexp::String(values) | Sexp::AttributedCharacter { values, .. }) => {
+                    values.first().and_then(Option::as_ref).cloned()
+                }
                 _ => None,
             }
             .ok_or_else(|| EvalError::Type(format!("invalid '{key}' option")))?;

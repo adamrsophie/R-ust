@@ -2,7 +2,7 @@ use crate::{EvalError, RuntimeState, Sexp};
 use r_ust_sexp::{canonical_language, LanguageError, ListElement};
 
 impl RuntimeState {
-    pub(super) fn formals(&mut self, value: &Sexp) -> Result<Sexp, EvalError> {
+    pub(super) fn formals(&mut self, value: &Sexp, call: &Sexp) -> Result<Sexp, EvalError> {
         match value {
             Sexp::Closure { parameters, .. } => {
                 let elements = parameters
@@ -31,6 +31,9 @@ impl RuntimeState {
             }
             Sexp::Primitive(_) => Ok(Sexp::Nil),
             Sexp::Nil
+            | Sexp::Char(_)
+            | Sexp::ListObject(_)
+            | Sexp::PairListObject(_)
             | Sexp::Environment(_)
             | Sexp::MissingArg(_)
             | Sexp::MissingValue
@@ -39,7 +42,9 @@ impl RuntimeState {
             | Sexp::Integer(_)
             | Sexp::Real(_)
             | Sexp::String(_)
+            | Sexp::AttributedCharacter { .. }
             | Sexp::Vector(_)
+            | Sexp::ClassedList { .. }
             | Sexp::List(_)
             | Sexp::PairList(_)
             | Sexp::Factor { .. }
@@ -58,6 +63,7 @@ impl RuntimeState {
             | Sexp::Block(_)
             | Sexp::Subset { .. }
             | Sexp::Subset2D { .. }
+            | Sexp::ExtractArguments { .. }
             | Sexp::Extract { .. }
             | Sexp::Dollar { .. }
             | Sexp::Call { .. }
@@ -68,11 +74,12 @@ impl RuntimeState {
             | Sexp::ExtractAssignment { .. }
             | Sexp::DollarAssignment { .. }
             | Sexp::MemberAssignment { .. }
+            | Sexp::ReplacementAssignment { .. }
             | Sexp::NamesAssignment { .. }
             | Sexp::Binary { .. }
             | Sexp::Unary { .. }
             | Sexp::Parenthesized(_) => {
-                self.record_parse_warnings(&["argument is not a function".into()])?;
+                self.record_warnings_at(&["argument is not a function".into()], Some(call))?;
                 Ok(Sexp::Nil)
             }
         }

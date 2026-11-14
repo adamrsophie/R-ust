@@ -1,29 +1,31 @@
 use super::{EvalError, EvalFlow, RuntimeState, Sexp};
-use r_ust_sexp::{Environment, EvaluationOrigin, Force, GraphError, PromiseState};
+use r_ust_sexp::{Force, GraphError, PromiseState};
 
 impl RuntimeState {
     pub(super) fn force_value(&mut self, value: Sexp) -> Result<Sexp, EvalError> {
         match value {
-            Sexp::MissingArg(name) => Err(EvalError::MissingArgument(name)),
+            Sexp::MissingArg(name) => Err(self.evaluated_missing(&name)),
             Sexp::Promise { state } => {
                 let force = state.begin_force().map_err(|error| match error {
-                    GraphError::PromiseUnderEvaluation => EvalError::Domain(
-                        "promise already under evaluation: recursive default argument reference or earlier problems?".into()),
+                    GraphError::PromiseUnderEvaluation => crate::SourceFault::domain(
+                        "promise already under evaluation: recursive default argument reference or earlier problems?".into(), &self.source_current_call()),
                     other => EvalError::Graph(other),
                 })?;
                 match force {
                     Force::Cached(value) => Ok(value),
                     Force::Evaluate(lease) => {
                         if lease.interrupted {
-                            self.record_parse_warnings(&[
-                                "restarting interrupted promise evaluation".into(),
-                            ])?;
+                            self.record_warnings_at(
+                                &["restarting interrupted promise evaluation".into()],
+                                Some(&self.source_current_call()),
+                            )?;
                         }
                         let saved_frame =
                             std::mem::replace(&mut self.current, lease.environment.clone());
                         let saved_origin =
                             std::mem::replace(&mut self.control.origin, lease.origin.clone());
                         let result = self.eval_flow(&lease.expression);
+                        let result = self.signal_fresh_result(result);
                         self.current = saved_frame;
                         self.control.origin = saved_origin;
                         let EvalFlow::Value(value) = result?;
@@ -37,18 +39,20 @@ impl RuntimeState {
     }
 }
 
-pub(super) fn promise(
-    expression: Sexp,
-    environment: Environment,
-    origin: EvaluationOrigin,
-    supplied: bool,
-) -> Result<Sexp, EvalError> {
-    if matches!(expression, Sexp::MissingArg(_) | Sexp::MissingValue) {
-        return Ok(expression);
+impl RuntimeState {
+    pub(super) fn promise(&self, expression: Sexp, supplied: bool) -> Result<Sexp, EvalError> {
+        if matches!(expression, Sexp::MissingArg(_) | Sexp::MissingValue) {
+            return Ok(expression);
+        }
+        Ok(Sexp::Promise {
+            state: PromiseState::new(
+                &expression,
+                &self.current,
+                self.control.origin.clone(),
+                supplied,
+            )?,
+        })
     }
-    Ok(Sexp::Promise {
-        state: PromiseState::new(&expression, &environment, origin, supplied)?,
-    })
 }
 
 pub(super) fn is_missing_binding(value: &Sexp) -> Result<bool, EvalError> {

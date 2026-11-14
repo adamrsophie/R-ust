@@ -7,7 +7,7 @@ impl RuntimeState {
         &mut self,
         arguments: &[CallArgument],
     ) -> Result<Sexp, EvalError> {
-        self.eval_arguments(arguments, false)?;
+        self.eval_arguments(arguments, false, None)?;
         if !arguments.is_empty() {
             return Err(EvalError::Arity(format!(
                 "{} arguments passed to '...length' which requires 0",
@@ -54,7 +54,7 @@ impl RuntimeState {
 
 pub(super) fn list_character(value: &Sexp) -> Result<String, EvalError> {
     match value {
-        Sexp::String(values) if values.len() == 1 => {
+        Sexp::String(values) | Sexp::AttributedCharacter { values, .. } if values.len() == 1 => {
             Ok(values[0].clone().unwrap_or_else(|| "NA".into()))
         }
         Sexp::Logical(values) if values.len() == 1 => Ok(match values[0] {
@@ -76,7 +76,9 @@ pub(super) fn list_character(value: &Sexp) -> Result<String, EvalError> {
         | Sexp::Integer(_)
         | Sexp::Real(_)
         | Sexp::String(_)
+        | Sexp::AttributedCharacter { .. }
         | Sexp::Vector(_)
+        | Sexp::ClassedList { .. }
         | Sexp::List(_)
         | Sexp::Factor { .. }
         | Sexp::DataFrame { .. }
@@ -84,6 +86,9 @@ pub(super) fn list_character(value: &Sexp) -> Result<String, EvalError> {
         | Sexp::Dots(_)
         | Sexp::Promise { .. }
         | Sexp::Closure { .. }
+        | Sexp::Char(_)
+        | Sexp::ListObject(_)
+        | Sexp::PairListObject(_)
         | Sexp::Environment(_)
         | Sexp::Primitive(_)
         | Sexp::InternalCall { .. }
@@ -97,6 +102,7 @@ pub(super) fn list_character(value: &Sexp) -> Result<String, EvalError> {
         | Sexp::Block(_)
         | Sexp::Subset { .. }
         | Sexp::Subset2D { .. }
+        | Sexp::ExtractArguments { .. }
         | Sexp::Extract { .. }
         | Sexp::Dollar { .. }
         | Sexp::Call { .. }
@@ -107,6 +113,7 @@ pub(super) fn list_character(value: &Sexp) -> Result<String, EvalError> {
         | Sexp::ExtractAssignment { .. }
         | Sexp::DollarAssignment { .. }
         | Sexp::MemberAssignment { .. }
+        | Sexp::ReplacementAssignment { .. }
         | Sexp::NamesAssignment { .. }
         | Sexp::Binary { .. }
         | Sexp::Unary { .. }
