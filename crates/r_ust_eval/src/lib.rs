@@ -32,6 +32,7 @@ mod member_values;
 use environment_members::MemberKey;
 use member_assignment::{MemberTarget, Selector};
 use member_values::{assign_list_name, dollar_value};
+mod body;
 mod formals;
 use atomic_values::{coerce_logical_values, string_values};
 mod primitive_calls;

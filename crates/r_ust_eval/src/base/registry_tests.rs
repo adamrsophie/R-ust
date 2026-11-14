@@ -180,3 +180,28 @@ fn assert_root_free_body(value: &Sexp) {
         | Sexp::NamesAssignment { .. } => panic!("unexpected bootstrap value: {value:?}"),
     }
 }
+
+#[test]
+fn source_internal_bodies_remain_inspectable_and_execute() {
+    for name in ["body", "formals", "bitwNot", "parent.env"] {
+        let (_, source) = definitions().find(|(key, _)| *key == name).unwrap();
+        let parsed = Parser.parse_all(source).unwrap();
+        let [Sexp::Function { body: expected, .. }] = parsed.expressions.as_slice() else {
+            panic!("expected source function");
+        };
+        let Sexp::Closure { body, .. } = template(name, source).unwrap() else {
+            panic!("expected closure");
+        };
+        assert_eq!(
+            canonical_language(&body),
+            canonical_language(expected),
+            "{name}"
+        );
+        assert!(canonical_language(&body).is_ok());
+    }
+    let mut frontend = crate::Frontend::default();
+    assert_eq!(
+        frontend.eval_source("bitwNot(1L)").unwrap(),
+        [Sexp::Integer(vec![Some(-2)])]
+    );
+}

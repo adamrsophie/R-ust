@@ -14,11 +14,21 @@
 // A copy of the GNU General Public License is available at
 // https://www.R-project.org/Licenses/
 
-pub(super) const DEFINITIONS: &[(&str, &str)] = &[(
-    "formals",
-    r#"function(fun = sys.function(sys.parent()), envir = parent.frame()) {
+pub(super) const DEFINITIONS: &[(&str, &str)] = &[
+    (
+        "formals",
+        r#"function(fun = sys.function(sys.parent()), envir = parent.frame()) {
         if(is.character(fun))
             fun <- get(fun, mode = "function", envir = envir)
         .Internal(formals(fun))
     }"#,
-)];
+    ),
+    (
+        "body",
+        r#"function(fun = sys.function(sys.parent())) {
+        if(is.character(fun))
+            fun <- get(fun, mode = "function", envir = parent.frame())
+        .Internal(body(fun))
+    }"#,
+    ),
+];

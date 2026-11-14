@@ -1,10 +1,11 @@
 use crate::{format_line, format_number, format_numeric_line, primitive_calls, EvalError, Sexp};
+mod closures;
 mod containers;
 mod lists;
 mod scalars;
 use containers::{format_data_frame, format_matrix};
 use lists::format_list;
-use scalars::{format_factor, format_function_signature};
+use scalars::format_factor;
 /// Formats a value without the output event's final newline.
 ///
 /// # Errors
@@ -68,7 +69,11 @@ pub fn format_sexp(value: &Sexp) -> Result<String, EvalError> {
         Sexp::Symbol(_) | Sexp::Call { .. } => {
             return crate::language_print::format_language(value).map_err(EvalError::from)
         }
-        Sexp::Closure { parameters, .. } => format_function_signature(parameters),
+        Sexp::Closure {
+            parameters,
+            body,
+            environment,
+        } => closures::format(parameters, body, environment)?,
         Sexp::Function { .. }
         | Sexp::If { .. }
         | Sexp::For { .. }

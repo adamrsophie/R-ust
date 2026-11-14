@@ -6,6 +6,7 @@ pub fn resolve(name: &str) -> Option<InternalOperation> {
         "parent.env" => Some(InternalOperation::ParentEnvironment),
         "environmentName" => Some(InternalOperation::EnvironmentName),
         "formals" => Some(InternalOperation::Formals),
+        "body" => Some(InternalOperation::Body),
         "bitwiseNot" => Some(InternalOperation::BitwiseNot),
         "bitwiseAnd" => Some(InternalOperation::BitwiseAnd),
         "bitwiseOr" => Some(InternalOperation::BitwiseOr),

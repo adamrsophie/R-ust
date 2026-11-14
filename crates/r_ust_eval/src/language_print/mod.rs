@@ -46,6 +46,19 @@ pub(super) fn format_language(value: &Sexp) -> Result<String, LanguagePrintError
     Ok(writer.output)
 }
 
+pub(super) fn format_closure(
+    parameters: &[crate::ListElement],
+    body: &Sexp,
+) -> Result<String, LanguagePrintError> {
+    let mut writer = Writer::default();
+    writer.emit("function (");
+    writer.formals(parameters)?;
+    writer.emit(") ");
+    writer.newline();
+    writer.write(body)?;
+    Ok(writer.output)
+}
+
 impl Writer {
     fn write(&mut self, value: &Sexp) -> Result<(), LanguagePrintError> {
         let argument = self.fnarg;

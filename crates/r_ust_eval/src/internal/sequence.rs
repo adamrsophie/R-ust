@@ -1,9 +1,21 @@
-use crate::{EvalError, EvaluatedArgument, RuntimeState, Sexp};
+use crate::{CallArgument, EvalError, EvalFlow, EvaluatedArgument, RuntimeState, Sexp};
 
 // R 4.6.0 src/main/seq.c do_sequence, GPL-2.0-or-later.
 // Copyright (C) 1998-2026 The R Core Team.
 // Copyright (C) 1995-1998 Robert Gentleman and Ross Ihaka.
 impl RuntimeState {
+    pub(super) fn sequence_dispatch(&mut self) -> Result<Sexp, EvalError> {
+        let EvalFlow::Value(_) = self.eval_flow(&Sexp::Symbol("nvec".into()))?;
+        let EvalFlow::Value(value) = self.eval_flow(&Sexp::Call {
+            function: Box::new(Sexp::Symbol("sequence.default".into())),
+            arguments: vec![
+                CallArgument::positional(Sexp::Symbol("nvec".into())),
+                CallArgument::positional(Sexp::Symbol("...".into())),
+            ],
+        })?;
+        Ok(value)
+    }
+
     pub(super) fn sequence(&mut self, args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
         let lengths = integer_values(&args[0].value, "nvec")?;
         let from = integer_values(&args[1].value, "from")?;

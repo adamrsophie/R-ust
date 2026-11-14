@@ -25,6 +25,10 @@ impl RuntimeState {
         operation: InternalOperation,
         arguments: &[CallArgument],
     ) -> Result<Sexp, EvalError> {
+        if operation == InternalOperation::SequenceDispatch {
+            arity::check(operation, arguments.len())?;
+            return self.sequence_dispatch();
+        }
         if operation == InternalOperation::EncodeStringWrapper {
             let value = self.encode_string_wrapper()?;
             self.visible = true;
@@ -48,6 +52,7 @@ impl RuntimeState {
             }
             InternalOperation::EnvironmentName => crate::environment_values::name(&args[0].value),
             InternalOperation::Formals => self.formals(&args[0].value),
+            InternalOperation::Body => self.body(&args[0].value),
             InternalOperation::BitwiseNot => self.bitwise_not(&args[0].value),
             InternalOperation::BitwiseAnd => self.bitwise_binary(bitwise::Binary::And, args),
             InternalOperation::BitwiseOr => self.bitwise_binary(bitwise::Binary::Or, args),
@@ -63,6 +68,7 @@ impl RuntimeState {
             ),
             InternalOperation::EncodeStringWrapper => self.encode_string_wrapper(),
             InternalOperation::Sequence => self.sequence(args),
+            InternalOperation::SequenceDispatch => self.sequence_dispatch(),
             InternalOperation::Utf8ToInt => self.utf8_to_int(&args[0].value),
             InternalOperation::IntToUtf8 => self.int_to_utf8(args),
             InternalOperation::FindInterval => find_interval::find_interval(args),

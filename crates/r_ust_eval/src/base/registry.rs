@@ -33,11 +33,10 @@ fn template(name: &str, source: &str) -> Result<Sexp, EvalError> {
         return Err(EvalError::NotImplemented("base closure bootstrap shape"));
     };
     let mut body = body.clone();
-    if name == "sequence" {
-        sequence::lower_generic(&mut body);
-    }
     if let Some(kernel) = run_length::lower(name) {
         *body = kernel;
+    } else if name == "sequence" {
+        sequence::lower_generic(&mut body);
     } else if name == "encodeString" {
         *body = Sexp::InternalCall {
             operation: r_ust_sexp::InternalOperation::EncodeStringWrapper,

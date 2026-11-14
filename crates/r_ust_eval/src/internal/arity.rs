@@ -6,6 +6,7 @@ pub(super) fn check(operation: InternalOperation, count: usize) -> Result<(), Ev
         InternalOperation::ParentEnvironment => ("parent.env", 1),
         InternalOperation::EnvironmentName => ("environmentName", 1),
         InternalOperation::Formals => ("formals", 1),
+        InternalOperation::Body => ("body", 1),
         InternalOperation::BitwiseNot => ("bitwiseNot", 1),
         InternalOperation::BitwiseAnd => ("bitwiseAnd", 2),
         InternalOperation::BitwiseOr => ("bitwiseOr", 2),
@@ -19,6 +20,7 @@ pub(super) fn check(operation: InternalOperation, count: usize) -> Result<(), Ev
         InternalOperation::EncodeString => ("encodeString", 5),
         InternalOperation::EncodeStringWrapper => ("encodeString wrapper", 0),
         InternalOperation::Sequence => ("sequence", 4),
+        InternalOperation::SequenceDispatch => ("sequence dispatch", 0),
         InternalOperation::Utf8ToInt => ("utf8ToInt", 1),
         InternalOperation::IntToUtf8 => ("intToUtf8", 3),
         InternalOperation::FindInterval => ("findInterval", 6),
@@ -45,6 +47,7 @@ pub(super) fn check(operation: InternalOperation, count: usize) -> Result<(), Ev
         | InternalOperation::ParentEnvironment
         | InternalOperation::EnvironmentName
         | InternalOperation::Formals
+        | InternalOperation::Body
         | InternalOperation::BitwiseAnd
         | InternalOperation::BitwiseOr
         | InternalOperation::BitwiseXor
@@ -57,6 +60,7 @@ pub(super) fn check(operation: InternalOperation, count: usize) -> Result<(), Ev
         | InternalOperation::EncodeString
         | InternalOperation::EncodeStringWrapper
         | InternalOperation::Sequence
+        | InternalOperation::SequenceDispatch
         | InternalOperation::Vector
         | InternalOperation::Utf8ToInt
         | InternalOperation::IntToUtf8

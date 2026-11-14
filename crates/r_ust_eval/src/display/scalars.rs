@@ -1,4 +1,4 @@
-use crate::{factor_strings, format_line, FunctionParameter};
+use crate::{factor_strings, format_line};
 pub(super) fn format_factor(codes: &[Option<usize>], levels: &[String], ordered: bool) -> String {
     let values = factor_strings(codes, levels)
         .into_iter()
@@ -14,19 +14,4 @@ pub(super) fn format_factor(codes: &[Option<usize>], levels: &[String], ordered:
     } else {
         format!("{}\n{levels_line}", format_line(values))
     }
-}
-
-pub(super) fn format_function_signature(parameters: &[FunctionParameter]) -> String {
-    let params = parameters
-        .iter()
-        .map(|parameter| {
-            if parameter.default.is_some() {
-                format!("{} = <default>", parameter.name)
-            } else {
-                parameter.name.clone()
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(", ");
-    format!("function({params})")
 }

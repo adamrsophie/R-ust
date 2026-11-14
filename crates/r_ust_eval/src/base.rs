@@ -48,15 +48,11 @@ fn lower(value: &mut Sexp) -> Result<(), EvalError> {
                 let Sexp::Symbol(name) = function.as_ref() else {
                     return Err(EvalError::Type("invalid base internal identity".into()));
                 };
-                let operation = super::internal::resolve(name)
+                super::internal::resolve(name)
                     .ok_or(EvalError::NotImplemented("unresolved R internal"))?;
                 for argument in arguments.iter_mut() {
                     lower(&mut argument.value)?;
                 }
-                *value = Sexp::InternalCall {
-                    operation,
-                    arguments: std::mem::take(arguments),
-                };
             } else {
                 lower(function)?;
                 for argument in arguments {
