@@ -1,5 +1,22 @@
 # R-ust
 
+## Porting progress
+
+Target: **R 4.6.0**. Updated **November 14, 2026**.
+
+| Tracked area | Done | Partial | Missing | Total |
+| --- | ---: | ---: | ---: | ---: |
+| Core language features | 92 | 35 | 59 | 186 |
+| Base-distribution exported objects | 214 | 154 | 3,186 | 3,554 |
+
+**49.5% of tracked language features are done.** Counts reflect the latest recorded inventory and targeted updates, not an exhaustive compatibility audit or a percentage of the entire R port. Recommended packages are not included. “Done” means the recorded reference checks passed; “Partial” means known gaps remain.
+
+- **Latest verified milestone:** [dynamic frames, source dispatch, and condition unwinding](https://github.com/adamrsophie/R-ust/commit/3e26f056f83d390059da8e373a502e212a774ed9), with 689 passing tests and 1,030 CLI comparisons for that milestone.
+- **In progress:** canonical language execution, `substitute()`, and expression vectors. Prepared work is not counted as complete.
+- **Next:** `eval()` / `evalq()`, followed by remaining language, runtime, and package coverage.
+
+## Overview
+
 R-ust is an implementation of the R language in Rust, targeting compatibility with R 4.6.0.
 
 [Project website](https://adamrsophie.github.io/R-ust/)
