@@ -976,7 +976,12 @@ impl Frontend {
     pub fn eval_source_printed(&mut self, source: &str) -> Result<(), EvalError> {
         for parsed in self.parser.parse_iter(source) {
             let parsed = parsed.map_err(|error| EvalError::Parse(error.message))?;
-            self.runtime.record_parse_warnings(&parsed.warnings)?;
+            if let Err(error) = self.runtime.record_parse_warnings(&parsed.warnings) {
+                return self
+                    .runtime
+                    .finish_parse_warnings(Err(error))
+                    .map_err(EvalError::unhandled);
+            }
             for expr in &parsed.expressions {
                 self.eval_printed(expr)?;
             }
