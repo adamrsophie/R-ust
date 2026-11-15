@@ -37,6 +37,9 @@ pub(super) fn bind_data_frame_columns(args: &[&EvaluatedArgument]) -> Result<Sex
             Sexp::ClassedList {
                 elements: values, ..
             }
+            | Sexp::NamedList {
+                elements: values, ..
+            }
             | Sexp::List(values)
             | Sexp::Dots(values) => {
                 for (index, element) in values.iter().enumerate() {
@@ -125,6 +128,9 @@ pub(super) fn bind_data_frame_rows(args: &[&EvaluatedArgument]) -> Result<Sexp, 
             Sexp::ClassedList {
                 elements: values, ..
             }
+            | Sexp::NamedList {
+                elements: values, ..
+            }
             | Sexp::List(values)
             | Sexp::Dots(values) => {
                 let row = values
@@ -167,6 +173,9 @@ pub(super) fn data_frame_cbind_nrow(args: &[&EvaluatedArgument]) -> Result<usize
                 nrow = nrow.max(*rows);
             }
             Sexp::ClassedList {
+                elements: values, ..
+            }
+            | Sexp::NamedList {
                 elements: values, ..
             }
             | Sexp::List(values)

@@ -1,0 +1,2 @@
+Warning in deparse(quote(f(x)), width.cutoff = NA_integer_) :
+  invalid 'cutoff' value for 'deparse', using default

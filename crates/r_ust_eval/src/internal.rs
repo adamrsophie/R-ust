@@ -5,14 +5,25 @@ pub(crate) use site::InternalSite;
 mod bitwise;
 mod character;
 mod conditions;
+mod deparse;
 mod dispatch;
 mod find_interval;
+#[cfg(test)]
+mod formatting_tests;
+mod get;
+mod invocation;
+mod is_vector;
+mod lapply;
 mod logical;
 mod partial_match;
 mod sequence;
+pub(crate) mod sprintf;
 mod strtoi;
+mod symbol;
+mod translation;
 mod unicode;
 mod vector;
+mod warning;
 
 use character::character_values;
 pub use dispatch::resolve;
@@ -34,18 +45,31 @@ impl RuntimeState {
             self.visible = true;
             return Ok(value);
         }
+        if operation == InternalOperation::Lapply {
+            self.internal_arity(operation, arguments.len(), site.inner)?;
+            let result = self.internal_lapply(arguments, site.inner.unwrap_or(site.outer))?;
+            self.visible = true;
+            return Ok(result);
+        }
         let args = self.eval_arguments(arguments, true, Some(site.outer))?;
         let value = self.call_internal(operation, &args, site.inner)?;
-        self.visible = !matches!(
+        if !matches!(
             operation,
-            InternalOperation::AddConditionHandlers
-                | InternalOperation::ResetConditionHandlers
-                | InternalOperation::PrintDefault
-        );
+            InternalOperation::Eval | InternalOperation::DoCall
+        ) {
+            self.visible = !matches!(
+                operation,
+                InternalOperation::AddConditionHandlers
+                    | InternalOperation::ResetConditionHandlers
+                    | InternalOperation::PrintDefault
+                    | InternalOperation::Warning
+                    | InternalOperation::Assign
+            );
+        }
         Ok(value)
     }
 
-    fn call_internal(
+    pub(super) fn call_internal(
         &mut self,
         operation: InternalOperation,
         args: &[EvaluatedArgument],
@@ -53,6 +77,15 @@ impl RuntimeState {
     ) -> Result<Sexp, EvalError> {
         self.internal_arity(operation, args.len(), inner_call)?;
         match operation {
+            InternalOperation::Identical => {
+                crate::identity::call(args, &self.source_current_call())
+            }
+            InternalOperation::Eval => self.internal_eval(args),
+            InternalOperation::Assign => self.internal_assign(args),
+            InternalOperation::Sprintf => self.internal_sprintf(args),
+            InternalOperation::Deparse => self.internal_deparse(args),
+            InternalOperation::Ngettext => self.internal_ngettext(args),
+            InternalOperation::L10nInfo => self.internal_l10n_info(),
             InternalOperation::PrintDefault => self.print_default(args),
             InternalOperation::Environment => self.function_environment(&args[0].value),
             InternalOperation::NewEnvironment => self.new_environment(args),
@@ -90,7 +123,33 @@ impl RuntimeState {
             InternalOperation::Strtoi => strtoi::convert(&args[0].value, &args[1].value),
             InternalOperation::Pmatch => self.partial_match(args, false),
             InternalOperation::Charmatch => self.partial_match(args, true),
-            InternalOperation::AsVector => crate::list_attributes::as_vector(args),
+            InternalOperation::IsVector => is_vector::test(args, &self.source_current_call()),
+            InternalOperation::AsVector => {
+                if matches!(args[1].value.character_values(), Some([Some(mode)]) if mode == "symbol" || mode == "name")
+                {
+                    symbol::convert(&args[0].value).map_err(|error| match error {
+                        EvalError::Domain(message) => {
+                            crate::SourceFault::domain(message, &self.source_current_call())
+                        }
+                        EvalError::Type(message) => {
+                            crate::SourceFault::type_error(message, &self.source_current_call())
+                        }
+                        other => other,
+                    })
+                } else {
+                    crate::list_attributes::as_vector(args)
+                }
+            }
+            InternalOperation::Warning => self.internal_warning(args),
+            InternalOperation::Lapply => Err(EvalError::Control(
+                "lapply requires unevaluated arguments".into(),
+            )),
+            InternalOperation::DoCall => self.internal_do_call(args),
+            InternalOperation::Get => self.internal_get(args),
+            InternalOperation::AddRestart => self.add_restart(args),
+            InternalOperation::GetRestart => self.get_restart(args),
+            InternalOperation::InvokeRestart => self.invoke_restart(args),
+            InternalOperation::DefaultWarning => self.default_condition_warning(args),
             InternalOperation::Vector => self.make_vector(&args[0].value, &args[1].value),
             InternalOperation::Stop => stop::stop(
                 args,

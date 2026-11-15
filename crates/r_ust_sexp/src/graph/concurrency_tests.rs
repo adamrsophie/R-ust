@@ -15,6 +15,7 @@ fn graph_concurrency_exports_survive_original_root_drop() {
         .insert(
             "f".into(),
             &Sexp::Closure {
+                attributes: Vec::new(),
                 parameters: vec![],
                 body: Box::new(Sexp::Nil),
                 environment: ClosureEnvironment::Captured(child.clone()),

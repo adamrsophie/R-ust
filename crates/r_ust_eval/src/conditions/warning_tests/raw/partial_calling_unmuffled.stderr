@@ -1,0 +1,2 @@
+Warning in is.vector(m = "expression", x = expression(x)) :
+  partial argument match of 'm' to 'mode'

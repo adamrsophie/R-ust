@@ -12,8 +12,10 @@ Target: **R 4.6.0**. Updated **November 14, 2026**.
 **49.5% of tracked language features are done.** Counts reflect the latest recorded inventory and targeted updates, not an exhaustive compatibility audit or a percentage of the entire R port. Recommended packages are not included. “Done” means the recorded reference checks passed; “Partial” means known gaps remain.
 
 - **Latest verified milestone:** [dynamic frames, source dispatch, and condition unwinding](https://github.com/adamrsophie/R-ust/commit/3e26f056f83d390059da8e373a502e212a774ed9), with 689 passing tests and 1,030 CLI comparisons for that milestone.
-- **In progress:** canonical language execution, `substitute()`, and expression vectors. Prepared work is not counted as complete.
-- **Next:** `eval()` / `evalq()`, followed by remaining language, runtime, and package coverage.
+- **Development checkpoint:** canonical execution, `substitute()`, expression vectors, `eval()` / `evalq()`, warning/restart handling, formatting, and initial bytecode execution are included as unfinished work. This checkpoint is not a validated release; completion counts above remain unchanged.
+- **Focused verification:** 94 graph tests passed. Selected evaluator suites recorded 461 passes and 4 failures. These are isolated-checkout results, not a full-workspace test pass.
+- **Known open work:** bytecode registration and missing-argument checks for `identical()`, a compiled-body inventory assertion, the `unclass()` dependency, atomic attributes, complex superassignment, and nested mutation sharing. Additional compatibility gaps remain.
+- **Next:** close those failures, run broader CLI and regression checks, and push smaller verified milestones.
 
 ## Overview
 

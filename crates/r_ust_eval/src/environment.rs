@@ -131,7 +131,10 @@ impl RuntimeState {
     ) -> Result<ApplyFunction, EvalError> {
         if let Sexp::Parenthesized(inner) = expr {
             match self.require_function("(", true)? {
-                ApplyFunction::Builtin(_) => return self.resolve_parenthesized_function(inner),
+                ApplyFunction::Builtin(_)
+                | ApplyFunction::Primitive(r_ust_sexp::PrimitiveId::Syntax(
+                    r_ust_sexp::SyntaxPrimitive::Parenthesis,
+                )) => return self.resolve_parenthesized_function(inner),
                 function => {
                     let EvalFlow::Value(value) = self.call_resolved(
                         function,
@@ -155,9 +158,15 @@ impl RuntimeState {
         &mut self,
         expr: &Sexp,
     ) -> Result<ApplyFunction, EvalError> {
+        if matches!(expr, Sexp::Call { .. }) {
+            return self.resolve_evaluated_head(expr, expr);
+        }
         if let Sexp::Parenthesized(inner) = expr {
             return match self.require_function("(", true)? {
-                ApplyFunction::Builtin(_) => self.resolve_parenthesized_function(inner),
+                ApplyFunction::Builtin(_)
+                | ApplyFunction::Primitive(r_ust_sexp::PrimitiveId::Syntax(
+                    r_ust_sexp::SyntaxPrimitive::Parenthesis,
+                )) => self.resolve_parenthesized_function(inner),
                 function => {
                     let EvalFlow::Value(value) = self.call_resolved(
                         function,
@@ -199,7 +208,11 @@ impl RuntimeState {
 
     pub(super) fn eval_parenthesized(&mut self, value: &Sexp) -> Result<EvalFlow, EvalError> {
         match self.require_function("(", true)? {
-            ApplyFunction::Builtin(_) => self.eval_flow(value),
+            ApplyFunction::Builtin(_) => {
+                let result = self.eval_flow(value)?;
+                self.visible = true;
+                Ok(result)
+            }
             function => self.call_resolved(
                 function,
                 &[CallArgument::positional(value.clone())],

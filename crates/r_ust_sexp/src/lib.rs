@@ -4,19 +4,24 @@ mod character;
 mod graph;
 mod language;
 mod language_types;
+mod list_metadata;
 mod operators;
 mod primitive;
 mod promise;
+mod syntax_primitive;
+pub use list_metadata::OrdinaryListView;
 mod value;
 
 pub use language::{canonical_actual_call, canonical_language};
 pub use language_types::{AssignmentOperator, LanguageError, MemberName, PairList};
 pub use primitive::PrimitiveId;
+pub use syntax_primitive::SyntaxPrimitive;
 pub use value::{ClosureEnvironment, InternalOperation, Sexp};
 
 pub use graph::{
-    Environment, EnvironmentRole, Force, ForceLease, GraphError, ListObject, PairListObject,
-    PromiseState,
+    bytecode_source, BytecodeObject, BytecodeParts, Environment, EnvironmentRole, Force,
+    ForceLease, GraphError, ListObject, PairListObject, PromiseMetadata, PromiseState,
+    ValueRetention,
 };
 pub use operators::BinaryOp;
 pub use promise::{EvaluationEnvironmentId, EvaluationOrigin, EvaluationSessionId};
@@ -206,6 +211,7 @@ impl Sexp {
     pub const fn sexptype(&self) -> SexpType {
         match self {
             Self::Nil => SexpType::Nil,
+            Self::Bytecode(_) => SexpType::Bytecode,
             Self::Environment(_) => SexpType::Environment,
             Self::Primitive(id) => id.sexptype(),
             Self::MissingArg(_) => SexpType::Promise,
@@ -215,8 +221,12 @@ impl Sexp {
             Self::Real(_) => SexpType::Real,
             Self::String(_) | Self::AttributedCharacter { .. } => SexpType::String,
             Self::Char(_) => SexpType::Char,
+            Self::Expression { .. } => SexpType::Expression,
             Self::Vector(_) => SexpType::Vector,
-            Self::ClassedList { .. } | Self::List(_) | Self::ListObject(_) => SexpType::Vector,
+            Self::NamedList { .. }
+            | Self::ClassedList { .. }
+            | Self::List(_)
+            | Self::ListObject(_) => SexpType::Vector,
             Self::PairList(_) | Self::PairListObject(_) => SexpType::List,
             Self::Factor { .. } => SexpType::Integer,
             Self::DataFrame { .. } => SexpType::Vector,

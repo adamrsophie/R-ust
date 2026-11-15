@@ -1,0 +1,41 @@
+use super::*;
+pub(super) fn rows() -> Vec<Row> {
+    vec![
+        Row {
+            id: "function_unchanged",
+            setup: "f <- function() 1L",
+            source: "identical(eval(f), f)",
+            after: "",
+            expected: Some(Sexp::Logical(vec![Some(true)])),
+            visible: Some(true),
+            stdout: "",
+            error: None,
+            expected_type: Some("logical"),
+            class: &["logical"],
+            mode: Some("logical"),
+            length: Some(1),
+            print: "[1] TRUE",
+            warnings: &[],
+            warning_calls: &[],
+            warning_classes: &[],
+        },
+        Row {
+            id: "environment_unchanged",
+            setup: "e <- new.env()",
+            source: "identical(eval(e), e)",
+            after: "",
+            expected: Some(Sexp::Logical(vec![Some(true)])),
+            visible: Some(true),
+            stdout: "",
+            error: None,
+            expected_type: Some("logical"),
+            class: &["logical"],
+            mode: Some("logical"),
+            length: Some(1),
+            print: "[1] TRUE",
+            warnings: &[],
+            warning_calls: &[],
+            warning_classes: &[],
+        },
+    ]
+}

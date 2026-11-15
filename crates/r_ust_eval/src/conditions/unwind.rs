@@ -47,6 +47,12 @@ impl RuntimeState {
             return Err(EvalError::Control("missing exiting context".into()));
         };
         let saved_head = context.handler_stack.clone();
+        let saved_restarts = context.restart_stack.clone();
+        if matches!(pending, Err(EvalError::Quit(_))) {
+            self.conditions.head = saved_head;
+            self.conditions.restarts = saved_restarts;
+            return pending;
+        }
         if pending.is_err() {
             let target = jump_target(&pending);
             if context.cleanup.is_empty() && target != Some(context.kind) {
@@ -56,6 +62,7 @@ impl RuntimeState {
         } else {
             self.conditions.unwind(&saved_head)?;
         }
+        self.conditions.restarts = saved_restarts.clone();
         let mut saved_visibility = self.visible;
         loop {
             let action = self
@@ -75,6 +82,11 @@ impl RuntimeState {
             self.current = context.execution.clone();
             let remaining = context.cleanup.clone();
             match self.eval_flow(&action) {
+                Err(error @ EvalError::Quit(_)) => {
+                    self.conditions.head = saved_head;
+                    self.conditions.restarts = saved_restarts;
+                    return Err(error);
+                }
                 Ok(_) => {
                     let Some(context) = self.control.contexts.last_mut() else {
                         return Err(EvalError::Control("missing cleanup context".into()));
@@ -85,6 +97,7 @@ impl RuntimeState {
                     pending = Err(error);
                     saved_visibility = self.visible;
                     self.conditions.head = saved_head.clone();
+                    self.conditions.restarts = saved_restarts.clone();
                 }
             }
         }

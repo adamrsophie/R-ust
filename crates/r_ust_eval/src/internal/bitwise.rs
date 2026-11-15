@@ -86,6 +86,7 @@ impl RuntimeState {
                 | Sexp::String(_)
                 | Sexp::AttributedCharacter { .. }
                 | Sexp::Vector(_)
+                | Sexp::NamedList { .. }
                 | Sexp::ClassedList { .. }
                 | Sexp::List(_)
                 | Sexp::ListObject(_)

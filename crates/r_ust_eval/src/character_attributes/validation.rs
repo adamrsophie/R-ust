@@ -33,7 +33,7 @@ impl Validator {
         }
         let projection = ordinary_values::read(value)?;
         let value = projection.as_ref();
-        if let Sexp::ClassedList { class, .. } = value {
+        if let Some(class) = value.ordinary_list().and_then(|view| view.class) {
             check_class(class)?;
             self.visit(class)?;
         }
@@ -62,7 +62,9 @@ impl Validator {
             Sexp::Char(value) if value.as_ref().is_some_and(|value| value.contains('\0')) => {
                 return Err(EvalError::NotImplemented("CHARSXP with embedded NUL"));
             }
-            Sexp::List(elements)
+            Sexp::Expression { elements, .. }
+            | Sexp::NamedList { elements, .. }
+            | Sexp::List(elements)
             | Sexp::Dots(elements)
             | Sexp::ClassedList { elements, .. }
             | Sexp::DataFrame {

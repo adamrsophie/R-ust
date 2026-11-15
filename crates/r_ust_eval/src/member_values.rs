@@ -9,10 +9,20 @@ use super::{
 pub(super) fn extract_value(value: &Sexp, index: &Sexp) -> Result<Sexp, EvalError> {
     let projection = crate::ordinary_values::read(value)?;
     let value = projection.as_ref();
+    if let Sexp::Expression {
+        elements,
+        names_present,
+    } = value
+    {
+        return crate::expression_values::extract((elements, *names_present), index);
+    }
     if let Sexp::PairList(values) = value {
         return extract_value(&Sexp::List(values.as_slice().to_vec()), index);
     }
     if let Ok(name) = string_scalar(index, "extraction index") {
+        if name.is_empty() && value.ordinary_list().is_some() {
+            return Ok(Sexp::Nil);
+        }
         return match value {
             Sexp::DataFrame { columns, .. } => Ok(columns
                 .iter()
@@ -20,6 +30,9 @@ pub(super) fn extract_value(value: &Sexp, index: &Sexp) -> Result<Sexp, EvalErro
                 .map(|element| element.value.clone())
                 .unwrap_or(Sexp::Nil)),
             Sexp::ClassedList {
+                elements: values, ..
+            }
+            | Sexp::NamedList {
                 elements: values, ..
             }
             | Sexp::List(values) => Ok(values
@@ -78,6 +91,9 @@ pub(super) fn extract_value(value: &Sexp, index: &Sexp) -> Result<Sexp, EvalErro
         Sexp::ClassedList {
             elements: values, ..
         }
+        | Sexp::NamedList {
+            elements: values, ..
+        }
         | Sexp::List(values) => Ok(values
             .get(position)
             .map(|element| element.value.clone())
@@ -102,6 +118,9 @@ pub(super) fn dollar_value(value: &Sexp, name: &str) -> Result<Sexp, EvalError> 
             .map(|element| element.value.clone())
             .unwrap_or(Sexp::Nil)),
         Sexp::ClassedList {
+            elements: values, ..
+        }
+        | Sexp::NamedList {
             elements: values, ..
         }
         | Sexp::List(values) => Ok(values
@@ -138,6 +157,33 @@ pub(super) fn extract_assign_value(
         return assign_list_name(value, &name, replacement);
     }
 
+    if let Some(view) = value.ordinary_list() {
+        let mut out = view.elements.to_vec();
+        let position = extraction_position(index)?;
+        if matches!(replacement, Sexp::Nil) {
+            if position < out.len() {
+                out.remove(position);
+            }
+        } else {
+            assign_list_position(&mut out, position, replacement);
+            if view.names_present {
+                for element in out.iter_mut().skip(view.elements.len()) {
+                    element.name = Some(String::new());
+                }
+            }
+        }
+        let class = view.class.map(|class| {
+            (
+                class.clone(),
+                if out.len() != view.elements.len() && view.names_present {
+                    false
+                } else {
+                    view.class_first
+                },
+            )
+        });
+        return Ok(Sexp::list_with_metadata(out, view.names_present, class));
+    }
     match value {
         Sexp::DataFrame { columns, nrow } => {
             let mut out = columns.clone();
@@ -165,28 +211,6 @@ pub(super) fn extract_assign_value(
                 columns: out,
                 nrow: new_nrow,
             })
-        }
-        Sexp::ClassedList {
-            elements: values, ..
-        }
-        | Sexp::List(values) => {
-            let mut out = values.clone();
-            let position = extraction_position(index)?;
-            if matches!(replacement, Sexp::Nil) {
-                if position < out.len() {
-                    out.remove(position);
-                }
-            } else {
-                assign_list_position(&mut out, position, replacement);
-            }
-            let reconstructed = out.len() != values.len();
-            let mut result = crate::list_attributes::preserve_class(value, out);
-            if reconstructed && values.iter().any(|element| element.name.is_some()) {
-                if let Sexp::ClassedList { class_first, .. } = &mut result {
-                    *class_first = false;
-                }
-            }
-            Ok(result)
         }
         Sexp::Nil if matches!(replacement, Sexp::Nil) => Ok(Sexp::Nil),
         Sexp::Nil => {

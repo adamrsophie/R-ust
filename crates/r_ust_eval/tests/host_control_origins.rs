@@ -53,6 +53,7 @@ fn legacy_global_host_origin_is_detached_from_runtime_loops() {
         let state =
             PromiseState::new(&expression, &frame, EvaluationOrigin::default(), true).unwrap();
         let closure = Sexp::Closure {
+            attributes: Vec::new(),
             parameters: vec![],
             body: Box::new(Sexp::Promise { state }),
             environment: ClosureEnvironment::Base,

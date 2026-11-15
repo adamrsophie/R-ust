@@ -60,6 +60,7 @@ fn nested_closure_display_preserves_prefixes() {
 #[test]
 fn optimized_sdk_body_fails_explicitly() {
     let closure = Sexp::Closure {
+        attributes: Vec::new(),
         parameters: vec![],
         body: Box::new(Sexp::InternalCall {
             operation: InternalOperation::Formals,

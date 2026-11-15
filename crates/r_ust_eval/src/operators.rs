@@ -1,8 +1,7 @@
-use r_ust_sexp::PrimitiveId;
-
+mod arithmetic;
 use super::{
-    logical_values, numeric_values, BinaryOp, CallArgument, EvalError, EvalFlow, EvaluatedArgument,
-    RuntimeState, Sexp, UnaryOp,
+    logical_values, numeric_values, BinaryOp, CallArgument, EvalError, EvalFlow, RuntimeState,
+    Sexp, UnaryOp,
 };
 
 impl RuntimeState {
@@ -45,6 +44,15 @@ impl RuntimeState {
             };
             return self.call_resolved(function, &arguments, &call);
         }
+        self.eval_selected_binary(op, operands)
+    }
+
+    pub(super) fn eval_selected_binary(
+        &mut self,
+        op: BinaryOp,
+        operands: (&Sexp, &Sexp),
+    ) -> Result<EvalFlow, EvalError> {
+        let (left, right) = operands;
         let EvalFlow::Value(left) = self.eval_flow(left)?;
         if matches!(op, BinaryOp::AndScalar | BinaryOp::OrScalar) {
             match (
@@ -92,79 +100,6 @@ impl RuntimeState {
         self.visible = true;
         Ok(EvalFlow::Value(result))
     }
-
-    pub(super) fn call_arithmetic(
-        &mut self,
-        id: PrimitiveId,
-        arguments: &[EvaluatedArgument],
-    ) -> Result<Sexp, EvalError> {
-        let op = match id {
-            PrimitiveId::Add => BinaryOp::Add,
-            PrimitiveId::Subtract => BinaryOp::Subtract,
-            PrimitiveId::Multiply => BinaryOp::Multiply,
-            PrimitiveId::Divide => BinaryOp::Divide,
-            PrimitiveId::Power => BinaryOp::Power,
-            PrimitiveId::Modulo => BinaryOp::Modulo,
-            PrimitiveId::IntegerDivide => BinaryOp::IntegerDivide,
-            PrimitiveId::Colon => BinaryOp::Sequence,
-            PrimitiveId::Sum
-            | PrimitiveId::GlobalEnv
-            | PrimitiveId::BaseEnv
-            | PrimitiveId::EmptyEnv
-            | PrimitiveId::IsEnvironment
-            | PrimitiveId::Primitive
-            | PrimitiveId::Length
-            | PrimitiveId::Invisible
-            | PrimitiveId::Return
-            | PrimitiveId::Missing
-            | PrimitiveId::Quote
-            | PrimitiveId::UseMethod
-            | PrimitiveId::OnExit
-            | PrimitiveId::Nargs => {
-                return Err(EvalError::NotImplemented("non-arithmetic primitive"))
-            }
-        };
-        if id == PrimitiveId::Colon && arguments.len() != 2 {
-            return Err(EvalError::Arity(format!(
-                "{} argument{} passed to ':' which requires 2",
-                arguments.len(),
-                if arguments.len() == 1 { "" } else { "s" }
-            )));
-        }
-        match arguments {
-            [left, right] => self.eval_binary(op, (&left.value, &right.value)),
-            [value] => match id {
-                PrimitiveId::Add => eval_unary(UnaryOp::Plus, &value.value),
-                PrimitiveId::Subtract => eval_unary(UnaryOp::Minus, &value.value),
-                PrimitiveId::Multiply
-                | PrimitiveId::Divide
-                | PrimitiveId::Power
-                | PrimitiveId::Modulo
-                | PrimitiveId::IntegerDivide => {
-                    unary_numbers(&value.value)?;
-                    Err(EvalError::Type("invalid unary operator".into()))
-                }
-                PrimitiveId::Colon
-                | PrimitiveId::GlobalEnv
-                | PrimitiveId::BaseEnv
-                | PrimitiveId::EmptyEnv
-                | PrimitiveId::IsEnvironment
-                | PrimitiveId::Sum
-                | PrimitiveId::Primitive
-                | PrimitiveId::Length
-                | PrimitiveId::Invisible
-                | PrimitiveId::Return
-                | PrimitiveId::Missing
-                | PrimitiveId::Quote
-                | PrimitiveId::UseMethod
-                | PrimitiveId::OnExit
-                | PrimitiveId::Nargs => Err(EvalError::NotImplemented("non-unary primitive")),
-            },
-            _ => Err(EvalError::Arity(
-                "operator needs one or two arguments".into(),
-            )),
-        }
-    }
 }
 
 fn unary_numbers(value: &Sexp) -> Result<Vec<f64>, EvalError> {
@@ -177,7 +112,7 @@ fn unary_numbers(value: &Sexp) -> Result<Vec<f64>, EvalError> {
     })
 }
 
-fn eval_unary(op: UnaryOp, value: &Sexp) -> Result<Sexp, EvalError> {
+pub(super) fn eval_unary(op: UnaryOp, value: &Sexp) -> Result<Sexp, EvalError> {
     if op == UnaryOp::Not && matches!(value, Sexp::Environment(_)) {
         return Err(EvalError::Type("invalid argument type".into()));
     }

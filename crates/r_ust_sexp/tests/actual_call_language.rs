@@ -51,6 +51,7 @@ fn runtime_leaves_keep_identity_without_relaxing_strict_language(
         true,
     )?;
     let closure = Sexp::Closure {
+        attributes: Vec::new(),
         parameters: vec![],
         body: Box::new(Sexp::Integer(vec![Some(7)])),
         environment: ClosureEnvironment::Captured(frame.clone()),
@@ -120,6 +121,7 @@ fn actual_calls_do_not_publish_internal_dispatch_language() {
 fn runtime_closure_is_an_opaque_value_not_a_public_body_conversion(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let closure = Sexp::Closure {
+        attributes: Vec::new(),
         parameters: vec![],
         body: Box::new(Sexp::InternalCall {
             operation: InternalOperation::Vector,

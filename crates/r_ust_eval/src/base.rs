@@ -1,18 +1,26 @@
+mod apply_sources;
 mod bitwise;
+mod bytecode;
 mod conditions;
 mod constants;
 mod definitions;
+mod deparse_sources;
 mod encode_string;
 mod environments;
 mod evaluation;
 mod formals;
+mod format_sources;
+mod invocation_sources;
 mod list_values;
 mod printing;
+mod quote_sources;
 mod registry;
+mod restart_sources;
 mod rowsum;
 mod run_length;
 mod sequence;
 mod session;
+mod warning_sources;
 
 use super::{EvalError, Parser, Sexp};
 
@@ -88,7 +96,8 @@ fn lower(value: &mut Sexp) -> Result<(), EvalError> {
                 lower(value)?;
             }
         }
-        Sexp::ReplacementAssignment { target, value, .. } => {
+        Sexp::ReplacementAssignment { target, value, .. }
+        | Sexp::MemberAssignment { target, value, .. } => {
             lower(target)?;
             lower(value)?;
         }
@@ -108,6 +117,22 @@ fn lower(value: &mut Sexp) -> Result<(), EvalError> {
             lower(value)?;
             lower(index)?;
         }
+        Sexp::For { sequence, body, .. } => {
+            lower(sequence)?;
+            lower(body)?;
+        }
+        Sexp::While { condition, body } => {
+            lower(condition)?;
+            lower(body)?;
+        }
+        Sexp::Repeat { body } => lower(body)?,
+        Sexp::ExtractAssignment { index, value, .. } => {
+            lower(index)?;
+            lower(value)?;
+        }
+        Sexp::DollarAssignment { value, .. }
+        | Sexp::NamesAssignment { value, .. }
+        | Sexp::SuperAssignment { value, .. } => lower(value)?,
         Sexp::Assignment { value, .. } | Sexp::Unary { value, .. } | Sexp::Parenthesized(value) => {
             lower(value)?
         }
@@ -115,13 +140,19 @@ fn lower(value: &mut Sexp) -> Result<(), EvalError> {
             lower(left)?;
             lower(right)?;
         }
-        Sexp::Nil | Sexp::Symbol(_) | Sexp::Logical(_) | Sexp::Integer(_) | Sexp::String(_) => {}
+        Sexp::Nil
+        | Sexp::Symbol(_)
+        | Sexp::Logical(_)
+        | Sexp::Integer(_)
+        | Sexp::Real(_)
+        | Sexp::String(_) => {}
         Sexp::MissingArg(_)
         | Sexp::AttributedCharacter { .. }
         | Sexp::MissingValue
+        | Sexp::Expression { .. }
         | Sexp::PairList(_)
-        | Sexp::Real(_)
         | Sexp::Vector(_)
+        | Sexp::NamedList { .. }
         | Sexp::ClassedList { .. }
         | Sexp::List(_)
         | Sexp::Factor { .. }
@@ -134,21 +165,14 @@ fn lower(value: &mut Sexp) -> Result<(), EvalError> {
         | Sexp::ListObject(_)
         | Sexp::PairListObject(_)
         | Sexp::Environment(_)
+        | Sexp::Bytecode(_)
         | Sexp::Primitive(_)
         | Sexp::InternalCall { .. }
-        | Sexp::For { .. }
-        | Sexp::While { .. }
-        | Sexp::Repeat { .. }
         | Sexp::Break
         | Sexp::Next
         | Sexp::Subset2D { .. }
-        | Sexp::SuperAssignment { .. }
         | Sexp::Subassignment { .. }
-        | Sexp::MatrixSubassignment { .. }
-        | Sexp::ExtractAssignment { .. }
-        | Sexp::DollarAssignment { .. }
-        | Sexp::MemberAssignment { .. }
-        | Sexp::NamesAssignment { .. } => {
+        | Sexp::MatrixSubassignment { .. } => {
             return Err(EvalError::NotImplemented("base bootstrap expression"))
         }
     }

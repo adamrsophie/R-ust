@@ -29,6 +29,7 @@ fn autoload_generic_definition_environment_is_base() -> Result<(), Box<dyn std::
         parameters,
         body,
         environment: ClosureEnvironment::Captured(global),
+        attributes,
     } = generic
     else {
         return Err("generic must be a captured closure".into());
@@ -38,6 +39,7 @@ fn autoload_generic_definition_environment_is_base() -> Result<(), Box<dyn std::
         operator: AssignmentOperator::Left,
         target: "g".into(),
         value: Box::new(Sexp::Closure {
+            attributes,
             parameters,
             body,
             environment: ClosureEnvironment::Captured(autoloads),

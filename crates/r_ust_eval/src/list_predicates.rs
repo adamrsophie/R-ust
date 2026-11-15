@@ -33,6 +33,9 @@ pub(super) fn is_na_values(value: &Sexp) -> Result<Vec<Option<bool>>, EvalError>
         Sexp::ClassedList {
             elements: values, ..
         }
+        | Sexp::NamedList {
+            elements: values, ..
+        }
         | Sexp::List(values)
         | Sexp::Dots(values) => values
             .iter()
@@ -88,6 +91,9 @@ pub(super) fn numeric_predicate_values(
         Sexp::Matrix { data, .. } => numeric_predicate_values(data, predicate)?,
         Sexp::Vector(values) => values.iter().map(|_| Some(false)).collect(),
         Sexp::ClassedList {
+            elements: values, ..
+        }
+        | Sexp::NamedList {
             elements: values, ..
         }
         | Sexp::List(values)

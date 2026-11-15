@@ -19,6 +19,7 @@ fn assignment(edge: Edge, frame: &Environment) -> Sexp {
         Edge::Value => (
             Sexp::Symbol("x".into()),
             Sexp::Closure {
+                attributes: Vec::new(),
                 parameters: vec![],
                 body: Box::new(Sexp::Symbol("marker".into())),
                 environment: ClosureEnvironment::Captured(frame.clone()),

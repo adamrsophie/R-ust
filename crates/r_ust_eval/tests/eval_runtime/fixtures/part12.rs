@@ -1,0 +1,4 @@
+use super::*;
+pub(super) fn rows() -> Vec<Row> {
+    vec![Row{id:"environment_invalid_enclos",setup:"",source:"evalq(1L, globalenv(), 2L)",after:"",expected:None,visible:None,stdout:"",error:Some("invalid 'enclos' argument of type 'NULL'"),expected_type:None,class:&[],mode:None,length:None,print:"",warnings:&[],warning_calls:&[],warning_classes:&[]},Row{id:"invalid_both",setup:"",source:"evalq(1L, TRUE, 2L)",after:"",expected:None,visible:None,stdout:"",error:Some("invalid 'enclos' argument of type 'NULL'"),expected_type:None,class:&[],mode:None,length:None,print:"",warnings:&[],warning_calls:&[],warning_classes:&[]},Row{id:"expr_force_first",setup:"",source:"eval({cat(\"EXPR\\n\"); stop(\"expr failure\")}, {cat(\"ENV\\n\"); TRUE}, {cat(\"ENCLOS\\n\"); 2L})",after:"",expected:None,visible:None,stdout:"EXPR\n",error:Some("expr failure"),expected_type:None,class:&[],mode:None,length:None,print:"",warnings:&[],warning_calls:&[],warning_classes:&[]}]
+}

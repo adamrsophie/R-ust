@@ -6,19 +6,21 @@ pub(super) use names::assign_names;
 use crate::{string_scalar, EvalError, EvaluatedArgument, ListElement, Sexp};
 
 pub(super) fn preserve_class(original: &Sexp, elements: Vec<ListElement>) -> Sexp {
-    match original {
-        Sexp::ClassedList {
-            class, class_first, ..
-        } => Sexp::ClassedList {
-            elements,
-            class: class.clone(),
-            class_first: *class_first,
-        },
-        _ => Sexp::List(elements),
+    match original.ordinary_list() {
+        Some(view) => view.rebuild(elements, view.names_present),
+        None => Sexp::List(elements),
     }
 }
 
 pub(super) fn attributes(value: &Sexp) -> Result<Sexp, EvalError> {
+    if matches!(value, Sexp::Closure { .. }) {
+        let attrs = crate::closure_attributes::attributes(value)?;
+        return Ok(if attrs.is_empty() {
+            Sexp::Nil
+        } else {
+            Sexp::List(attrs.to_vec())
+        });
+    }
     if value.character_values().is_some() {
         let attrs = crate::character_attributes::attributes(value)?;
         return Ok(if attrs.is_empty() {
@@ -30,26 +32,26 @@ pub(super) fn attributes(value: &Sexp) -> Result<Sexp, EvalError> {
     let projection = crate::ordinary_values::read(value)?;
     let value = projection.as_ref();
     let mut result = Vec::new();
+    if let Some(view) = value.ordinary_list() {
+        if let Some(class) = view.class.filter(|_| view.class_first) {
+            result.push(attribute("class", class.clone()));
+        }
+        if view.names_present {
+            result.push(attribute("names", crate::names_value(value)?));
+        }
+        if let Some(class) = view.class.filter(|_| !view.class_first) {
+            result.push(attribute("class", class.clone()));
+        }
+        return Ok(if result.is_empty() {
+            Sexp::Nil
+        } else {
+            Sexp::List(result)
+        });
+    }
     match value {
-        Sexp::List(elements) | Sexp::ClassedList { elements, .. } => {
-            if let Sexp::ClassedList {
-                class,
-                class_first: true,
-                ..
-            } = value
-            {
-                result.push(attribute("class", class.as_ref().clone()));
-            }
-            if elements.iter().any(|element| element.name.is_some()) {
+        Sexp::Expression { names_present, .. } => {
+            if *names_present {
                 result.push(attribute("names", crate::names_value(value)?));
-            }
-            if let Sexp::ClassedList {
-                class,
-                class_first: false,
-                ..
-            } = value
-            {
-                result.push(attribute("class", class.as_ref().clone()));
             }
         }
         Sexp::PairList(_) => {
@@ -90,7 +92,9 @@ pub(super) fn replace(value: &Sexp, attrs: &Sexp) -> Result<Sexp, EvalError> {
     let attrs_projection = crate::ordinary_values::read(attrs)?;
     let attrs = match attrs_projection.as_ref() {
         Sexp::Nil => &[][..],
-        Sexp::List(elements) | Sexp::ClassedList { elements, .. } => elements.as_slice(),
+        Sexp::List(elements)
+        | Sexp::ClassedList { elements, .. }
+        | Sexp::NamedList { elements, .. } => elements.as_slice(),
         _ => return Err(EvalError::Type("attributes must be a list or NULL".into())),
     };
     if !attrs.is_empty() && attrs.iter().all(|attr| attr.name.is_none()) {
@@ -107,6 +111,9 @@ pub(super) fn replace(value: &Sexp, attrs: &Sexp) -> Result<Sexp, EvalError> {
     if value.character_values().is_some() {
         return crate::character_attributes::replace(value, attrs);
     }
+    if matches!(value, Sexp::Closure { .. }) {
+        return crate::closure_attributes::replace(value, attrs);
+    }
     if matches!(value, Sexp::Char(_)) {
         return if attrs.is_empty() {
             Ok(value.clone())
@@ -120,7 +127,9 @@ pub(super) fn replace(value: &Sexp, attrs: &Sexp) -> Result<Sexp, EvalError> {
         Sexp::PairList(values) => {
             crate::pairlist_values::assign_names(values.as_slice(), &Sexp::Nil)?
         }
-        Sexp::List(elements) | Sexp::ClassedList { elements, .. } => Sexp::List(
+        Sexp::List(elements)
+        | Sexp::ClassedList { elements, .. }
+        | Sexp::NamedList { elements, .. } => Sexp::List(
             elements
                 .iter()
                 .map(|element| ListElement {
@@ -144,6 +153,9 @@ pub(super) fn replace(value: &Sexp, attrs: &Sexp) -> Result<Sexp, EvalError> {
 }
 
 pub(super) fn set(value: &Sexp, name: &str, replacement: &Sexp) -> Result<Sexp, EvalError> {
+    if matches!(value, Sexp::Closure { .. }) {
+        return crate::closure_attributes::set(value, name, replacement);
+    }
     if value.character_values().is_some() {
         return crate::character_attributes::set(value, name, replacement);
     }
@@ -185,7 +197,9 @@ fn set_class(value: &Sexp, replacement: &Sexp) -> Result<Sexp, EvalError> {
         ));
     }
     let elements = match value {
-        Sexp::List(elements) | Sexp::ClassedList { elements, .. } => elements.clone(),
+        Sexp::List(elements)
+        | Sexp::ClassedList { elements, .. }
+        | Sexp::NamedList { elements, .. } => elements.clone(),
         Sexp::Nil if class.is_empty() => return Ok(Sexp::Nil),
         Sexp::Nil => {
             return Err(EvalError::Type(
@@ -198,41 +212,46 @@ fn set_class(value: &Sexp, replacement: &Sexp) -> Result<Sexp, EvalError> {
             ))
         }
     };
-    let class_first = match value {
-        Sexp::ClassedList { class_first, .. } => *class_first,
-        _ => elements.iter().all(|element| element.name.is_none()),
-    };
-    Ok(if class.is_empty() {
-        Sexp::List(elements)
+    let view = value.ordinary_list().ok_or(EvalError::NotImplemented(
+        "class replacement on non-list values",
+    ))?;
+    let class_first = if view.class.is_some() {
+        view.class_first
     } else {
-        Sexp::ClassedList {
-            elements,
-            class: Box::new(replacement.clone()),
-            class_first,
-        }
-    })
+        !view.names_present
+    };
+    Ok(Sexp::list_with_metadata(
+        elements,
+        view.names_present,
+        if class.is_empty() {
+            None
+        } else {
+            Some((replacement.clone(), class_first))
+        },
+    ))
 }
 
 pub(super) fn as_vector(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
     let [value, mode] = args else {
         return Err(EvalError::Arity("as.vector requires two arguments".into()));
     };
-    if string_scalar(&mode.value, "mode")? != "pairlist" {
-        return Err(EvalError::NotImplemented(
-            "as.vector modes other than pairlist",
-        ));
+    let mode = string_scalar(&mode.value, "mode")?;
+    let projection = crate::ordinary_values::read(&value.value)?;
+    if let Some(view) = projection.ordinary_list() {
+        return match mode.as_str() {
+            "any" | "list" => Ok(value.value.clone()),
+            "pairlist" => Ok(crate::list_construction::to_pairlist(view)),
+            _ => Err(EvalError::NotImplemented(
+                "as.vector list coercion to this mode",
+            )),
+        };
     }
-    match &value.value {
-        Sexp::Nil | Sexp::PairList(_) | Sexp::PairListObject(_) => Ok(value.value.clone()),
-        Sexp::ListObject(value) => match value.value()? {
-            Sexp::List(elements) | Sexp::ClassedList { elements, .. } => {
-                Ok(Sexp::pairlist(elements))
-            }
-            _ => Err(EvalError::Graph(r_ust_sexp::GraphError::WrongKind)),
-        },
-        Sexp::List(elements) | Sexp::ClassedList { elements, .. } => {
-            Ok(Sexp::pairlist(elements.clone()))
+    match (projection.as_ref(), mode.as_str()) {
+        (Sexp::Nil | Sexp::PairList(_), "pairlist") => Ok(value.value.clone()),
+        (Sexp::Nil, "list") => Ok(Sexp::List(Vec::new())),
+        (Sexp::PairList(values), "list") => {
+            Ok(crate::list_construction::from_tags(values.as_slice()))
         }
-        _ => Err(EvalError::NotImplemented("as.pairlist of non-list values")),
+        _ => Err(EvalError::NotImplemented("as.vector of this type and mode")),
     }
 }

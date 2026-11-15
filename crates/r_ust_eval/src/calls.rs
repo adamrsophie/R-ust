@@ -13,7 +13,10 @@ impl RuntimeState {
         };
         if let Sexp::Parenthesized(inner) = function {
             match self.require_function("(", true)? {
-                ApplyFunction::Builtin(_) => {
+                ApplyFunction::Builtin(_)
+                | ApplyFunction::Primitive(r_ust_sexp::PrimitiveId::Syntax(
+                    r_ust_sexp::SyntaxPrimitive::Parenthesis,
+                )) => {
                     let resolved = self.resolve_parenthesized_function(inner)?;
                     return self.call_resolved(resolved, arguments, &call);
                 }
@@ -34,8 +37,8 @@ impl RuntimeState {
             let resolved = self.require_source_function(name, has_builtin(name), &call)?;
             return self.call_resolved(resolved, arguments, &call);
         }
-        let EvalFlow::Value(value) = self.eval_flow(function)?;
-        self.call_value(value, arguments, &call)
+        let selected = self.resolve_evaluated_head(function, &call)?;
+        self.call_resolved(selected, arguments, &call)
     }
 
     pub(super) fn eval_builtin_call(

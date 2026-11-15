@@ -10,13 +10,18 @@ pub use source_fault::SourceFault;
 mod kernel;
 mod matching;
 mod on_exit;
+mod restarts;
 mod signaling;
 mod stack;
 mod target;
 mod unwind;
+mod warning_condition;
+mod warnings;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod warning_tests;
 
 use r_ust_sexp::{Environment, EvaluationEnvironmentId, ListElement, ListObject, PairListObject};
 
@@ -25,8 +30,11 @@ use crate::{EvalError, Sexp};
 #[derive(Debug, Default)]
 pub(crate) struct Conditions {
     pub(crate) head: Option<PairListObject>,
+    pub(crate) restarts: Option<PairListObject>,
     pub(crate) token: Option<ListObject>,
     pub(crate) message: String,
+    pub(crate) immediate_warning: bool,
+    pub(crate) no_break_warning: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]

@@ -76,7 +76,7 @@ fn forwarded_binding_missing(
                 return Ok(false);
             };
             visited.push(state.clone());
-            match state.expression()? {
+            match r_ust_sexp::bytecode_source(&state.expression()?)? {
                 promise @ Sexp::Promise { .. } => forwarded_binding_missing(&promise, visited),
                 Sexp::Symbol(name) => {
                     if let Some(index) = name

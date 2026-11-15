@@ -10,6 +10,7 @@ fn removing_last_stored_edge_collects_without_another_root_drop() {
         let heap = Arc::clone(parent.0.heap().unwrap());
         let child_id = child.0.id();
         let value = Sexp::Closure {
+            attributes: Vec::new(),
             parameters: vec![],
             body: Box::new(Sexp::Nil),
             environment: ClosureEnvironment::Captured(child.clone()),

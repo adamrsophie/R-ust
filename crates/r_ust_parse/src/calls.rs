@@ -2,15 +2,22 @@ use super::{CallArgument, ParseError, Sexp, SyntaxParser, Token};
 
 impl SyntaxParser {
     pub(super) fn parse_call(&mut self) -> Result<Sexp, ParseError> {
-        let mut expr = self.parse_primary()?;
+        let mut expr = self.parse_namespace()?;
         loop {
             match self.peek() {
                 Token::LParen => {
                     self.advance();
                     let arguments = self.parse_delimited_arguments(Token::RParen)?;
                     self.expect_token(Token::RParen)?;
+                    let function = match expr {
+                        Sexp::String(values) => match values.as_slice() {
+                            [Some(name)] => Sexp::Symbol(name.clone()),
+                            _ => Sexp::String(values),
+                        },
+                        other => other,
+                    };
                     expr = Sexp::Call {
-                        function: Box::new(expr),
+                        function: Box::new(function),
                         arguments,
                     };
                 }

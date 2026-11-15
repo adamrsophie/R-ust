@@ -9,6 +9,7 @@ fn element(value: Sexp) -> ListElement {
 }
 fn closure(env: &Environment) -> Sexp {
     Sexp::Closure {
+        attributes: Vec::new(),
         parameters: vec![],
         body: Box::new(Sexp::Nil),
         environment: ClosureEnvironment::Captured(env.clone()),
@@ -45,11 +46,13 @@ fn every_nested_value_edge_retains_and_releases_its_capture() {
             body: Box::new(v),
         },
         |v| Sexp::Closure {
+            attributes: Vec::new(),
             parameters: vec![FunctionParameter::optional("x", v)],
             body: Box::new(Sexp::Nil),
             environment: ClosureEnvironment::Base,
         },
         |v| Sexp::Closure {
+            attributes: Vec::new(),
             parameters: vec![],
             body: Box::new(v),
             environment: ClosureEnvironment::Base,

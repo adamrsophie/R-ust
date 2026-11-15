@@ -44,6 +44,12 @@ pub(super) fn sequence_elements(value: &Sexp) -> Result<Vec<Sexp>, EvalError> {
         Sexp::ClassedList {
             elements: values, ..
         }
+        | Sexp::Expression {
+            elements: values, ..
+        }
+        | Sexp::NamedList {
+            elements: values, ..
+        }
         | Sexp::List(values)
         | Sexp::Dots(values) => Ok(values.iter().map(|element| element.value.clone()).collect()),
         other => Err(EvalError::Type(format!(
@@ -60,6 +66,12 @@ pub(super) fn apply_elements(value: &Sexp) -> Result<Vec<ListElement>, EvalError
         Sexp::Nil => Ok(Vec::new()),
         Sexp::PairList(values) => Ok(values.as_slice().to_vec()),
         Sexp::ClassedList {
+            elements: values, ..
+        }
+        | Sexp::Expression {
+            elements: values, ..
+        }
+        | Sexp::NamedList {
             elements: values, ..
         }
         | Sexp::List(values)
@@ -79,6 +91,12 @@ pub(super) fn list_replacement_values(value: &Sexp) -> Result<Vec<Sexp>, EvalErr
         Sexp::ClassedList {
             elements: values, ..
         }
+        | Sexp::Expression {
+            elements: values, ..
+        }
+        | Sexp::NamedList {
+            elements: values, ..
+        }
         | Sexp::List(values)
         | Sexp::Dots(values) => Ok(values.iter().map(|element| element.value.clone()).collect()),
         _ => sequence_elements(value),
@@ -89,9 +107,25 @@ pub(super) fn data_mask_scope(data: &Sexp) -> Result<HashMap<String, Sexp>, Eval
     let projection = ordinary_values::read(data)?;
     let data = projection.as_ref();
     let mut scope = HashMap::new();
+    if let Some(view) = data.ordinary_list() {
+        if view.names_present {
+            for element in view.elements {
+                let name = element.name.as_deref().unwrap_or("NA");
+                if !name.is_empty() {
+                    scope
+                        .entry(name.to_owned())
+                        .or_insert_with(|| element.value.clone());
+                }
+            }
+        }
+        return Ok(scope);
+    }
     match data {
         Sexp::DataFrame { columns, .. }
         | Sexp::ClassedList {
+            elements: columns, ..
+        }
+        | Sexp::NamedList {
             elements: columns, ..
         }
         | Sexp::List(columns)
@@ -108,4 +142,25 @@ pub(super) fn data_mask_scope(data: &Sexp) -> Result<HashMap<String, Sexp>, Eval
             other.sexptype()
         ))),
     }
+}
+
+pub(super) fn apply_result(
+    original: &Sexp,
+    elements: Vec<ListElement>,
+    simplify: bool,
+) -> Result<Sexp, EvalError> {
+    let projection = ordinary_values::read(original)?;
+    let present = projection
+        .ordinary_list()
+        .is_some_and(|view| view.names_present)
+        || elements.iter().any(|element| element.name.is_some());
+    let result = if simplify {
+        simplify_sapply(elements)?
+    } else {
+        Sexp::List(elements)
+    };
+    Ok(match result {
+        Sexp::List(elements) => Sexp::list_with_metadata(elements, present, None),
+        result => result,
+    })
 }

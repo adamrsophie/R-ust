@@ -15,9 +15,11 @@ pub(super) fn matrix_data(
                 "'data' must be of a vector type, was 'NULL'".into(),
             )),
             Sexp::Factor { .. } => Ok(Sexp::String(Vec::new())),
-            Sexp::ClassedList { .. } | Sexp::List(_) | Sexp::Vector(_) | Sexp::Dots(_) => {
-                Ok(Sexp::List(Vec::new()))
-            }
+            Sexp::ClassedList { .. }
+            | Sexp::NamedList { .. }
+            | Sexp::List(_)
+            | Sexp::Vector(_)
+            | Sexp::Dots(_) => Ok(Sexp::List(Vec::new())),
             _ => Ok(empty_like_atomic(data)),
         };
     }

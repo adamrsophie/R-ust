@@ -3,6 +3,17 @@ use super::values::StoredValue;
 use super::{Environment, GraphError, PromiseState};
 use crate::{EvaluationOrigin, Sexp};
 
+/// Evaluation metadata shared by ordinary and replacement promises.
+pub struct PromiseMetadata {
+    pub origin: EvaluationOrigin,
+    pub supplied: bool,
+}
+
+struct PromiseOptions {
+    metadata: PromiseMetadata,
+    track_value: bool,
+}
+
 enum Status {
     Unevaluated { interrupted: bool },
     Evaluating,
@@ -13,9 +24,19 @@ pub(super) struct Promise {
     environment: Option<NodeId>,
     origin: EvaluationOrigin,
     supplied: bool,
+    track_value: bool,
     status: Status,
 }
 impl Promise {
+    pub(super) fn semantic_edges(&self, pending: &mut Vec<NodeId>) {
+        self.expression.edges(pending);
+        if self.track_value {
+            if let Status::Evaluated(value) = &self.status {
+                value.edges(pending);
+            }
+        }
+    }
+
     pub fn edges(&self, pending: &mut Vec<NodeId>) {
         self.expression.edges(pending);
         pending.extend(self.environment);
@@ -29,13 +50,17 @@ impl Store {
     fn promise(&self, id: NodeId) -> Result<&Promise, GraphError> {
         match self.node(id)? {
             Node::Promise(promise) => Ok(promise),
-            Node::Frame(_) | Node::Vector(_) | Node::Cons(_) => Err(GraphError::WrongKind),
+            Node::Frame(_) | Node::Vector(_) | Node::Cons(_) | Node::Bytecode(_) => {
+                Err(GraphError::WrongKind)
+            }
         }
     }
     fn promise_mut(&mut self, id: NodeId) -> Result<&mut Promise, GraphError> {
         match self.node_mut(id)? {
             Node::Promise(promise) => Ok(promise),
-            Node::Frame(_) | Node::Vector(_) | Node::Cons(_) => Err(GraphError::WrongKind),
+            Node::Frame(_) | Node::Vector(_) | Node::Cons(_) | Node::Bytecode(_) => {
+                Err(GraphError::WrongKind)
+            }
         }
     }
 }
@@ -59,8 +84,14 @@ impl ForceLease {
         let promise = store.promise_mut(self.state.0.id())?;
         match promise.status {
             Status::Evaluating => {
+                let cache_edges = if promise.track_value {
+                    value.edges.clone()
+                } else {
+                    Vec::new()
+                };
                 promise.status = Status::Evaluated(value);
                 promise.environment = None;
+                store.acquire_edges(&cache_edges);
                 self.completed = true;
                 Ok(())
             }
@@ -92,6 +123,41 @@ impl PromiseState {
         origin: EvaluationOrigin,
         supplied: bool,
     ) -> Result<Self, GraphError> {
+        Self::with_value_tracking(
+            expression,
+            environment,
+            PromiseOptions {
+                metadata: PromiseMetadata { origin, supplied },
+                track_value: true,
+            },
+        )
+    }
+
+    /// Creates an evaluation scratch promise whose cached value protects liveness only.
+    pub fn new_replacement(
+        expression: &Sexp,
+        environment: &Environment,
+        metadata: PromiseMetadata,
+    ) -> Result<Self, GraphError> {
+        Self::with_value_tracking(
+            expression,
+            environment,
+            PromiseOptions {
+                metadata,
+                track_value: false,
+            },
+        )
+    }
+
+    fn with_value_tracking(
+        expression: &Sexp,
+        environment: &Environment,
+        options: PromiseOptions,
+    ) -> Result<Self, GraphError> {
+        let PromiseOptions {
+            metadata: PromiseMetadata { origin, supplied },
+            track_value,
+        } = options;
         let heap = environment.0.heap()?;
         let expression = StoredValue::new(expression, heap)?;
         Ok(Self(heap.insert(Node::Promise(Promise {
@@ -99,6 +165,7 @@ impl PromiseState {
             environment: Some(environment.0.id()),
             origin,
             supplied,
+            track_value,
             status: Status::Unevaluated { interrupted: false },
         }))))
     }

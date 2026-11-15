@@ -58,6 +58,7 @@ impl RuntimeState {
             parameters,
             body,
             environment,
+            ..
         } = &invocation.callable
         else {
             return Err(EvalError::Type("attempt to apply non-function".into()));

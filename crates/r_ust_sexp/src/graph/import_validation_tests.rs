@@ -62,6 +62,7 @@ fn shared_values_import_validation_rejects_foreign_unrooted_stale_owner() -> Res
     let stale = super::super::Environment(Link::Root(Arc::new(RootToken {
         heap: heap.clone(),
         id,
+        semantic_owner: false,
     })));
     assert_eq!(
         stale.validate_import(&Sexp::Nil),

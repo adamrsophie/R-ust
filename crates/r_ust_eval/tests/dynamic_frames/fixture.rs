@@ -111,6 +111,7 @@ fn setup(row: &Row) -> Result<Frontend, String> {
             return Err("SDK namespace".into());
         };
         let closure = Sexp::Closure {
+            attributes: Vec::new(),
             parameters: vec![FunctionParameter {
                 name: "x".into(),
                 default: None,

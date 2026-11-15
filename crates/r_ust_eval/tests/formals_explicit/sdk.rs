@@ -8,6 +8,7 @@ fn inspect(parameters: Vec<FunctionParameter>) -> Result<Sexp, EvalError> {
     RuntimeState::default().eval(&Sexp::InternalCall {
         operation: InternalOperation::Formals,
         arguments: vec![CallArgument::positional(Sexp::Closure {
+            attributes: Vec::new(),
             parameters,
             body: Box::new(Sexp::Nil),
             environment: ClosureEnvironment::Base,
@@ -37,23 +38,21 @@ fn formals_sdk_keeps_duplicate_names_order_and_missing_defaults_as_data() {
 }
 
 #[test]
-fn formals_sdk_rejects_runtime_defaults_without_evaluating_them() {
-    for (default, expected) in [
-        (
-            Sexp::Environment(Environment::global()),
-            "formals runtime default",
-        ),
-        (
-            Sexp::InternalCall {
-                operation: InternalOperation::Formals,
-                arguments: vec![],
-            },
-            "formals internal default",
-        ),
-    ] {
-        assert_eq!(
-            inspect(vec![FunctionParameter::optional("x", default)]),
-            Err(EvalError::NotImplemented(expected))
-        );
-    }
+fn formals_sdk_preserves_runtime_defaults_without_evaluating_them() {
+    let environment = Sexp::Environment(Environment::global());
+    assert_eq!(
+        inspect(vec![FunctionParameter::optional("x", environment.clone())]).unwrap(),
+        Sexp::pairlist(vec![ListElement {
+            name: Some("x".into()),
+            value: environment
+        }])
+    );
+    let internal = Sexp::InternalCall {
+        operation: InternalOperation::Formals,
+        arguments: vec![],
+    };
+    assert_eq!(
+        inspect(vec![FunctionParameter::optional("x", internal)]),
+        Err(EvalError::NotImplemented("formals internal default"))
+    );
 }

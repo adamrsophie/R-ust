@@ -20,6 +20,7 @@ fn expression(source: &str) -> Sexp {
 }
 fn closure(frame: &Environment, body: Sexp) -> Sexp {
     Sexp::Closure {
+        attributes: Vec::new(),
         parameters: vec![],
         body: Box::new(body),
         environment: ClosureEnvironment::Captured(frame.clone()),
@@ -152,6 +153,17 @@ fn retained_child_superassignment_uses_origin_global() {
         let Sexp::Environment(child) = child else {
             panic!("retained child is not an environment")
         };
+        if role == EnvironmentRole::Empty {
+            let error = invoke(&mut consumer, &function).unwrap_err();
+            assert!(
+                error
+                    .to_string()
+                    .contains("could not find function \"<<-\""),
+                "{error}"
+            );
+            let primitive = consumer.eval(&expression(".Primitive('<<-')")).unwrap();
+            child.insert("<<-".into(), &primitive).unwrap();
+        }
         for value in [41, 42] {
             let mut current = function.clone();
             if let Sexp::Closure { body, .. } = &mut current {

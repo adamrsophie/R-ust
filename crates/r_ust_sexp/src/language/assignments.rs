@@ -119,6 +119,7 @@ pub(super) fn canonical_assignment(
         | Sexp::PairListObject(_)
         | Sexp::MissingArg(_)
         | Sexp::MissingValue
+        | Sexp::Expression { .. }
         | Sexp::PairList(_)
         | Sexp::Call { .. }
         | Sexp::Binary { .. }
@@ -138,8 +139,10 @@ pub(super) fn canonical_assignment(
         | Sexp::Extract { .. }
         | Sexp::Dollar { .. }
         | Sexp::Environment(_)
+        | Sexp::Bytecode(_)
         | Sexp::Primitive(_)
         | Sexp::Vector(_)
+        | Sexp::NamedList { .. }
         | Sexp::ClassedList { .. }
         | Sexp::List(_)
         | Sexp::Factor { .. }

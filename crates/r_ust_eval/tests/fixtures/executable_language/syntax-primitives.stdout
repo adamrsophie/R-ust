@@ -1,0 +1,66 @@
+PRIMITIVE if special 
+.Primitive("if")
+PRIMITIVE while special 
+.Primitive("while")
+PRIMITIVE for special 
+.Primitive("for")
+PRIMITIVE repeat special 
+.Primitive("repeat")
+PRIMITIVE break special 
+.Primitive("break")
+PRIMITIVE next special 
+.Primitive("next")
+PRIMITIVE function special 
+.Primitive("function")
+PRIMITIVE <- special 
+.Primitive("<-")
+PRIMITIVE = special 
+.Primitive("=")
+PRIMITIVE <<- special 
+.Primitive("<<-")
+PRIMITIVE { special 
+.Primitive("{")
+PRIMITIVE ( builtin 
+.Primitive("(")
+PRIMITIVE [ special 
+.Primitive("[")
+PRIMITIVE [[ special 
+.Primitive("[[")
+PRIMITIVE $ special 
+.Primitive("$")
+PRIMITIVE [<- special 
+.Primitive("[<-")
+PRIMITIVE [[<- special 
+.Primitive("[[<-")
+PRIMITIVE $<- special 
+.Primitive("$<-")
+PRIMITIVE names<- builtin 
+function (x, value)  .Primitive("names<-")
+PRIMITIVE class<- builtin 
+function (x, value)  .Primitive("class<-")
+PRIMITIVE attributes<- builtin 
+function (x, value)  .Primitive("attributes<-")
+PRIMITIVE attr<- builtin 
+function (x, which, value)  .Primitive("attr<-")
+PRIMITIVE && special 
+.Primitive("&&")
+PRIMITIVE || special 
+.Primitive("||")
+PRIMITIVE & builtin 
+function (e1, e2)  .Primitive("&")
+PRIMITIVE | builtin 
+function (e1, e2)  .Primitive("|")
+PRIMITIVE ! builtin 
+function (x)  .Primitive("!")
+PRIMITIVE == builtin 
+function (e1, e2)  .Primitive("==")
+PRIMITIVE != builtin 
+function (e1, e2)  .Primitive("!=")
+PRIMITIVE < builtin 
+function (e1, e2)  .Primitive("<")
+PRIMITIVE <= builtin 
+function (e1, e2)  .Primitive("<=")
+PRIMITIVE > builtin 
+function (e1, e2)  .Primitive(">")
+PRIMITIVE >= builtin 
+function (e1, e2)  .Primitive(">=")

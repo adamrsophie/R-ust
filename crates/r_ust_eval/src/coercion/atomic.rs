@@ -89,12 +89,14 @@ pub(super) fn scalar_real(value: &Sexp, policy: BlankPolicy) -> (f64, Warnings) 
             .unwrap_or(NA_REAL),
         Sexp::Nil
         | Sexp::Vector(_)
+        | Sexp::NamedList { .. }
         | Sexp::ClassedList { .. }
         | Sexp::List(_)
         | Sexp::DataFrame { .. }
         | Sexp::MissingArg(_)
         | Sexp::Symbol(_)
         | Sexp::MissingValue
+        | Sexp::Expression { .. }
         | Sexp::PairList(_)
         | Sexp::Dots(_)
         | Sexp::Promise { .. }
@@ -103,6 +105,7 @@ pub(super) fn scalar_real(value: &Sexp, policy: BlankPolicy) -> (f64, Warnings) 
         | Sexp::ListObject(_)
         | Sexp::PairListObject(_)
         | Sexp::Environment(_)
+        | Sexp::Bytecode(_)
         | Sexp::Primitive(_)
         | Sexp::Function { .. }
         | Sexp::If { .. }

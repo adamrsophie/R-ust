@@ -1,4 +1,3 @@
-use super::preserve_class;
 use crate::{string_values, EvalError, Sexp};
 
 pub(crate) fn assign_names(value: &Sexp, replacement: &Sexp) -> Result<Sexp, EvalError> {
@@ -22,15 +21,10 @@ pub(crate) fn assign_names(value: &Sexp, replacement: &Sexp) -> Result<Sexp, Eva
     }
     let projection = crate::ordinary_values::read(value)?;
     let value = projection.as_ref();
-    let elements = match value {
-        Sexp::List(elements) | Sexp::ClassedList { elements, .. } => elements.as_slice(),
-        Sexp::PairList(values) => values.as_slice(),
-        _ => {
-            return Err(EvalError::NotImplemented(
-                "names replacement on this object",
-            ))
-        }
-    };
+    let view = value.ordinary_list().ok_or(EvalError::NotImplemented(
+        "names replacement on this object",
+    ))?;
+    let elements = view.elements;
     let names = if matches!(replacement, Sexp::Nil) {
         Vec::new()
     } else {
@@ -43,13 +37,6 @@ pub(crate) fn assign_names(value: &Sexp, replacement: &Sexp) -> Result<Sexp, Eva
             elements.len()
         )));
     }
-    // shortcut: ListElement cannot distinguish absent from all-missing names; extend names storage before supporting these attributes.
-    if !matches!(replacement, Sexp::Nil) && names.iter().all(Option::is_none) {
-        return Err(EvalError::NotImplemented(
-            "empty or all-missing names attribute",
-        ));
-    }
-    let adding_names = elements.iter().all(|element| element.name.is_none());
     let mut elements = elements.to_vec();
     for (index, element) in elements.iter_mut().enumerate() {
         element.name = if matches!(replacement, Sexp::Nil) {
@@ -58,14 +45,16 @@ pub(crate) fn assign_names(value: &Sexp, replacement: &Sexp) -> Result<Sexp, Eva
             names.get(index).cloned().flatten()
         };
     }
-    if matches!(value, Sexp::PairList(_)) {
-        return Ok(Sexp::pairlist(elements));
-    }
-    let mut result = preserve_class(value, elements);
-    if adding_names {
-        if let Sexp::ClassedList { class_first, .. } = &mut result {
-            *class_first = true;
-        }
-    }
-    Ok(result)
+    let names_present = !matches!(replacement, Sexp::Nil);
+    let class = view.class.map(|class| {
+        (
+            class.clone(),
+            if !view.names_present && names_present {
+                true
+            } else {
+                view.class_first
+            },
+        )
+    });
+    Ok(Sexp::list_with_metadata(elements, names_present, class))
 }

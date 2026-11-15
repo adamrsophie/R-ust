@@ -1,39 +1,65 @@
-use super::format_sexp;
+use super::format_lines;
 use crate::{EvalError, ListElement, Sexp};
 
 pub(super) fn format_list(values: &[ListElement]) -> Result<String, EvalError> {
-    format_nested(values, "", false)
+    format_nested(
+        values,
+        "",
+        (false, values.iter().any(|value| value.name.is_some())),
+    )
 }
 
 pub(super) fn format_pairlist(values: &[ListElement]) -> Result<String, EvalError> {
-    format_nested(values, "", true)
+    format_nested(values, "", (true, false))
 }
 
 fn format_nested(
     values: &[ListElement],
     prefix: &str,
-    pairlist: bool,
+    (pairlist, names_present): (bool, bool),
 ) -> Result<String, EvalError> {
     if values.is_empty() {
-        return Ok("list()".into());
+        return Ok(if names_present {
+            "named list()"
+        } else {
+            "list()"
+        }
+        .into());
     }
     let mut text = String::new();
     for (index, element) in values.iter().enumerate() {
         let label = match &element.name {
             Some(name) if pairlist => format!("{prefix}${}", pairlist_name(name)?),
-            Some(name) => format!("{prefix}${name}"),
-            None => format!("{prefix}[[{}]]", index + 1),
+            Some(name) if !name.is_empty() => format!("{prefix}${name}"),
+            None if names_present => format!("{prefix}$<NA>"),
+            _ => format!("{prefix}[[{}]]", index + 1),
         };
         let projection = crate::ordinary_values::read(&element.value)?;
-        let body = match projection.as_ref() {
-            Sexp::List(nested) | Sexp::Dots(nested) => format_nested(nested, &label, false)?,
-            Sexp::ClassedList {
-                elements, class, ..
-            } => format_classed(elements, class, &label)?,
-            Sexp::PairList(nested) => format_nested(nested.as_slice(), &label, true)?,
-            value => format_sexp(value)?,
+        let body = if let Some(view) = projection.ordinary_list() {
+            Some(format_ordinary(view, &label)?)
+        } else {
+            match projection.as_ref() {
+                Sexp::List(nested) | Sexp::Dots(nested) => Some(format_nested(
+                    nested,
+                    &label,
+                    (false, nested.iter().any(|value| value.name.is_some())),
+                )?),
+                Sexp::ClassedList {
+                    elements, class, ..
+                } => Some(format_classed(elements, class, &label)?),
+                Sexp::PairList(nested) => {
+                    Some(format_nested(nested.as_slice(), &label, (true, false))?)
+                }
+                value => format_lines(value)?,
+            }
         };
-        text.push_str(&format!("{label}\n{body}\n\n"));
+        text.push_str(&label);
+        text.push('\n');
+        if let Some(body) = body {
+            text.push_str(&body);
+            text.push('\n');
+        }
+        text.push('\n');
     }
     text.pop();
     Ok(text)
@@ -56,7 +82,27 @@ pub(super) fn format_classed(
     crate::character_attributes::validate_class(class)?;
     Ok(format!(
         "{}\nattr(,\"class\")\n{}",
-        format_nested(values, "", false)?,
-        super::character::render(class, true, "attr(,\"class\")")?
+        format_nested(
+            values,
+            "",
+            (false, values.iter().any(|value| value.name.is_some()))
+        )?,
+        super::character::render(class, true, "attr(,\"class\")")?.unwrap_or_default()
     ))
+}
+
+pub(super) fn format_ordinary(
+    view: r_ust_sexp::OrdinaryListView<'_>,
+    prefix: &str,
+) -> Result<String, EvalError> {
+    let prefix = if view.class.is_some() { "" } else { prefix };
+    let mut output = format_nested(view.elements, prefix, (false, view.names_present))?;
+    if let Some(class) = view.class {
+        crate::character_attributes::validate_class(class)?;
+        output.push_str(&format!(
+            "\nattr(,\"class\")\n{}",
+            super::character::render(class, true, "attr(,\"class\")")?.unwrap_or_default()
+        ));
+    }
+    Ok(output)
 }

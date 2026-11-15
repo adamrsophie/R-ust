@@ -110,6 +110,9 @@ fn contains(value: &Sexp, recursive: &Sexp) -> Result<bool, EvalError> {
         Sexp::ClassedList {
             elements: values, ..
         }
+        | Sexp::NamedList {
+            elements: values, ..
+        }
         | Sexp::List(values) => {
             let recurse = recursive_flag(recursive)?;
             for element in values {
@@ -139,6 +142,7 @@ fn contains(value: &Sexp, recursive: &Sexp) -> Result<bool, EvalError> {
         Sexp::MissingArg(_)
         | Sexp::Symbol(_)
         | Sexp::MissingValue
+        | Sexp::Expression { .. }
         | Sexp::PairList(_)
         | Sexp::ListObject(_)
         | Sexp::PairListObject(_)
@@ -147,6 +151,7 @@ fn contains(value: &Sexp, recursive: &Sexp) -> Result<bool, EvalError> {
         | Sexp::Promise { .. }
         | Sexp::Closure { .. }
         | Sexp::Environment(_)
+        | Sexp::Bytecode(_)
         | Sexp::Primitive(_)
         | Sexp::InternalCall { .. }
         | Sexp::Function { .. }
@@ -197,10 +202,12 @@ pub(super) fn scalar_missing(value: &Sexp) -> bool {
         | Sexp::MissingArg(_)
         | Sexp::Symbol(_)
         | Sexp::MissingValue
+        | Sexp::Expression { .. }
         | Sexp::PairList(_)
         | Sexp::ListObject(_)
         | Sexp::PairListObject(_)
         | Sexp::Char(_)
+        | Sexp::NamedList { .. }
         | Sexp::ClassedList { .. }
         | Sexp::List(_)
         | Sexp::Vector(_)
@@ -209,6 +216,7 @@ pub(super) fn scalar_missing(value: &Sexp) -> bool {
         | Sexp::Promise { .. }
         | Sexp::Closure { .. }
         | Sexp::Environment(_)
+        | Sexp::Bytecode(_)
         | Sexp::Primitive(_)
         | Sexp::InternalCall { .. }
         | Sexp::Function { .. }

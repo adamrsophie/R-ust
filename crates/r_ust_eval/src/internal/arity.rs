@@ -7,6 +7,13 @@ pub(super) fn check(
     call: Option<&crate::Sexp>,
 ) -> Result<(), EvalError> {
     let (name, arity) = match operation {
+        InternalOperation::Identical => ("identical", 8),
+        InternalOperation::Eval => ("eval", 3),
+        InternalOperation::Assign => ("assign", 4),
+        InternalOperation::Sprintf => return Ok(()),
+        InternalOperation::Deparse => ("deparse", 5),
+        InternalOperation::Ngettext => ("ngettext", 4),
+        InternalOperation::L10nInfo => ("l10n_info", 0),
         InternalOperation::Environment => ("environment", 1),
         InternalOperation::PrintDefault => ("print.default", 3),
         InternalOperation::NewEnvironment => ("new.env", 3),
@@ -38,6 +45,7 @@ pub(super) fn check(
         InternalOperation::Strtoi => ("strtoi", 2),
         InternalOperation::Pmatch => ("pmatch", 4),
         InternalOperation::Charmatch => ("charmatch", 3),
+        InternalOperation::IsVector => ("is.vector", 2),
         InternalOperation::AsVector => ("as.vector", 2),
         InternalOperation::Vector => ("vector", 2),
         InternalOperation::Stop => ("stop", 2),
@@ -45,11 +53,29 @@ pub(super) fn check(
         InternalOperation::AddConditionHandlers => (".addCondHands", 5),
         InternalOperation::ResetConditionHandlers => (".resetCondHands", 1),
         InternalOperation::GetErrorMessage => ("geterrmessage", 0),
+        InternalOperation::Warning => ("warning", 4),
+        InternalOperation::Lapply => ("lapply", 2),
+        InternalOperation::DoCall => ("do.call", 3),
+        InternalOperation::Get => ("get", 4),
+        InternalOperation::AddRestart => (".addRestart", 1),
+        InternalOperation::GetRestart => (".getRestart", 1),
+        InternalOperation::InvokeRestart => (".invokeRestart", 2),
+        InternalOperation::DefaultWarning => (".dfltWarn", 2),
         InternalOperation::Inherits => ("inherits", 3),
         InternalOperation::Gettext => ("gettext", 3),
         InternalOperation::SignalCondition => (".signalCondition", 3),
     };
     let valid_arity = match operation {
+        InternalOperation::Identical => {
+            if count < 5 {
+                return Err(arity_error(
+                    format!("{count} arguments passed to .Internal(identical) which requires 8"),
+                    call,
+                ));
+            }
+            true
+        }
+        InternalOperation::Sprintf => true,
         InternalOperation::SysFrame
         | InternalOperation::SysFunction
         | InternalOperation::SysParent
@@ -63,7 +89,12 @@ pub(super) fn check(
             }
             true
         }
-        InternalOperation::Environment
+        InternalOperation::Eval
+        | InternalOperation::Assign
+        | InternalOperation::Environment
+        | InternalOperation::Deparse
+        | InternalOperation::Ngettext
+        | InternalOperation::L10nInfo
         | InternalOperation::PrintDefault
         | InternalOperation::NewEnvironment
         | InternalOperation::ParentFrame
@@ -84,6 +115,7 @@ pub(super) fn check(
         | InternalOperation::EncodeString
         | InternalOperation::EncodeStringWrapper
         | InternalOperation::Sequence
+        | InternalOperation::IsVector
         | InternalOperation::AsVector
         | InternalOperation::Vector
         | InternalOperation::Utf8ToInt
@@ -98,7 +130,15 @@ pub(super) fn check(
         | InternalOperation::DefaultStop
         | InternalOperation::AddConditionHandlers
         | InternalOperation::ResetConditionHandlers
-        | InternalOperation::GetErrorMessage => count == arity,
+        | InternalOperation::GetErrorMessage
+        | InternalOperation::Warning
+        | InternalOperation::Lapply
+        | InternalOperation::DoCall
+        | InternalOperation::Get
+        | InternalOperation::AddRestart
+        | InternalOperation::GetRestart
+        | InternalOperation::InvokeRestart
+        | InternalOperation::DefaultWarning => count == arity,
     };
     if !valid_arity {
         let suffix = if count == 1 { "" } else { "s" };

@@ -55,10 +55,14 @@ impl Canonicalizer {
                 arguments,
             } => {
                 let head = match function.as_ref() {
-                    Sexp::String(values) => match values.as_slice() {
-                        [Some(name)] => Sexp::Symbol(name.clone()),
-                        _ => return Err(LanguageError::RuntimeValue),
-                    },
+                    Sexp::String(values)
+                        if matches!(self.runtime_leaves, RuntimeLeaves::Reject) =>
+                    {
+                        match values.as_slice() {
+                            [Some(name)] => Sexp::Symbol(name.clone()),
+                            _ => return Err(LanguageError::RuntimeValue),
+                        }
+                    }
                     other => self.language(other)?,
                 };
                 Sexp::Call {
@@ -178,13 +182,16 @@ impl Canonicalizer {
             | Sexp::ReplacementAssignment { .. }
             | Sexp::NamesAssignment { .. } => assignments::canonical_assignment(value, self)?,
             Sexp::InternalCall { .. } => return Err(LanguageError::InternalCall),
-            Sexp::AttributedCharacter { .. }
+            Sexp::Expression { .. }
+            | Sexp::AttributedCharacter { .. }
             | Sexp::Environment(_)
             | Sexp::Char(_)
             | Sexp::ListObject(_)
             | Sexp::PairListObject(_)
+            | Sexp::Bytecode(_)
             | Sexp::Primitive(_)
             | Sexp::Vector(_)
+            | Sexp::NamedList { .. }
             | Sexp::ClassedList { .. }
             | Sexp::List(_)
             | Sexp::Factor { .. }

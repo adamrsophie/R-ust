@@ -4,6 +4,7 @@ use r_ust_sexp::{BinaryOp, CallArgument, FunctionParameter, Sexp, UnaryOp};
 mod assignment;
 mod decimal;
 mod hex;
+mod namespace;
 mod numeric;
 mod operators;
 mod primary;
@@ -203,6 +204,8 @@ enum Token {
     RBracket,
     Comma,
     Colon,
+    NamespaceExport,
+    NamespaceInternal,
     Newline,
     Semicolon,
     AssignLeft,
@@ -373,8 +376,7 @@ impl<'a> Lexer<'a> {
                     tokens.push(Token::Comma);
                 }
                 ':' => {
-                    self.advance();
-                    tokens.push(Token::Colon);
+                    tokens.push(self.colon_token());
                 }
                 '<' => {
                     self.advance();

@@ -3,11 +3,32 @@ pub(crate) mod character;
 mod chars;
 mod closures;
 mod containers;
+mod lines;
 mod lists;
 mod scalars;
 use containers::{format_data_frame, format_matrix};
 use lists::format_list;
 use scalars::format_factor;
+
+pub(crate) fn format_lines(value: &Sexp) -> Result<Option<String>, EvalError> {
+    crate::ordinary_cycles::check(value, "cyclic ordinary value printing")?;
+    match value {
+        Sexp::Closure { .. } => closures::format(value, true, ""),
+        Sexp::Vector(values) => {
+            if values.is_empty() {
+                return Ok(Some(String::new()));
+            }
+            let mut output = None;
+            for value in values {
+                if let Some(value) = format_lines(value)? {
+                    lines::append(&mut output, value);
+                }
+            }
+            Ok(output)
+        }
+        _ => format_sexp(value).map(Some),
+    }
+}
 /// Formats a value without the output event's final newline.
 ///
 /// # Errors
@@ -21,11 +42,13 @@ pub fn format_sexp(value: &Sexp) -> Result<String, EvalError> {
         Sexp::PairListObject(value) => lists::format_pairlist(&value.elements()?)?,
         Sexp::Char(value) => chars::format(value)?,
         Sexp::MissingValue => String::new(),
+        Sexp::Expression { .. } => crate::language_print::format_language(value)?,
         Sexp::PairList(values) => lists::format_pairlist(values.as_slice())?,
         Sexp::Environment(frame) => crate::environment_values::format(frame)?,
         Sexp::Nil => "NULL".to_string(),
         Sexp::MissingArg(name) => format!("<missing {name}>"),
         Sexp::Primitive(id) => primitive_calls::format_primitive(*id),
+        Sexp::Bytecode(code) => format!("<bytecode: {}>", code.display_address()?),
         Sexp::Logical(values) => format_numeric_line(
             values
                 .iter()
@@ -54,14 +77,13 @@ pub fn format_sexp(value: &Sexp) -> Result<String, EvalError> {
             levels,
             ordered,
         } => format_factor(codes, levels, *ordered),
-        Sexp::Vector(values) => values
-            .iter()
-            .map(format_sexp)
-            .collect::<Result<Vec<_>, _>>()?
-            .join("\n"),
-        Sexp::ClassedList {
-            elements, class, ..
-        } => lists::format_classed(elements, class, "")?,
+        Sexp::Vector(_) => format_lines(value)?.unwrap_or_default(),
+        Sexp::NamedList { .. } | Sexp::ClassedList { .. } => {
+            let view = value
+                .ordinary_list()
+                .ok_or(EvalError::NotImplemented("ordinary list printing"))?;
+            lists::format_ordinary(view, "")?
+        }
         Sexp::List(values) => format_list(values)?,
         Sexp::DataFrame { columns, nrow } => format_data_frame(columns, *nrow)?,
         Sexp::Matrix { data, nrow, ncol } => format_matrix(data, *nrow, *ncol)?,
@@ -70,11 +92,7 @@ pub fn format_sexp(value: &Sexp) -> Result<String, EvalError> {
         Sexp::Symbol(_) | Sexp::Call { .. } => {
             return crate::language_print::format_language(value).map_err(EvalError::from)
         }
-        Sexp::Closure {
-            parameters,
-            body,
-            environment,
-        } => closures::format(parameters, body, environment)?,
+        Sexp::Closure { .. } => closures::format(value, true, "")?.unwrap_or_default(),
         Sexp::Function { .. }
         | Sexp::If { .. }
         | Sexp::For { .. }

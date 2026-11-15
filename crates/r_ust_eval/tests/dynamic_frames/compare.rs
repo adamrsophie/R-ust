@@ -110,6 +110,7 @@ pub(super) fn compare(node: &Node, value: &Sexp) -> Result<(), String> {
             parameters,
             body,
             environment,
+            ..
         } => {
             if node.tag != "closure" {
                 return Err("closure type".into());

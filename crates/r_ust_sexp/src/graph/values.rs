@@ -1,8 +1,11 @@
 use std::sync::Arc;
 
-use super::heap::{Heap, NodeId, RootToken, Store};
+use super::heap::{Heap, NodeId, RootPromotion, RootToken, Store};
 use super::{GraphError, Link};
-use crate::{ClosureEnvironment, Sexp};
+use crate::Sexp;
+#[path = "values/visit.rs"]
+mod walk;
+use walk::visit;
 
 pub(super) struct StoredValue {
     pub(super) value: Sexp,
@@ -47,14 +50,35 @@ impl StoredValue {
         heap: &Arc<Heap>,
         staging: &mut Vec<Arc<RootToken>>,
     ) -> Result<Sexp, GraphError> {
+        self.export_promoted(store, &mut RootPromotion::new(heap, staging, false))
+    }
+
+    pub(super) fn export_promoted(
+        &self,
+        store: &mut Store,
+        promotion: &mut RootPromotion<'_>,
+    ) -> Result<Sexp, GraphError> {
         let mut value = self.value.clone();
         visit(&mut value, &mut |link| {
             let id = link.id();
             store.node(id)?;
-            *link = store.root(heap, id, staging);
+            *link = store.promote_root(id, promotion);
             Ok(())
         })?;
         Ok(value)
+    }
+
+    pub(super) fn same_direct_reference(&self, other: &Self) -> bool {
+        matches!((&self.value, &other.value),
+            (Sexp::ListObject(left), Sexp::ListObject(right)) if left == right)
+            || matches!((&self.value, &other.value),
+                (Sexp::PairListObject(left), Sexp::PairListObject(right)) if left == right)
+            || matches!((&self.value, &other.value),
+                (Sexp::Environment(left), Sexp::Environment(right)) if left == right)
+            || matches!((&self.value, &other.value),
+                (Sexp::Bytecode(left), Sexp::Bytecode(right)) if left == right)
+            || matches!((&self.value, &other.value),
+                (Sexp::Promise { state: left }, Sexp::Promise { state: right }) if left == right)
     }
 
     pub fn copy_edges(&self) -> Self {
@@ -65,164 +89,10 @@ impl StoredValue {
     }
 }
 
-// One exhaustive syntax walk owns both root conversion directions and trace-edge discovery.
-fn visit(
-    value: &mut Sexp,
-    map: &mut impl FnMut(&mut Link) -> Result<(), GraphError>,
-) -> Result<(), GraphError> {
-    match value {
-        Sexp::Nil
-        | Sexp::Primitive(_)
-        | Sexp::MissingArg(_)
-        | Sexp::MissingValue
-        | Sexp::Symbol(_)
-        | Sexp::Logical(_)
-        | Sexp::Integer(_)
-        | Sexp::Real(_)
-        | Sexp::String(_)
-        | Sexp::Factor { .. }
-        | Sexp::Break
-        | Sexp::Next => {}
-        Sexp::Char(value) => {
-            if value.as_ref().is_some_and(|value| value.contains('\0')) {
-                return Err(GraphError::InvalidCharacter);
-            }
-        }
-        Sexp::Environment(frame) => map(&mut frame.0)?,
-        Sexp::ListObject(value) => map(&mut value.0)?,
-        Sexp::PairListObject(value) => map(&mut value.0)?,
-        Sexp::Promise { state } => map(&mut state.0)?,
-        Sexp::Closure {
-            parameters,
-            body,
-            environment,
-        } => {
-            match environment {
-                ClosureEnvironment::Captured(frame) => map(&mut frame.0)?,
-                ClosureEnvironment::Base => {}
-            }
-            for parameter in parameters {
-                if let Some(default) = &mut parameter.default {
-                    visit(default, map)?;
-                }
-            }
-            visit(body, map)?;
-        }
-        Sexp::Function { parameters, body } => {
-            for parameter in parameters {
-                if let Some(default) = &mut parameter.default {
-                    visit(default, map)?;
-                }
-            }
-            visit(body, map)?;
-        }
-        Sexp::Vector(values) | Sexp::Block(values) => {
-            for value in values {
-                visit(value, map)?;
-            }
-        }
-        Sexp::PairList(values) => {
-            for value in values.elements_mut() {
-                visit(&mut value.value, map)?;
-            }
-        }
-        Sexp::ClassedList {
-            elements, class, ..
-        } => {
-            visit(class, map)?;
-            for element in elements {
-                visit(&mut element.value, map)?;
-            }
-        }
-        Sexp::AttributedCharacter {
-            attributes: values, ..
-        }
-        | Sexp::List(values)
-        | Sexp::Dots(values)
-        | Sexp::DataFrame {
-            columns: values, ..
-        } => {
-            for value in values {
-                visit(&mut value.value, map)?;
-            }
-        }
-        Sexp::Matrix { data: value, .. }
-        | Sexp::Repeat { body: value }
-        | Sexp::Dollar { value, .. }
-        | Sexp::Assignment { value, .. }
-        | Sexp::SuperAssignment { value, .. }
-        | Sexp::DollarAssignment { value, .. }
-        | Sexp::NamesAssignment { value, .. }
-        | Sexp::Unary { value, .. }
-        | Sexp::Parenthesized(value) => visit(value, map)?,
-        Sexp::If {
-            condition,
-            then_branch,
-            else_branch,
-        } => {
-            visit(condition, map)?;
-            visit(then_branch, map)?;
-            if let Some(value) = else_branch {
-                visit(value, map)?;
-            }
-        }
-        Sexp::For { sequence, body, .. }
-        | Sexp::While {
-            condition: sequence,
-            body,
-        } => {
-            visit(sequence, map)?;
-            visit(body, map)?;
-        }
-        Sexp::Subset { value, index } | Sexp::Subassignment { value, index, .. } => {
-            visit(value, map)?;
-            if let Some(value) = index {
-                visit(value, map)?;
-            }
-        }
-        Sexp::Subset2D { value, row, col }
-        | Sexp::MatrixSubassignment {
-            value, row, col, ..
-        } => {
-            visit(value, map)?;
-            if let Some(value) = row {
-                visit(value, map)?;
-            }
-            if let Some(value) = col {
-                visit(value, map)?;
-            }
-        }
-        Sexp::Extract { value, index } | Sexp::ExtractAssignment { value, index, .. } => {
-            visit(value, map)?;
-            visit(index, map)?;
-        }
-        Sexp::ReplacementAssignment { target, value, .. }
-        | Sexp::MemberAssignment { target, value, .. } => {
-            visit(target, map)?;
-            visit(value, map)?;
-        }
-        Sexp::ExtractArguments {
-            value: function,
-            arguments,
-        }
-        | Sexp::Call {
-            function,
-            arguments,
-        } => {
-            visit(function, map)?;
-            for argument in arguments {
-                visit(&mut argument.value, map)?;
-            }
-        }
-        Sexp::InternalCall { arguments, .. } => {
-            for argument in arguments {
-                visit(&mut argument.value, map)?;
-            }
-        }
-        Sexp::Binary { left, right, .. } => {
-            visit(left, map)?;
-            visit(right, map)?;
-        }
-    }
-    Ok(())
+pub(super) fn same_snapshot(left: &Sexp, right: &Sexp) -> Result<bool, GraphError> {
+    let mut left = left.clone();
+    let mut right = right.clone();
+    let left_bits = walk::real_bits(&mut left)?;
+    let right_bits = walk::real_bits(&mut right)?;
+    Ok(left == right && left_bits == right_bits)
 }

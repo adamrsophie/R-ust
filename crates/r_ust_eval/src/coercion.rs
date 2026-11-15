@@ -1,6 +1,7 @@
 use super::{EvalError, Sexp};
 
 mod atomic;
+mod character;
 mod lists;
 pub(super) mod logical;
 mod runtime;

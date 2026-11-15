@@ -4,7 +4,7 @@ use super::{
     LanguagePrintError, Writer,
 };
 use crate::{CallArgument, Sexp};
-impl Writer {
+impl Writer<'_> {
     pub(super) fn infix(
         &mut self,
         operator: (&str, Info),
@@ -45,7 +45,7 @@ impl Writer {
                     let [Some(member)] = values.as_slice() else {
                         return Err(LanguagePrintError::MalformedCall);
                     };
-                    names::check_text(member)?;
+                    self.check_name(member)?;
                     if names::valid_name(member) {
                         self.emit(member);
                     } else {

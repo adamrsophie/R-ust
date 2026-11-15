@@ -1,9 +1,16 @@
+mod base_bytecode;
+mod bytecode;
 mod cons_objects;
+pub use bytecode::{bytecode_source, BytecodeParts};
 mod environments;
 mod frames;
 mod heap;
 mod list_objects;
+#[cfg(test)]
+mod pending_assignment_tests;
 mod promises;
+#[cfg(test)]
+mod semantic_ownership_tests;
 mod values;
 
 use std::fmt;
@@ -11,7 +18,7 @@ use std::sync::Arc;
 
 pub use environments::EnvironmentRole;
 use heap::{Heap, NodeId, RootToken};
-pub use promises::{Force, ForceLease};
+pub use promises::{Force, ForceLease, PromiseMetadata};
 
 /// An invalid graph access or promise state transition.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -22,6 +29,7 @@ pub enum GraphError {
     WrongKind,
     IndexOutOfBounds,
     InvalidCharacter,
+    InvalidBytecode,
     EmptyEnvironment,
     BindingLocked,
     EnvironmentLocked,
@@ -76,6 +84,12 @@ impl fmt::Debug for Link {
     }
 }
 
+/// A semantic retention lease. Clones extend the same lease rather than creating an alias.
+#[derive(Clone, Debug)]
+pub struct ValueRetention {
+    _value: crate::Sexp,
+}
+
 /// A rooted live lexical frame. Clones share identity, not copied bindings.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Environment(Link);
@@ -84,8 +98,13 @@ pub struct Environment(Link);
 #[derive(Clone, Debug, PartialEq)]
 pub struct PromiseState(Link);
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct BytecodeObject(Link);
+
 #[cfg(test)]
 mod character_attributes_tests;
+#[cfg(test)]
+mod closure_attributes_tests;
 /// An ordinary traced list whose clones retain shared identity.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ListObject(Link);
@@ -93,3 +112,6 @@ pub struct ListObject(Link);
 /// An immutable ordinary cons spine whose clones retain head identity.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PairListObject(Link);
+
+#[cfg(test)]
+mod gc_reference_history_tests;

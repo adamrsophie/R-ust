@@ -1,12 +1,16 @@
 use r_ust_sexp::PrimitiveId;
 mod accessor;
+mod construction;
+mod control;
 mod display;
+mod environment;
+mod invocation;
+mod namespace;
 pub(super) use display::format_primitive;
 pub(crate) mod names;
 
 use super::{
-    is_missing_binding, ApplyFunction, CallArgument, EvalError, EvalFlow, EvaluatedArgument,
-    RuntimeState, Sexp,
+    ApplyFunction, CallArgument, EvalError, EvalFlow, EvaluatedArgument, RuntimeState, Sexp,
 };
 
 impl RuntimeState {
@@ -15,16 +19,8 @@ impl RuntimeState {
         function: &ApplyFunction,
         arguments: &[CallArgument],
     ) -> Result<Vec<EvaluatedArgument>, EvalError> {
-        if matches!(
-            function,
-            ApplyFunction::Primitive(
-                PrimitiveId::Return
-                    | PrimitiveId::Missing
-                    | PrimitiveId::Quote
-                    | PrimitiveId::UseMethod
-                    | PrimitiveId::OnExit
-            )
-        ) {
+        if matches!(function, ApplyFunction::Primitive(id) if id.sexptype() == r_ust_sexp::SexpType::Special)
+        {
             return Ok(Vec::new());
         }
         arguments
@@ -36,65 +32,6 @@ impl RuntimeState {
                 })
             })
             .collect()
-    }
-
-    fn eval_missing(&self, arguments: &[CallArgument]) -> Result<EvalFlow, EvalError> {
-        if arguments.len() != 1 {
-            return Err(EvalError::Arity(format!(
-                "{} arguments passed to 'missing' which requires 1",
-                arguments.len()
-            )));
-        }
-        if let Some(name) = arguments[0].name.as_deref().filter(|name| *name != "x") {
-            return Err(EvalError::Arity(format!(
-                "supplied argument name '{name}' does not match 'x'"
-            )));
-        }
-        let name = match &arguments[0].value {
-            Sexp::Symbol(name) => name,
-            Sexp::String(values) | Sexp::AttributedCharacter { values, .. }
-                if values.len() == 1 =>
-            {
-                values[0].as_deref().unwrap_or("NA")
-            }
-            _ => return Err(EvalError::Type("invalid use of 'missing'".into())),
-        };
-        if let Some(index) = name
-            .strip_prefix("..")
-            .and_then(|value| value.parse::<usize>().ok())
-            .and_then(|value| value.checked_sub(1))
-        {
-            if let Some(Sexp::Dots(values)) = self.current.get_local("...")? {
-                let absent = match values.get(index) {
-                    Some(value) => is_missing_binding(&value.value)?,
-                    None => true,
-                };
-                return Ok(EvalFlow::Value(Sexp::Logical(vec![Some(absent)])));
-            }
-        }
-        let value = self.current.get_local(name)?.ok_or_else(|| {
-            EvalError::Domain(format!("'missing({name})' did not find an argument"))
-        })?;
-        let absent = match &value {
-            Sexp::Dots(values) => values.is_empty(),
-            _ => is_missing_binding(&value)?,
-        };
-        Ok(EvalFlow::Value(Sexp::Logical(vec![Some(absent)])))
-    }
-
-    fn eval_return(&mut self, arguments: &[CallArgument]) -> Result<EvalFlow, EvalError> {
-        if arguments.len() > 1 {
-            return Err(EvalError::Arity(
-                "multi-argument returns are not permitted".into(),
-            ));
-        }
-        let value = if let Some(argument) = arguments.first() {
-            let EvalFlow::Value(value) = self.eval_flow(&argument.value)?;
-            value
-        } else {
-            Sexp::Nil
-        };
-        Err(self.control.return_signal(&self.current, value))
     }
 
     pub(super) fn call_value(
@@ -126,17 +63,37 @@ impl RuntimeState {
             self.visible = true;
         }
         match id {
+            PrimitiveId::Syntax(id) => self.call_syntax(id, arguments, call),
             PrimitiveId::UseMethod => self.eval_use_method(arguments, call),
             PrimitiveId::OnExit => self.eval_on_exit(arguments, call),
-            PrimitiveId::Return => self.eval_return(arguments),
+            PrimitiveId::Return => self.eval_return(arguments, call),
             PrimitiveId::Missing => self.eval_missing(arguments),
             PrimitiveId::Quote => self.eval_quote(arguments, call),
-            PrimitiveId::Sum
+            PrimitiveId::NamespaceExport | PrimitiveId::NamespaceInternal => {
+                self.eval_namespace(arguments, call).map(EvalFlow::Value)
+            }
+            PrimitiveId::Expression => {
+                crate::expression_values::capture(arguments).map(EvalFlow::Value)
+            }
+            PrimitiveId::Substitute => self.eval_substitute(arguments, call),
+            PrimitiveId::Internal => self
+                .eval_internal_call(arguments, call)
+                .map(EvalFlow::Value),
+            PrimitiveId::Call => self.construct_call(arguments, call).map(EvalFlow::Value),
+            PrimitiveId::InternalEval
+            | PrimitiveId::Sum
+            | PrimitiveId::List
+            | PrimitiveId::AsCharacter
             | PrimitiveId::Nargs
             | PrimitiveId::GlobalEnv
             | PrimitiveId::BaseEnv
             | PrimitiveId::EmptyEnv
             | PrimitiveId::IsEnvironment
+            | PrimitiveId::AsCall
+            | PrimitiveId::AsEnvironment
+            | PrimitiveId::IsSymbol
+            | PrimitiveId::IsPairList
+            | PrimitiveId::IsExpression
             | PrimitiveId::Primitive
             | PrimitiveId::Length
             | PrimitiveId::Invisible
@@ -166,6 +123,7 @@ impl RuntimeState {
         call: &Sexp,
     ) -> Result<Sexp, EvalError> {
         match id {
+            PrimitiveId::Syntax(id) => self.call_eager_syntax(id, arguments, call),
             PrimitiveId::GlobalEnv => self.environment_root(
                 (id.name(), r_ust_sexp::EnvironmentRole::Global),
                 arguments,
@@ -182,6 +140,19 @@ impl RuntimeState {
                 call,
             ),
             PrimitiveId::IsEnvironment => self.is_environment(arguments, call),
+            PrimitiveId::AsCall
+            | PrimitiveId::AsEnvironment
+            | PrimitiveId::IsSymbol
+            | PrimitiveId::IsPairList => self.call_invocation_primitive(id, arguments, call),
+            PrimitiveId::NamespaceExport | PrimitiveId::NamespaceInternal => {
+                Err(EvalError::NotImplemented(
+                    "namespace selection with evaluated-only apply arguments",
+                ))
+            }
+            PrimitiveId::IsExpression => crate::expression_values::is_expression(arguments, call),
+            PrimitiveId::Expression => Err(EvalError::NotImplemented(
+                "expression with evaluated-only apply arguments",
+            )),
             PrimitiveId::Primitive => {
                 let value = accessor::lookup(arguments, call)?;
                 self.visible = true;
@@ -222,12 +193,19 @@ impl RuntimeState {
                 }
                 self.call_builtin(id.name(), arguments)
             }
-            PrimitiveId::Sum => self.call_builtin(id.name(), arguments),
+            PrimitiveId::InternalEval => self.internal_eval(arguments),
+            PrimitiveId::AsCharacter => self.call_character_coercion(arguments, call),
+            PrimitiveId::Sum | PrimitiveId::List => self.call_builtin(id.name(), arguments),
             PrimitiveId::Nargs => self.condition_nargs(arguments, call),
+            PrimitiveId::Internal => Err(EvalError::Domain("illegal usage".into())),
+            PrimitiveId::Substitute => Err(EvalError::NotImplemented(
+                "substitute with evaluated-only apply arguments",
+            )),
             PrimitiveId::OnExit => Err(EvalError::NotImplemented(
                 "on.exit with evaluated-only apply arguments",
             )),
-            PrimitiveId::Return
+            PrimitiveId::Call
+            | PrimitiveId::Return
             | PrimitiveId::Missing
             | PrimitiveId::Quote
             | PrimitiveId::UseMethod => {

@@ -9,6 +9,7 @@ fn dynamic_context_root_bundle_final_release() {
     let lexical = heap.session().child().unwrap();
     let ids = [execution.0.id(), sysparent.0.id(), lexical.0.id()];
     let callable = Sexp::Closure {
+        attributes: Vec::new(),
         parameters: vec![],
         body: Box::new(Sexp::Nil),
         environment: ClosureEnvironment::Captured(lexical.clone()),

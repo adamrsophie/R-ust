@@ -24,6 +24,7 @@ fn sort_list_skips_only_the_actual_base_namespace_closure() -> Result<(), Box<dy
             operator: AssignmentOperator::Left,
             target: "sort.list".into(),
             value: Box::new(Sexp::Closure {
+                attributes: Vec::new(),
                 parameters: vec![FunctionParameter::required("x")],
                 body: Box::new(Sexp::Integer(vec![Some(91)])),
                 environment,

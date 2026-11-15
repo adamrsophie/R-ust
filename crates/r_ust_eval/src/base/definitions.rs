@@ -22,6 +22,7 @@
 //
 // A copy of the GNU General Public License is available at
 // https://www.R-project.org/Licenses/
+// R 4.6.0 src/library/base/R/is.R: Copyright (C) 1995-2012 The R Core Team
 pub(super) const DEFINITIONS: &[(&str, &str)] = &[
     // shortcut: set coercion is lowered into existing match handling for atomic,
     // factor and matrix values; extend with list matching and S3 support.
@@ -29,6 +30,7 @@ pub(super) const DEFINITIONS: &[(&str, &str)] = &[
         "is.element",
         "function(el, set) { x <- el; y <- set; match(x, y, 0L) > 0L }",
     ),
+    ("is.vector", r#"function(x, mode="any") .Internal(is.vector(x,mode))"#),
     ("utf8ToInt", "function(x) .Internal(utf8ToInt(x))"),
     ("intToUtf8", "function(x, multiple = FALSE, allow_surrogate_pairs = FALSE) .Internal(intToUtf8(x, multiple, allow_surrogate_pairs))"),
     (

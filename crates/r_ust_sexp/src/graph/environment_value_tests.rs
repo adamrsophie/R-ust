@@ -40,6 +40,7 @@ fn wrappers(value: &Sexp) -> Vec<Sexp> {
             body: Box::new(value.clone()),
         },
         Sexp::Closure {
+            attributes: Vec::new(),
             parameters: vec![FunctionParameter {
                 name: "x".into(),
                 default: Some(value.clone()),

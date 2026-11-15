@@ -2,6 +2,8 @@ mod character_attributes;
 mod character_operations;
 use character_operations::{call_chartr, call_strtrim, call_sub_gsub, call_substr, call_trimws};
 mod list_attributes;
+mod list_construction;
+use list_construction::call_list;
 mod list_prompt;
 mod ordinary_cycles;
 mod ordinary_values;
@@ -21,6 +23,7 @@ use list_sets::{
     duplicated_value, is_list_set_value, set_list_equal, set_list_operation, set_list_values,
     unique_value,
 };
+mod list_concatenation;
 mod list_conversion;
 use list_conversion::{as_list_value, call_c, call_unlist};
 mod list_names;
@@ -34,28 +37,38 @@ mod canonical_language_tests;
 mod identity;
 mod metadata;
 mod shared_identity;
+mod text_locale;
 mod value_length;
 use identity::sexp_identical;
-use metadata::{class_value, is_vector_value, mode_value, typeof_value};
+use metadata::{class_value, mode_value, typeof_value};
 use std::collections::HashMap;
 use value_length::value_len;
 
 mod any_na;
+mod argument_matching;
 mod arguments;
 mod base;
+mod bytecode;
+mod call_heads;
 mod calls;
 mod error;
+mod eval_entry;
 mod internal;
 mod message_helpers;
+mod substitute;
+mod syntax;
+mod syntax_raw;
 pub use error::EvalError;
 mod atomic_values;
 mod binary;
 mod builtins;
+mod closure_attributes;
 mod closure_calls;
 mod coercion;
 mod conditions;
 mod control;
 pub use conditions::{ConditionJump, SourceFault};
+mod assign_values;
 mod data_mask;
 mod dispatch;
 mod dots;
@@ -65,6 +78,8 @@ mod encode_string;
 mod environment;
 mod environment_members;
 mod environment_values;
+mod eval_values;
+mod expression_values;
 mod member_assignment;
 mod member_values;
 mod new_environment;
@@ -151,6 +166,7 @@ pub struct RuntimeState {
     global: Environment,
     control: control::ControlState,
     visible: bool,
+    bytecode_enabled: bool,
     output: Vec<OutputEvent>,
     output_sink: Option<fn(OutputEvent) -> std::io::Result<()>>,
     command_args: Vec<String>,
@@ -160,7 +176,7 @@ pub struct RuntimeState {
     options: std::collections::BTreeMap<String, Sexp>,
     warned_strings_as_factors: bool,
     warned_sequence_recycle: bool,
-    pending_parse_warnings: Vec<String>,
+    pending_parse_warnings: Vec<parse_warnings::WarningRecord>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -180,6 +196,7 @@ impl RuntimeState {
             control: control::ControlState::default(),
             conditions: conditions::Conditions::default(),
             visible: true,
+            bytecode_enabled: bytecode::enabled_by_environment(),
             output: Vec::new(),
             output_sink: None,
             command_args: Vec::new(),
@@ -212,7 +229,9 @@ impl RuntimeState {
 
     pub fn eval(&mut self, expr: &Sexp) -> Result<Sexp, EvalError> {
         let saved_head = self.conditions.head.clone();
+        let saved_restarts = self.conditions.restarts.clone();
         let result = self.eval_flow(expr);
+        self.conditions.restarts = saved_restarts;
         if result.is_err() {
             self.conditions.head = saved_head;
         }
@@ -221,11 +240,10 @@ impl RuntimeState {
         Ok(result)
     }
 
-    fn eval_flow_body(&mut self, expr: &Sexp) -> Result<EvalFlow, EvalError> {
-        character_attributes::validate(expr)?;
-        base::initialize(&self.current)?;
-        self.visible = true;
+    #[inline(never)]
+    fn eval_legacy_expression(&mut self, expr: &Sexp) -> Result<EvalFlow, EvalError> {
         let result = match expr {
+            Sexp::Bytecode(code) => self.eval_bytecode(code)?,
             Sexp::Char(value) if value.as_ref().is_some_and(|value| value.contains('\0')) => {
                 return Err(EvalError::NotImplemented("CHARSXP with embedded NUL"));
             }
@@ -244,7 +262,9 @@ impl RuntimeState {
             | Sexp::Real(_)
             | Sexp::String(_)
             | Sexp::AttributedCharacter { .. }
+            | Sexp::Expression { .. }
             | Sexp::Vector(_)
+            | Sexp::NamedList { .. }
             | Sexp::ClassedList { .. }
             | Sexp::List(_)
             | Sexp::PairList(_)
@@ -269,6 +289,7 @@ impl RuntimeState {
             Sexp::Promise { .. } => EvalFlow::Value(self.force_value(expr.clone())?),
             Sexp::Symbol(name) => self.eval_symbol(name)?,
             Sexp::Function { parameters, body } => EvalFlow::Value(Sexp::Closure {
+                attributes: Vec::new(),
                 parameters: parameters.clone(),
                 body: body.clone(),
                 environment: ClosureEnvironment::Captured(self.current.clone()),
@@ -461,7 +482,7 @@ impl RuntimeState {
                 function,
                 arguments,
             } => self.eval_call(function, arguments)?,
-            Sexp::Parenthesized(value) => self.eval_parenthesized(value)?,
+            Sexp::Parenthesized(value) => return self.eval_parenthesized(value),
         };
         if is_assignment(expr)
             || matches!(
@@ -671,11 +692,7 @@ impl RuntimeState {
                 value,
             });
         }
-        if name == "sapply" && simplify {
-            simplify_sapply(out)
-        } else {
-            Ok(Sexp::List(out))
-        }
+        list_iteration::apply_result(&x, out, name == "sapply" && simplify)
     }
 
     fn apply_arguments(
@@ -972,8 +989,10 @@ impl Frontend {
         let result = (|| {
             let value = self.runtime.eval(expr)?;
             if self.runtime.is_visible() {
-                self.runtime
-                    .emit(OutputEvent::Stdout(format!("{}\n", format_sexp(&value)?)))?;
+                if let Some(text) = display::format_lines(&value)? {
+                    self.runtime
+                        .emit(OutputEvent::Stdout(format!("{text}\n")))?;
+                }
             }
             Ok(())
         })();
@@ -1381,7 +1400,6 @@ fn is_builtin(name: &str) -> bool {
             | "which.min"
             | "which.max"
             | "match"
-            | "identical"
             | "anyNA"
             | "is.na"
             | "is.nan"
@@ -1400,7 +1418,6 @@ fn is_builtin(name: &str) -> bool {
             | "is.ordered"
             | "is.list"
             | "is.atomic"
-            | "is.vector"
             | "is.data.frame"
             | "is.function"
             | "isTRUE"
@@ -1736,11 +1753,6 @@ fn dispatch_call(name: &str, args: &[EvaluatedArgument]) -> Result<Sexp, EvalErr
         "which.min" => call_which_min_max(args, MinMax::Min),
         "which.max" => call_which_min_max(args, MinMax::Max),
         "match" => call_match(args),
-        "identical" => {
-            let x = positional(args, 0, "x")?;
-            let y = positional(args, 1, "y")?;
-            Ok(Sexp::Logical(vec![Some(sexp_identical(x, y)?)]))
-        }
         "is.na" => {
             let value = positional(args, 0, "x")?;
             Ok(Sexp::Logical(is_na_values(value)?))
@@ -1814,6 +1826,7 @@ fn dispatch_call(name: &str, args: &[EvaluatedArgument]) -> Result<Sexp, EvalErr
             Ok(Sexp::Logical(vec![Some(matches!(
                 value,
                 Sexp::ClassedList { .. }
+                    | Sexp::NamedList { .. }
                     | Sexp::List(_)
                     | Sexp::PairList(_)
                     | Sexp::ListObject(_)
@@ -1824,10 +1837,6 @@ fn dispatch_call(name: &str, args: &[EvaluatedArgument]) -> Result<Sexp, EvalErr
         "is.atomic" => {
             let value = positional(args, 0, "x")?;
             Ok(Sexp::Logical(vec![Some(is_atomic_value(value))]))
-        }
-        "is.vector" => {
-            let value = positional(args, 0, "x")?;
-            Ok(Sexp::Logical(vec![Some(is_vector_value(value)?)]))
         }
         "is.data.frame" => {
             let value = positional(args, 0, "x")?;
@@ -2884,14 +2893,6 @@ fn subset_vector(values: &[Sexp], positions: &[Option<usize>]) -> Vec<Sexp> {
         .collect()
 }
 
-fn subset_list(values: &[ListElement], positions: &[Option<usize>]) -> Vec<ListElement> {
-    positions
-        .iter()
-        .copied()
-        .filter_map(|position| position.and_then(|position| values.get(position).cloned()))
-        .collect()
-}
-
 fn subset_list_by_names(values: &[ListElement], names: &[Option<String>]) -> Vec<ListElement> {
     names
         .iter()
@@ -3171,17 +3172,6 @@ fn assign_list_values(
         out[position].value = replacement[index % replacement.len()].clone();
     }
     Ok(())
-}
-
-fn call_list(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
-    Ok(Sexp::List(
-        args.iter()
-            .map(|arg| ListElement {
-                name: arg.name.clone(),
-                value: arg.value.clone(),
-            })
-            .collect(),
-    ))
 }
 
 fn call_data_frame(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
@@ -5377,11 +5367,8 @@ fn call_append(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
     let x = positional(args, 0, "x")?;
     let values = positional(args, 1, "values")?;
     if list_like_elements(x)?.is_some() || list_like_elements(values)?.is_some() {
-        let mut x_elements = append_list_elements(x)?;
-        let values_elements = append_list_elements(values)?;
-        let after = append_after(args, 2, x_elements.len())?;
-        x_elements.splice(after..after, values_elements);
-        return Ok(Sexp::List(x_elements));
+        let after = append_after(args, 2, value_len(x)?)?;
+        return list_concatenation::append(x, values, after);
     }
 
     let mut x_elements = sequence_elements(x)?;
@@ -5440,16 +5427,6 @@ fn append_after(
         ));
     }
     Ok((after.trunc().max(0.0) as usize).min(current_len))
-}
-
-fn append_list_elements(value: &Sexp) -> Result<Vec<ListElement>, EvalError> {
-    if let Some(values) = list_like_elements(value)? {
-        return Ok(values);
-    }
-    Ok(sequence_elements(value)?
-        .into_iter()
-        .map(|value| ListElement { name: None, value })
-        .collect())
 }
 
 fn make_sequence(from: f64, to: f64, by: f64) -> Result<Vec<f64>, EvalError> {
@@ -5831,7 +5808,7 @@ fn call_sample(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
 #[derive(Clone, Copy)]
 enum SampleOutputKind {
     Atomic,
-    List,
+    List { names_present: bool },
 }
 
 struct SamplePopulation {
@@ -5850,7 +5827,9 @@ impl SamplePopulation {
             .filter_map(|index| self.values.get(*index).cloned())
             .collect::<Vec<_>>();
         match self.output {
-            SampleOutputKind::List => Ok(Sexp::List(selected)),
+            SampleOutputKind::List { names_present } => {
+                Ok(Sexp::list_with_metadata(selected, names_present, None))
+            }
             SampleOutputKind::Atomic => sample_atomic_vector(
                 &selected
                     .into_iter()
@@ -7331,7 +7310,7 @@ mod tests {
             panic!("expected list");
         };
         assert_eq!(captured.len(), 2);
-        assert_eq!(captured[0].name, None);
+        assert_eq!(captured[0].name.as_deref(), Some(""));
         assert_eq!(captured[0].value, Sexp::Real(vec![1.0]));
         assert_eq!(captured[1].name.as_deref(), Some("b"));
         assert_eq!(captured[1].value, Sexp::Real(vec![2.0]));

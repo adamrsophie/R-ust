@@ -84,7 +84,7 @@ fn quote_matches_independent_r_trees_visibility_metadata_warnings_and_effects(
                     .lines()
                     .collect::<Vec<_>>()
                     .chunks(3)
-                    .map(|condition| format!("Warning: {}\n", condition[1]))
+                    .map(|condition| format!("Warning in {} :\n  {}\n", condition[2], condition[1]))
                     .collect::<String>();
                 assert_eq!(warnings, expected, "{} warnings", case.id);
             }

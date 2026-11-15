@@ -1,7 +1,19 @@
+mod names;
+mod selection;
+use names::ordinary_names_subset;
+use selection::subset_list;
+
 use super::*;
 
 pub(super) fn subset_value(value: &Sexp, index: Option<&Sexp>) -> Result<Sexp, EvalError> {
     character_attributes::validate(value)?;
+    if let Sexp::Expression {
+        elements,
+        names_present,
+    } = value
+    {
+        return expression_values::subset((elements, *names_present), index);
+    }
     match value {
         Sexp::PairList(values) => {
             return subset_value(&Sexp::List(values.as_slice().to_vec()), index)
@@ -12,7 +24,13 @@ pub(super) fn subset_value(value: &Sexp, index: Option<&Sexp>) -> Result<Sexp, E
         _ => {}
     }
     let Some(index) = index else {
-        return Ok(value.clone());
+        let projection = ordinary_values::read(value)?;
+        return Ok(match projection.ordinary_list() {
+            Some(view) => {
+                Sexp::list_with_metadata(view.elements.to_vec(), view.names_present, None)
+            }
+            None => value.clone(),
+        });
     };
     let projection = ordinary_values::read(value)?;
     let value = projection.as_ref();
@@ -24,18 +42,16 @@ pub(super) fn subset_value(value: &Sexp, index: Option<&Sexp>) -> Result<Sexp, E
             nrow: *nrow,
         });
     }
-    if let (
-        Sexp::ClassedList {
-            elements: values, ..
-        }
-        | Sexp::List(values),
-        Sexp::String(_) | Sexp::AttributedCharacter { .. },
-    ) = (value, index)
-    {
-        return Ok(Sexp::List(subset_list_by_names(
-            values,
-            &string_values(index)?,
-        )));
+    if let Some(view) = value.ordinary_list() {
+        let elements = if matches!(index, Sexp::String(_) | Sexp::AttributedCharacter { .. }) {
+            ordinary_names_subset(view.elements, &string_values(index)?)
+        } else {
+            subset_list(
+                view.elements,
+                &subset_positions(view.elements.len(), index)?,
+            )
+        };
+        return Ok(Sexp::list_with_metadata(elements, view.names_present, None));
     }
     let positions = subset_positions(value_len(value)?, index)?;
 
@@ -68,8 +84,22 @@ pub(super) fn subset_linear_positions(
 ) -> Result<Sexp, EvalError> {
     let projection = ordinary_values::read(value)?;
     let value = projection.as_ref();
+    if let Some(view) = value.ordinary_list() {
+        return Ok(Sexp::list_with_metadata(
+            subset_list(view.elements, positions),
+            view.names_present,
+            None,
+        ));
+    }
     match value {
         Sexp::Nil => Ok(Sexp::Nil),
+        Sexp::Expression {
+            elements,
+            names_present,
+        } => Ok(expression_values::select(
+            (elements, *names_present),
+            positions,
+        )),
         Sexp::Logical(values) => Ok(Sexp::Logical(subset_optional(values, positions))),
         Sexp::Integer(values) => Ok(Sexp::Integer(subset_optional(values, positions))),
         Sexp::Real(values) => Ok(Sexp::Real(subset_real(values, positions))),
@@ -82,10 +112,6 @@ pub(super) fn subset_linear_positions(
             ordered,
         } => Ok(subset_factor_positions(codes, levels, *ordered, positions)),
         Sexp::Vector(values) => Ok(Sexp::Vector(subset_vector(values, positions))),
-        Sexp::ClassedList {
-            elements: values, ..
-        }
-        | Sexp::List(values) => Ok(Sexp::List(subset_list(values, positions))),
         Sexp::Matrix { data, .. } => subset_linear_positions(data, positions),
         other => Err(EvalError::Type(format!(
             "cannot subset value of type {:?}",
@@ -136,6 +162,45 @@ pub(super) fn subassign_value(
         return Ok(Sexp::Integer(out));
     }
 
+    if let Some(view) = value.ordinary_list() {
+        let mut out = view.elements.to_vec();
+        if matches!(replacement, Sexp::Nil) {
+            if let Some(last) = positions.iter().max() {
+                out.resize_with(out.len().max(last + 1), || ListElement {
+                    name: if view.names_present {
+                        Some(String::new())
+                    } else {
+                        None
+                    },
+                    value: Sexp::Nil,
+                });
+            }
+            out = out
+                .into_iter()
+                .enumerate()
+                .filter(|(index, _)| !positions.contains(index))
+                .map(|(_, element)| element)
+                .collect();
+        } else {
+            assign_list_values(&mut out, &positions, &list_replacement_values(replacement)?)?;
+            if view.names_present {
+                for element in out.iter_mut().skip(view.elements.len()) {
+                    element.name = Some(String::new());
+                }
+            }
+        }
+        let class = view.class.map(|class| {
+            (
+                class.clone(),
+                if out.len() != view.elements.len() && view.names_present {
+                    false
+                } else {
+                    view.class_first
+                },
+            )
+        });
+        return Ok(Sexp::list_with_metadata(out, view.names_present, class));
+    }
     match value {
         Sexp::Nil => subassign_nil(&positions, replacement),
         Sexp::Logical(values) => {
@@ -165,14 +230,6 @@ pub(super) fn subassign_value(
             let mut out = values.clone();
             assign_vector_values(&mut out, &positions, &sequence_elements(replacement)?)?;
             Ok(Sexp::Vector(out))
-        }
-        Sexp::ClassedList {
-            elements: values, ..
-        }
-        | Sexp::List(values) => {
-            let mut out = values.clone();
-            assign_list_values(&mut out, &positions, &list_replacement_values(replacement)?)?;
-            Ok(list_attributes::preserve_class(value, out))
         }
         Sexp::Matrix { data, nrow, ncol } => {
             let data = subassign_value(data, index, replacement)?;

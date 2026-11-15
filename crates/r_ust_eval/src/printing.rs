@@ -30,8 +30,9 @@ impl RuntimeState {
             ));
         }
         let quote = options::validate(controls.as_slice())?;
-        let text = crate::display::character::format(&value.value, quote)?;
-        self.emit(OutputEvent::Stdout(format!("{text}\n")))?;
+        if let Some(text) = crate::display::character::format_lines(&value.value, quote)? {
+            self.emit(OutputEvent::Stdout(format!("{text}\n")))?;
+        }
         self.visible = false;
         Ok(value.value.clone())
     }

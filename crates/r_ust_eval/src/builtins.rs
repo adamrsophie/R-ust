@@ -15,7 +15,8 @@ impl RuntimeState {
         let arguments = expand_dots_call_arguments(arguments, &self.current)?;
         let mut values = Vec::with_capacity(arguments.len());
         for (index, argument) in arguments.iter().enumerate() {
-            if empty_is_error && matches!(argument.value, Sexp::MissingArg(_)) {
+            if empty_is_error && matches!(argument.value, Sexp::MissingArg(_) | Sexp::MissingValue)
+            {
                 let message = format!("argument {} is empty", index + 1);
                 return Err(match call {
                     Some(call) => crate::SourceFault::arity(message, call),
@@ -74,12 +75,23 @@ impl RuntimeState {
                 if args.len() != 1 {
                     return Err(EvalError::Arity("is.object requires one argument".into()));
                 }
-                Sexp::Logical(vec![Some(matches!(
-                    crate::ordinary_values::read(&args[0].value)?.as_ref(),
-                    Sexp::ClassedList { .. } | Sexp::Factor { .. } | Sexp::DataFrame { .. }
-                ))])
+                let projection = crate::ordinary_values::read(&args[0].value)?;
+                let value = projection.as_ref();
+                Sexp::Logical(vec![Some(
+                    crate::closure_attributes::explicit_class(value).is_some()
+                        || matches!(
+                            value,
+                            Sexp::ClassedList { .. }
+                                | Sexp::NamedList { class: Some(_), .. }
+                                | Sexp::Factor { .. }
+                                | Sexp::DataFrame { .. }
+                        ),
+                )])
             }
             "anyNA" => return self.call_any_na(args, None),
+            "as.character" => {
+                return self.call_character_coercion(args, &self.source_current_call())
+            }
             "is.na" if args.len() == 1 && matches!(&args[0].value, Sexp::Char(_)) => {
                 self.record_parse_warnings(&[
                     "is.na() applied to non-(list or vector) of type 'char'".into(),

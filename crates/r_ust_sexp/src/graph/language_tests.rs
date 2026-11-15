@@ -6,6 +6,7 @@ use crate::{
 
 fn closure(frame: &Environment) -> Sexp {
     Sexp::Closure {
+        attributes: Vec::new(),
         parameters: vec![],
         body: Box::new(Sexp::Nil),
         environment: ClosureEnvironment::Captured(frame.clone()),

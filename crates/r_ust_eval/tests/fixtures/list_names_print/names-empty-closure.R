@@ -1,0 +1,10 @@
+options(keep.source=FALSE)
+f<-function()1L;attr(f,"srcref")<-integer();x<-list(f);names(x)<-NA_character_
+cat("AUTO\n")
+x
+cat("EXPLICIT\n")
+print(x,quote=FALSE)
+cat("ATTR\n")
+attr(f,"note")<-"v";x[[1L]]<-f
+x
+cat("DONE\n")

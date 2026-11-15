@@ -1,0 +1,62 @@
+D2NODE1
+visible
+list	4	-	_	4
+language	2	-	_	2
+language	3	-	_	3
+symbol	1	-	3a3a	0
+end
+symbol	1	-	62617365	0
+end
+symbol	1	-	71756f7465	0
+end
+end
+symbol	1	-	78	0
+end
+end
+language	2	-	_	2
+language	3	-	_	3
+symbol	1	-	3a3a	0
+end
+symbol	1	-	62617365	0
+end
+symbol	1	-	71756f7465	0
+end
+end
+language	2	-	_	2
+symbol	1	-	73746f70	0
+end
+character	1	-	4e4f	0
+end
+end
+end
+language	2	-	_	2
+language	3	-	_	3
+symbol	1	-	3a3a	0
+end
+symbol	1	-	62617365	0
+end
+symbol	1	-	71756f7465	0
+end
+end
+closure	1	-	_	3
+NULL	0	-	_	0
+end
+integer	1	-	1	0
+end
+environment	1	-	545255452c46414c53452c46414c53452c46414c5345	0
+end
+end
+end
+language	2	-	_	2
+language	3	-	_	3
+symbol	1	-	3a3a	0
+end
+symbol	1	-	62617365	0
+end
+symbol	1	-	71756f7465	0
+end
+end
+environment	1	-	46414c53452c46414c53452c46414c53452c46414c5345	0
+end
+end
+end

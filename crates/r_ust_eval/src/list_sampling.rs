@@ -15,6 +15,14 @@ pub(super) fn sample_population(value: &Sexp) -> Result<SamplePopulation, EvalEr
         });
     }
 
+    if let Some(view) = value.ordinary_list() {
+        return Ok(SamplePopulation {
+            values: view.elements.to_vec(),
+            output: SampleOutputKind::List {
+                names_present: view.names_present,
+            },
+        });
+    }
     match value {
         Sexp::ClassedList {
             elements: values, ..
@@ -22,11 +30,15 @@ pub(super) fn sample_population(value: &Sexp) -> Result<SamplePopulation, EvalEr
         | Sexp::List(values)
         | Sexp::Dots(values) => Ok(SamplePopulation {
             values: values.clone(),
-            output: SampleOutputKind::List,
+            output: SampleOutputKind::List {
+                names_present: values.iter().any(|element| element.name.is_some()),
+            },
         }),
         Sexp::DataFrame { columns, .. } => Ok(SamplePopulation {
             values: columns.clone(),
-            output: SampleOutputKind::List,
+            output: SampleOutputKind::List {
+                names_present: columns.iter().any(|element| element.name.is_some()),
+            },
         }),
         other => Ok(SamplePopulation {
             values: sequence_elements(other)?

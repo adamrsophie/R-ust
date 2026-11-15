@@ -31,12 +31,21 @@ impl Walker {
     }
 
     fn projected(&mut self, value: &Sexp) -> Result<(), EvalError> {
-        if let Sexp::ClassedList { class, .. } = value {
+        if let Some(class) = value.ordinary_list().and_then(|view| view.class) {
             self.visit(class)?;
         }
         match value {
             Sexp::AttributedCharacter {
                 attributes: values, ..
+            }
+            | Sexp::Closure {
+                attributes: values, ..
+            }
+            | Sexp::Expression {
+                elements: values, ..
+            }
+            | Sexp::NamedList {
+                elements: values, ..
             }
             | Sexp::List(values)
             | Sexp::ClassedList {

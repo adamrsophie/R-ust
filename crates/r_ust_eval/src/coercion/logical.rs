@@ -9,6 +9,7 @@ pub(crate) fn convert(value: &Sexp) -> Result<Vec<Option<bool>>, EvalError> {
         )),
         Sexp::Vector(values) => list_values(values.iter()),
         Sexp::ClassedList { elements, .. }
+        | Sexp::NamedList { elements, .. }
         | Sexp::List(elements)
         | Sexp::DataFrame {
             columns: elements, ..

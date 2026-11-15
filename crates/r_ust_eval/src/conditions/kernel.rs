@@ -31,7 +31,10 @@ impl RuntimeState {
             Sexp::ListObject(object) => object.value()?,
             value => value.clone(),
         };
-        let (Sexp::List(handlers)
+        let (Sexp::NamedList {
+            elements: handlers, ..
+        }
+        | Sexp::List(handlers)
         | Sexp::ClassedList {
             elements: handlers, ..
         }) = handlers

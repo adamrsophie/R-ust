@@ -71,6 +71,7 @@ pub(super) fn list_character(value: &Sexp) -> Result<String, EvalError> {
         | Sexp::MissingArg(_)
         | Sexp::Symbol(_)
         | Sexp::MissingValue
+        | Sexp::Expression { .. }
         | Sexp::PairList(_)
         | Sexp::Logical(_)
         | Sexp::Integer(_)
@@ -78,6 +79,7 @@ pub(super) fn list_character(value: &Sexp) -> Result<String, EvalError> {
         | Sexp::String(_)
         | Sexp::AttributedCharacter { .. }
         | Sexp::Vector(_)
+        | Sexp::NamedList { .. }
         | Sexp::ClassedList { .. }
         | Sexp::List(_)
         | Sexp::Factor { .. }
@@ -90,6 +92,7 @@ pub(super) fn list_character(value: &Sexp) -> Result<String, EvalError> {
         | Sexp::ListObject(_)
         | Sexp::PairListObject(_)
         | Sexp::Environment(_)
+        | Sexp::Bytecode(_)
         | Sexp::Primitive(_)
         | Sexp::InternalCall { .. }
         | Sexp::Function { .. }

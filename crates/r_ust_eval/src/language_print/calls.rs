@@ -1,10 +1,9 @@
 use super::{
-    names,
     operators::{self, Kind},
     LanguagePrintError, Writer,
 };
 use crate::{CallArgument, ListElement, Sexp};
-impl Writer {
+impl Writer<'_> {
     pub(super) fn call(
         &mut self,
         head: &Sexp,
@@ -14,10 +13,12 @@ impl Writer {
         let (fnarg, left) = context;
         match head {
             Sexp::Symbol(name) => {
-                names::check_text(name)?;
-                for arg in args {
-                    if let Some(tag) = &arg.name {
-                        names::check_text(tag)?;
+                self.check_name(name)?;
+                if self.profile.is_none() {
+                    for arg in args {
+                        if let Some(tag) = &arg.name {
+                            self.check_name(tag)?;
+                        }
                     }
                 }
                 let mut op = operators::info(name);
@@ -57,11 +58,16 @@ impl Writer {
                 }
                 match op.kind {
                     Kind::Call | Kind::Subassign => {
-                        self.emit(&names::name(name)?);
-                        self.emit("(");
                         let list = op.kind == Kind::Call
                             && (super::primitives::NAMES.contains(&name.as_str())
                                 || operators::user_binop(name));
+                        let caller = if list && self.profile.is_some() {
+                            self.tag_name(name)?
+                        } else {
+                            self.caller_name(name)?
+                        };
+                        self.emit(&caller);
+                        self.emit("(");
                         self.inlist += usize::from(list);
                         self.arguments(args)?;
                         self.inlist -= usize::from(list);
@@ -99,7 +105,7 @@ impl Writer {
                     | Kind::Next => self.control(op.kind, args),
                 }
             }
-            Sexp::String(_) => Err(LanguagePrintError::MalformedCall),
+            Sexp::String(_) if self.profile.is_none() => Err(LanguagePrintError::MalformedCall),
             _ => {
                 let parens = operators::parenthesize_caller(head);
                 if parens {
@@ -119,8 +125,11 @@ impl Writer {
     pub(super) fn arguments(&mut self, args: &[CallArgument]) -> Result<(), LanguagePrintError> {
         let mut continued = false;
         for (index, arg) in args.iter().enumerate() {
+            if !self.active() {
+                break;
+            }
             if let Some(tag) = &arg.name {
-                self.emit(&names::name(tag)?);
+                self.emit(&self.tag_name(tag)?);
                 self.emit(" = ");
             }
             self.fnarg = true;
@@ -138,10 +147,13 @@ impl Writer {
     pub(super) fn formals(&mut self, args: &[ListElement]) -> Result<(), LanguagePrintError> {
         let mut continued = false;
         for (index, arg) in args.iter().enumerate() {
+            if !self.active() {
+                break;
+            }
             let Some(tag) = &arg.name else {
                 return Err(LanguagePrintError::MalformedCall);
             };
-            self.emit(&names::name(tag)?);
+            self.emit(&self.tag_name(tag)?);
             if !matches!(arg.value, Sexp::MissingValue) {
                 self.emit(" = ");
                 self.fnarg = true;

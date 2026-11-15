@@ -6,6 +6,7 @@ pub(super) fn deparse_value(value: &Sexp) -> Result<String, EvalError> {
     let value = projection.as_ref();
     let (empty, parts) = match value {
         Sexp::Nil => return Ok("NULL".into()),
+        Sexp::Bytecode(_) => return Ok("<bytecode>".into()),
         Sexp::String(values) => (
             "character(0)",
             values
@@ -56,6 +57,9 @@ pub(super) fn deparse_value(value: &Sexp) -> Result<String, EvalError> {
         Sexp::ClassedList {
             elements: values, ..
         }
+        | Sexp::NamedList {
+            elements: values, ..
+        }
         | Sexp::List(values) => {
             let parts = values
                 .iter()
@@ -96,6 +100,7 @@ pub(super) fn deparse_value(value: &Sexp) -> Result<String, EvalError> {
         | Sexp::MissingArg(_)
         | Sexp::Symbol(_)
         | Sexp::MissingValue
+        | Sexp::Expression { .. }
         | Sexp::PairList(_)
         | Sexp::DataFrame { .. }
         | Sexp::Dots(_)

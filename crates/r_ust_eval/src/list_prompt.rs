@@ -12,6 +12,9 @@ pub(super) fn readline_prompt(value: &Sexp) -> Result<Option<String>, EvalError>
         Sexp::ClassedList {
             elements: values, ..
         }
+        | Sexp::NamedList {
+            elements: values, ..
+        }
         | Sexp::List(values)
         | Sexp::DataFrame {
             columns: values, ..

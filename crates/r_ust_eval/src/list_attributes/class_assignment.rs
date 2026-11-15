@@ -32,7 +32,7 @@ pub(crate) fn replace(value: &Sexp, replacement: &Sexp) -> Result<Sexp, EvalErro
     if classes.len() == 1 {
         match first {
             Some("list") => match value {
-                Sexp::List(_) | Sexp::ClassedList { .. } => {
+                Sexp::List(_) | Sexp::ClassedList { .. } | Sexp::NamedList { .. } => {
                     return super::set(value, "class", &Sexp::Nil)
                 }
                 Sexp::Nil => return Ok(Sexp::List(Vec::new())),
@@ -60,7 +60,10 @@ pub(crate) fn replace(value: &Sexp, replacement: &Sexp) -> Result<Sexp, EvalErro
                 ))
             }
             Some(name @ ("environment" | "externalptr" | "weakref" | "name")) => {
-                if matches!(value, Sexp::List(_) | Sexp::ClassedList { .. }) {
+                if matches!(
+                    value,
+                    Sexp::List(_) | Sexp::ClassedList { .. } | Sexp::NamedList { .. }
+                ) {
                     return Err(EvalError::Domain(format!("\"{name}\" can only be set as the class if the object has this type; found \"list\"")));
                 }
                 return Err(EvalError::NotImplemented(

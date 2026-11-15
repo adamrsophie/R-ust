@@ -124,6 +124,7 @@ pub(super) fn needs_parens(main: Info, arg: &Sexp, side: (bool, u8)) -> bool {
 }
 pub(super) fn parenthesize_caller(head: &Sexp) -> bool {
     match head {
+        Sexp::Closure { .. } => true,
         Sexp::Call { function, .. } => match function.as_ref() {
             Sexp::Symbol(name) => {
                 if user_binop(name)

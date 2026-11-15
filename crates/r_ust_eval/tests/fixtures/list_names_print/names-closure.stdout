@@ -1,0 +1,31 @@
+CLASSED_NA
+[[1]]
+$<NA>
+[1] 1
+
+attr(,"class")
+[1] "foo"
+
+ORDER_NA
+[1]  TRUE FALSE
+CLOSURE_NA
+[1]  TRUE FALSE
+CLASSED_EMPTY
+[[1]]
+named list()
+attr(,"class")
+[1] "foo"
+
+ORDER_EMPTY
+[1]  TRUE FALSE
+CLOSURE_EMPTY
+[1]  TRUE FALSE
+UNCLASSED_NA
+[[1]]
+[[1]]$<NA>
+[1] 1
+
+
+CLASS_ONLY
+[1] TRUE TRUE
+DONE

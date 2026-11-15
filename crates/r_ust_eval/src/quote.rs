@@ -1,4 +1,4 @@
-use r_ust_sexp::{canonical_language, LanguageError};
+use r_ust_sexp::{canonical_actual_call, LanguageError};
 
 use crate::{CallArgument, EvalError, EvalFlow, RuntimeState, Sexp};
 
@@ -27,9 +27,11 @@ impl RuntimeState {
                 self.warn_partial_argument(name, "expr", Some(call))?;
             }
         }
-        let value = canonical_language(&argument.value).map_err(|error| match error {
+        let value = canonical_actual_call(&argument.value).map_err(|error| match error {
             LanguageError::InternalCall => EvalError::NotImplemented("quoting internal dispatch"),
-            LanguageError::RuntimeValue => EvalError::NotImplemented("quoting runtime handles"),
+            LanguageError::RuntimeValue => {
+                EvalError::NotImplemented("quoting unsupported runtime representation")
+            }
         })?;
         Ok(EvalFlow::Value(value))
     }

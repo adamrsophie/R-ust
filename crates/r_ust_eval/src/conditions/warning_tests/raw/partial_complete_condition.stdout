@@ -1,0 +1,22 @@
+D2NODE1
+visible
+list	4	6d657373616765,63616c6c,617267756d656e74,666f726d616c	_	4
+character	1	-	7061727469616c20617267756d656e74206d61746368206f6620276d2720746f20276d6f646527	0
+end
+language	3	_,6d,78	_	3
+symbol	1	-	69732e766563746f72	0
+end
+character	1	-	65787072657373696f6e	0
+end
+language	2	-	_	2
+symbol	1	-	65787072657373696f6e	0
+end
+symbol	1	-	78	0
+end
+end
+end
+symbol	1	-	6d	0
+end
+symbol	1	-	6d6f6465	0
+end
+end

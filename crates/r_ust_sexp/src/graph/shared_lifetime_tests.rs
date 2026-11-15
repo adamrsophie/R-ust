@@ -22,6 +22,7 @@ fn shared_values_cons_lifetime_closure_promise_and_export() -> Result<(), GraphE
         true,
     )?;
     let callback = Sexp::Closure {
+        attributes: Vec::new(),
         parameters: vec![],
         body: Box::new(Sexp::Promise {
             state: pending.clone(),

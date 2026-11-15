@@ -4,7 +4,7 @@ use super::{EvalError, Sexp};
 
 pub(crate) fn initialize(environment: &Environment) -> Result<(), EvalError> {
     if environment.base_initialized()? {
-        return Ok(());
+        return super::bytecode::finalize(environment);
     }
     let templates = super::iter()?;
     let namespace = environment.session_root(EnvironmentRole::BaseNamespace)?;
@@ -28,7 +28,8 @@ pub(crate) fn initialize(environment: &Environment) -> Result<(), EvalError> {
             Sexp::Environment(environment.session_root(role)?),
         ));
     }
-    Ok(environment.install_base(&bindings)?)
+    environment.install_base(&bindings)?;
+    super::bytecode::finalize(environment)
 }
 
 #[cfg(test)]

@@ -3,11 +3,11 @@ use super::*;
 pub(super) fn as_list_value(value: &Sexp) -> Result<Sexp, EvalError> {
     match value {
         Sexp::ListObject(_) => Ok(value.clone()),
-        Sexp::PairListObject(value) => Ok(Sexp::List(value.elements()?)),
-        Sexp::PairList(value) => Ok(Sexp::List(value.as_slice().to_vec())),
+        Sexp::PairListObject(value) => Ok(crate::list_construction::from_tags(&value.elements()?)),
+        Sexp::PairList(value) => Ok(crate::list_construction::from_tags(value.as_slice())),
         Sexp::Nil => Ok(Sexp::List(Vec::new())),
         Sexp::DataFrame { columns, .. } => Ok(Sexp::List(columns.clone())),
-        Sexp::ClassedList { .. } => Ok(value.clone()),
+        Sexp::ClassedList { .. } | Sexp::NamedList { .. } => Ok(value.clone()),
         Sexp::List(values) | Sexp::Dots(values) => Ok(Sexp::List(values.clone())),
         Sexp::Matrix { data, .. } => as_list_value(data),
         Sexp::Logical(_)
@@ -54,6 +54,9 @@ pub(super) fn flatten_unlist_values(
         Sexp::ClassedList {
             elements: values, ..
         }
+        | Sexp::NamedList {
+            elements: values, ..
+        }
         | Sexp::List(values)
         | Sexp::Dots(values)
             if recursive =>
@@ -63,6 +66,9 @@ pub(super) fn flatten_unlist_values(
             }
         }
         Sexp::ClassedList {
+            elements: values, ..
+        }
+        | Sexp::NamedList {
             elements: values, ..
         }
         | Sexp::List(values)
@@ -89,33 +95,14 @@ pub(super) fn call_c(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
         matches!(
             arg.value,
             Sexp::ClassedList { .. }
+                | Sexp::NamedList { .. }
                 | Sexp::List(_)
                 | Sexp::ListObject(_)
                 | Sexp::PairListObject(_)
                 | Sexp::PairList(_)
         )
     }) {
-        let mut out = Vec::new();
-        for arg in args {
-            let projection = crate::ordinary_values::read(&arg.value)?;
-            match projection.as_ref() {
-                Sexp::Nil => {}
-                Sexp::ClassedList {
-                    elements: values, ..
-                }
-                | Sexp::List(values) => out.extend(values.clone()),
-                Sexp::PairList(values) => out.extend(values.as_slice().to_vec()),
-                other => {
-                    for value in sequence_elements(other)? {
-                        out.push(ListElement {
-                            name: arg.name.clone(),
-                            value,
-                        });
-                    }
-                }
-            }
-        }
-        return Ok(Sexp::List(out));
+        return crate::list_concatenation::concatenate(args);
     }
     if args
         .iter()

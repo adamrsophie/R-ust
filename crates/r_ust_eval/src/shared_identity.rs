@@ -1,15 +1,23 @@
 use crate::{ordinary_values, EvalError, ListElement, Sexp};
+use r_ust_sexp::bytecode_source;
 
 #[derive(Default)]
 pub(super) struct Comparison {
     visited: Vec<(Sexp, Sexp)>,
+    pub(super) use_srcref: bool,
+    pub(super) use_bytecode: bool,
+    pub(super) ordered_attributes: bool,
 }
 
 impl Comparison {
     pub(super) fn compare(&mut self, left: &Sexp, right: &Sexp) -> Result<bool, EvalError> {
-        if matches!(left, Sexp::ListObject(_) | Sexp::PairListObject(_))
-            || matches!(right, Sexp::ListObject(_) | Sexp::PairListObject(_))
-        {
+        if matches!(
+            left,
+            Sexp::ListObject(_) | Sexp::PairListObject(_) | Sexp::Bytecode(_)
+        ) || matches!(
+            right,
+            Sexp::ListObject(_) | Sexp::PairListObject(_) | Sexp::Bytecode(_)
+        ) {
             if self.visited.iter().any(|(a, b)| a == left && b == right) {
                 return Ok(true);
             }
@@ -21,7 +29,30 @@ impl Comparison {
     }
 
     fn projected(&mut self, left: &Sexp, right: &Sexp) -> Result<bool, EvalError> {
+        if let (Some(a), Some(b)) = (left.ordinary_list(), right.ordinary_list()) {
+            if a.names_present != b.names_present
+                || (self.ordered_attributes
+                    && a.names_present
+                    && a.class.is_some()
+                    && a.class_first != b.class_first)
+            {
+                return Ok(false);
+            }
+            let classes_equal = match (a.class, b.class) {
+                (None, None) => true,
+                (Some(a), Some(b)) => self.compare(a, b)?,
+                _ => false,
+            };
+            return Ok(classes_equal && self.elements(a.elements, b.elements)?);
+        }
         Ok(match (left, right) {
+            (Sexp::Bytecode(a), Sexp::Bytecode(b)) => {
+                let a = a.parts()?;
+                let b = b.parts()?;
+                a.code == b.code
+                    && self.compare(&a.expression, &b.expression)?
+                    && self.compare(&Sexp::Vector(a.constants), &Sexp::Vector(b.constants))?
+            }
             (
                 Sexp::String(a),
                 Sexp::AttributedCharacter {
@@ -46,21 +77,17 @@ impl Comparison {
                     attributes: ba,
                 },
             ) => a == b && self.attributes(aa, ba)?,
-            (Sexp::List(a), Sexp::List(b)) | (Sexp::Dots(a), Sexp::Dots(b)) => {
-                self.elements(a, b)?
-            }
             (
-                Sexp::ClassedList {
+                Sexp::Expression {
                     elements: a,
-                    class: ac,
-                    ..
+                    names_present: an,
                 },
-                Sexp::ClassedList {
+                Sexp::Expression {
                     elements: b,
-                    class: bc,
-                    ..
+                    names_present: bn,
                 },
-            ) => self.compare(ac, bc)? && self.elements(a, b)?,
+            ) => an == bn && self.elements(a, b)?,
+            (Sexp::Dots(a), Sexp::Dots(b)) => self.elements(a, b)?,
             (Sexp::PairList(a), Sexp::PairList(b)) => self.elements(a.as_slice(), b.as_slice())?,
             (Sexp::Vector(a), Sexp::Vector(b)) => {
                 if a.len() != b.len() {
@@ -120,13 +147,24 @@ impl Comparison {
                     parameters: ap,
                     body: a,
                     environment: ae,
+                    attributes: aa,
                 },
                 Sexp::Closure {
                     parameters: bp,
                     body: b,
                     environment: be,
+                    attributes: ba,
                 },
-            ) => ae == be && self.parameters(ap, bp)? && self.compare(a, b)?,
+            ) => {
+                ae == be
+                    && self.parameters(ap, bp)?
+                    && if self.use_bytecode {
+                        self.compare(a, b)?
+                    } else {
+                        self.compare(&bytecode_source(a)?, &bytecode_source(b)?)?
+                    }
+                    && self.closure_attributes(aa, ba)?
+            }
             (
                 Sexp::Function {
                     parameters: ap,
@@ -147,6 +185,9 @@ impl Comparison {
         left: &[ListElement],
         right: &[ListElement],
     ) -> Result<bool, EvalError> {
+        if self.ordered_attributes {
+            return self.elements(left, right);
+        }
         if left.len() != right.len() {
             return Ok(false);
         }
@@ -159,6 +200,24 @@ impl Comparison {
             }
         }
         Ok(true)
+    }
+
+    fn closure_attributes(
+        &mut self,
+        left: &[ListElement],
+        right: &[ListElement],
+    ) -> Result<bool, EvalError> {
+        if self.use_srcref {
+            return self.attributes(left, right);
+        }
+        let strip = |attributes: &[ListElement]| {
+            attributes
+                .iter()
+                .filter(|attribute| attribute.name.as_deref() != Some("srcref"))
+                .cloned()
+                .collect::<Vec<_>>()
+        };
+        self.attributes(&strip(left), &strip(right))
     }
 
     fn elements(&mut self, left: &[ListElement], right: &[ListElement]) -> Result<bool, EvalError> {

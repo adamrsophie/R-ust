@@ -23,6 +23,9 @@ pub(super) fn encode(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
         Sexp::ClassedList {
             elements: values, ..
         }
+        | Sexp::NamedList {
+            elements: values, ..
+        }
         | Sexp::List(values) => {
             if values.len() > 1 {
                 return Err(EvalError::Type(
@@ -46,6 +49,7 @@ pub(super) fn encode(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
         | Sexp::MissingArg(_)
         | Sexp::Symbol(_)
         | Sexp::MissingValue
+        | Sexp::Expression { .. }
         | Sexp::PairList(_)
         | Sexp::Dots(_)
         | Sexp::Promise { .. }
@@ -54,6 +58,7 @@ pub(super) fn encode(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
         | Sexp::ListObject(_)
         | Sexp::PairListObject(_)
         | Sexp::Environment(_)
+        | Sexp::Bytecode(_)
         | Sexp::Primitive(_)
         | Sexp::Function { .. }
         | Sexp::If { .. }
@@ -192,12 +197,11 @@ impl RuntimeState {
         for (index, count) in counts.into_iter().enumerate() {
             positions.extend(std::iter::repeat_n(Some(index), count));
         }
-        let mut result = subset_linear_positions(&values, &positions)?;
-        if let Sexp::List(elements) = &mut result {
-            for element in elements {
-                element.name = None;
-            }
-        }
+        let result = subset_linear_positions(&values, &positions)?;
+        let result = match result.ordinary_list() {
+            Some(view) => Sexp::list_with_metadata(view.elements.to_vec(), false, None),
+            None => result,
+        };
         Ok(result)
     }
 }

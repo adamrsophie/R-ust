@@ -3,8 +3,52 @@ use crate::{CallArgument, Sexp};
 fn curly(value: &Sexp) -> bool {
     matches!(value, Sexp::Call { function, .. } if matches!(function.as_ref(), Sexp::Symbol(name) if name == "{"))
 }
-impl Writer {
+impl Writer<'_> {
     pub(super) fn control(
+        &mut self,
+        kind: Kind,
+        args: &[CallArgument],
+    ) -> Result<(), LanguagePrintError> {
+        if self.profile.is_none() {
+            return self.control_shape(kind, args);
+        }
+        if kind == Kind::Function && self.options() & super::profile::SOURCE != 0 {
+            if args
+                .get(2)
+                .is_some_and(|source| crate::is_character_value(&source.value))
+            {
+                return Err(
+                    crate::EvalError::NotImplemented("deparse function source text").into(),
+                );
+            }
+        }
+        let count = match kind {
+            Kind::If => {
+                if args.len() > 2 {
+                    3
+                } else {
+                    2
+                }
+            }
+            Kind::While => 2,
+            Kind::For | Kind::Function => 3,
+            Kind::Paren | Kind::Repeat => 1,
+            Kind::Break | Kind::Next => 0,
+            _ => return self.control_shape(kind, args),
+        };
+        let positional = (0..count)
+            .map(|index| CallArgument {
+                name: None,
+                value: if kind == Kind::Function && index == 2 {
+                    Sexp::Nil
+                } else {
+                    args.get(index).map_or(Sexp::Nil, |arg| arg.value.clone())
+                },
+            })
+            .collect::<Vec<_>>();
+        self.control_shape(kind, &positional)
+    }
+    fn control_shape(
         &mut self,
         kind: Kind,
         args: &[CallArgument],
@@ -41,7 +85,7 @@ impl Writer {
                 self.write(&body.value)?;
             }
             (Kind::For, [variable, sequence, body])
-                if matches!(variable.value, Sexp::Symbol(_)) =>
+                if self.profile.is_some() || matches!(variable.value, Sexp::Symbol(_)) =>
             {
                 self.emit("for (");
                 self.write(&variable.value)?;
@@ -58,7 +102,12 @@ impl Writer {
             }
             (Kind::Function, [formals, body, source]) if matches!(source.value, Sexp::Nil) => {
                 self.emit("function(");
-                match &formals.value {
+                let formals = if self.profile.is_some() {
+                    crate::ordinary_values::read(&formals.value)?
+                } else {
+                    std::borrow::Cow::Borrowed(&formals.value)
+                };
+                match formals.as_ref() {
                     Sexp::Nil => {}
                     Sexp::PairList(values) => self.formals(values.as_slice())?,
                     _ => return Err(LanguagePrintError::MalformedCall),

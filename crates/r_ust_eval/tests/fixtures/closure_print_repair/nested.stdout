@@ -1,0 +1,31 @@
+THREE
+function () 
+1L
+attr(,"outer")
+function () 
+2L
+attr(,"outer")attr(,"inner")
+function () 
+3L
+attr(,"outer")attr(,"inner")attr(,"leaf")
+[1] 4
+LIST
+[[1]]
+function () 
+1L
+attr(,"outer")
+function () 
+2L
+attr(,"outer")attr(,"inner")
+function () 
+3L
+attr(,"outer")attr(,"inner")attr(,"leaf")
+[1] 4
+
+ZERO
+function () 
+1L
+attr(,"outer")
+CHAR
+[1] ""
+DONE

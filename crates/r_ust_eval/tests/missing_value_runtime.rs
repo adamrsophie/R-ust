@@ -131,6 +131,7 @@ fn raw_sdk_dots_reject_lookup_before_forcing() {
         )
         .unwrap();
     let closure = Sexp::Closure {
+        attributes: Vec::new(),
         parameters: vec![],
         body: Box::new(Sexp::Symbol("..1".into())),
         environment: ClosureEnvironment::Captured(environment),

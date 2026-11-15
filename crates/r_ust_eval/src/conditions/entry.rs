@@ -55,7 +55,10 @@ impl Entry {
 }
 
 fn list_values(object: &ListObject) -> Result<Vec<ListElement>, EvalError> {
-    let (Sexp::List(values)
+    let (Sexp::NamedList {
+        elements: values, ..
+    }
+    | Sexp::List(values)
     | Sexp::ClassedList {
         elements: values, ..
     }) = object.value()?

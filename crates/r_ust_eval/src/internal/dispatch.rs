@@ -3,6 +3,13 @@ use r_ust_sexp::InternalOperation;
 
 pub fn resolve(name: &str) -> Option<InternalOperation> {
     match name {
+        "identical" => Some(InternalOperation::Identical),
+        "eval" => Some(InternalOperation::Eval),
+        "assign" => Some(InternalOperation::Assign),
+        "sprintf" => Some(InternalOperation::Sprintf),
+        "deparse" => Some(InternalOperation::Deparse),
+        "ngettext" => Some(InternalOperation::Ngettext),
+        "l10n_info" => Some(InternalOperation::L10nInfo),
         "environment" => Some(InternalOperation::Environment),
         "print.default" => Some(InternalOperation::PrintDefault),
         "new.env" => Some(InternalOperation::NewEnvironment),
@@ -29,6 +36,7 @@ pub fn resolve(name: &str) -> Option<InternalOperation> {
         "strtoi" => Some(InternalOperation::Strtoi),
         "pmatch" => Some(InternalOperation::Pmatch),
         "charmatch" => Some(InternalOperation::Charmatch),
+        "is.vector" => Some(InternalOperation::IsVector),
         "as.vector" => Some(InternalOperation::AsVector),
         "vector" => Some(InternalOperation::Vector),
         "stop" => Some(InternalOperation::Stop),
@@ -39,6 +47,14 @@ pub fn resolve(name: &str) -> Option<InternalOperation> {
         ".addCondHands" => Some(InternalOperation::AddConditionHandlers),
         ".resetCondHands" => Some(InternalOperation::ResetConditionHandlers),
         "geterrmessage" => Some(InternalOperation::GetErrorMessage),
+        "warning" => Some(InternalOperation::Warning),
+        "lapply" => Some(InternalOperation::Lapply),
+        "do.call" => Some(InternalOperation::DoCall),
+        "get" => Some(InternalOperation::Get),
+        ".addRestart" => Some(InternalOperation::AddRestart),
+        ".getRestart" => Some(InternalOperation::GetRestart),
+        ".invokeRestart" => Some(InternalOperation::InvokeRestart),
+        ".dfltWarn" => Some(InternalOperation::DefaultWarning),
         _ => None,
     }
 }

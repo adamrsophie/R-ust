@@ -3,6 +3,7 @@ use crate::{ClosureEnvironment, Environment, EvaluationOrigin, Force, PromiseSta
 
 fn closure(frame: &Environment) -> Sexp {
     Sexp::Closure {
+        attributes: Vec::new(),
         parameters: vec![],
         body: Box::new(Sexp::Nil),
         environment: ClosureEnvironment::Captured(frame.clone()),

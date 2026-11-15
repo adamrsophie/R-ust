@@ -62,6 +62,7 @@ fn explicit_operator_and_parenthesis_bindings_are_called_before_intrinsics() {
         .unwrap();
     let mut consumer = RuntimeState::default();
     let function = Sexp::Closure {
+        attributes: Vec::new(),
         parameters: vec![r_ust_sexp::FunctionParameter {
             name: "...".into(),
             default: None,

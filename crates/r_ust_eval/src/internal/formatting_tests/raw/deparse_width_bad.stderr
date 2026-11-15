@@ -1,0 +1,2 @@
+Warning in deparse(quote(f(x)), width.cutoff = 19L) :
+  invalid 'cutoff' value for 'deparse', using default

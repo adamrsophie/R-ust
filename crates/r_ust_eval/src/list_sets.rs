@@ -8,11 +8,17 @@ pub(super) fn unique_value(value: &Sexp) -> Result<Sexp, EvalError> {
         Sexp::ClassedList {
             elements: values, ..
         }
+        | Sexp::NamedList {
+            elements: values, ..
+        }
         | Sexp::List(values) => {
             let mut out: Vec<ListElement> = Vec::new();
             for element in values {
                 if !has_identical(out.iter().map(|slot| &slot.value), &element.value)? {
-                    out.push(element.clone());
+                    out.push(ListElement {
+                        name: None,
+                        value: element.value.clone(),
+                    });
                 }
             }
             Ok(Sexp::List(out))
@@ -48,6 +54,9 @@ pub(super) fn duplicated_value(value: &Sexp) -> Result<Sexp, EvalError> {
     match value {
         Sexp::Nil => Ok(Sexp::Logical(Vec::new())),
         Sexp::ClassedList {
+            elements: values, ..
+        }
+        | Sexp::NamedList {
             elements: values, ..
         }
         | Sexp::List(values) => {
@@ -102,6 +111,7 @@ pub(super) fn is_list_set_value(value: &Sexp) -> bool {
     matches!(
         value,
         Sexp::ClassedList { .. }
+            | Sexp::NamedList { .. }
             | Sexp::List(_)
             | Sexp::ListObject(_)
             | Sexp::Vector(_)
@@ -114,6 +124,9 @@ pub(super) fn set_list_values(value: &Sexp) -> Result<Vec<Sexp>, EvalError> {
     let value = projection.as_ref();
     match value {
         Sexp::ClassedList {
+            elements: values, ..
+        }
+        | Sexp::NamedList {
             elements: values, ..
         }
         | Sexp::List(values)

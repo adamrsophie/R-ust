@@ -83,6 +83,7 @@ fn default_promise_return_restores_activation() {
     let mut runtime = RuntimeState::new(Default::default());
     let original = snapshot(&runtime);
     let function = Sexp::Closure {
+        attributes: Vec::new(),
         parameters: vec![crate::FunctionParameter {
             name: "x".into(),
             default: Some(expression("return(19L)")),

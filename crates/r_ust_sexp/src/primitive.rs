@@ -1,9 +1,16 @@
-use crate::SexpType;
+use crate::{SexpType, SyntaxPrimitive};
 
-/// Public primitives implemented as first-class values, distinct from internal kernels.
+/// Implemented first-class primitive identities.
+/// Public lookup is restricted by `from_name`; InternalEval is context-exposed only.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PrimitiveId {
+    Syntax(SyntaxPrimitive),
+    InternalEval,
+    Call,
+    IsPairList,
     Sum,
+    List,
+    AsCharacter,
     Length,
     Invisible,
     Return,
@@ -20,17 +27,30 @@ pub enum PrimitiveId {
     IntegerDivide,
     Colon,
     Quote,
+    Expression,
+    IsExpression,
+    Substitute,
     Primitive,
+    Internal,
     GlobalEnv,
     BaseEnv,
     EmptyEnv,
     IsEnvironment,
+    NamespaceExport,
+    NamespaceInternal,
+    AsCall,
+    AsEnvironment,
+    IsSymbol,
 }
 
 impl PrimitiveId {
     pub fn from_name(name: &str) -> Option<Self> {
         match name {
+            "call" => Some(Self::Call),
+            "is.pairlist" => Some(Self::IsPairList),
             "sum" => Some(Self::Sum),
+            "list" => Some(Self::List),
+            "as.character" => Some(Self::AsCharacter),
             "length" => Some(Self::Length),
             "invisible" => Some(Self::Invisible),
             "return" => Some(Self::Return),
@@ -39,11 +59,20 @@ impl PrimitiveId {
             "on.exit" => Some(Self::OnExit),
             "nargs" => Some(Self::Nargs),
             "quote" => Some(Self::Quote),
+            "expression" => Some(Self::Expression),
+            "is.expression" => Some(Self::IsExpression),
+            "substitute" => Some(Self::Substitute),
             ".Primitive" => Some(Self::Primitive),
+            ".Internal" => Some(Self::Internal),
             "globalenv" => Some(Self::GlobalEnv),
             "baseenv" => Some(Self::BaseEnv),
             "emptyenv" => Some(Self::EmptyEnv),
             "is.environment" => Some(Self::IsEnvironment),
+            "::" => Some(Self::NamespaceExport),
+            ":::" => Some(Self::NamespaceInternal),
+            "as.call" => Some(Self::AsCall),
+            "as.environment" => Some(Self::AsEnvironment),
+            "is.symbol" | "is.name" => Some(Self::IsSymbol),
             "+" => Some(Self::Add),
             "-" => Some(Self::Subtract),
             "*" => Some(Self::Multiply),
@@ -52,13 +81,19 @@ impl PrimitiveId {
             "%%" => Some(Self::Modulo),
             "%/%" => Some(Self::IntegerDivide),
             ":" => Some(Self::Colon),
-            _ => None,
+            _ => SyntaxPrimitive::from_name(name).map(Self::Syntax),
         }
     }
 
     pub const fn name(self) -> &'static str {
         match self {
+            Self::Syntax(id) => id.name(),
+            Self::InternalEval => "eval",
+            Self::Call => "call",
+            Self::IsPairList => "is.pairlist",
             Self::Sum => "sum",
+            Self::List => "list",
+            Self::AsCharacter => "as.character",
             Self::Length => "length",
             Self::Invisible => "invisible",
             Self::Return => "return",
@@ -67,11 +102,20 @@ impl PrimitiveId {
             Self::OnExit => "on.exit",
             Self::Nargs => "nargs",
             Self::Quote => "quote",
+            Self::Expression => "expression",
+            Self::IsExpression => "is.expression",
+            Self::Substitute => "substitute",
             Self::Primitive => ".Primitive",
+            Self::Internal => ".Internal",
             Self::GlobalEnv => "globalenv",
             Self::BaseEnv => "baseenv",
             Self::EmptyEnv => "emptyenv",
             Self::IsEnvironment => "is.environment",
+            Self::NamespaceExport => "::",
+            Self::NamespaceInternal => ":::",
+            Self::AsCall => "as.call",
+            Self::AsEnvironment => "as.environment",
+            Self::IsSymbol => "is.symbol",
             Self::Add => "+",
             Self::Subtract => "-",
             Self::Multiply => "*",
@@ -85,12 +129,21 @@ impl PrimitiveId {
 
     pub const fn sexptype(self) -> SexpType {
         match self {
-            Self::Sum
+            Self::Syntax(id) => id.sexptype(),
+            Self::InternalEval
+            | Self::IsPairList
+            | Self::Sum
+            | Self::List
+            | Self::AsCharacter
+            | Self::IsExpression
             | Self::Nargs
             | Self::GlobalEnv
             | Self::BaseEnv
             | Self::EmptyEnv
             | Self::IsEnvironment
+            | Self::AsCall
+            | Self::AsEnvironment
+            | Self::IsSymbol
             | Self::Primitive
             | Self::Length
             | Self::Invisible
@@ -102,9 +155,17 @@ impl PrimitiveId {
             | Self::Modulo
             | Self::IntegerDivide
             | Self::Colon => SexpType::Builtin,
-            Self::Return | Self::Missing | Self::Quote | Self::UseMethod | Self::OnExit => {
-                SexpType::Special
-            }
+            Self::Call
+            | Self::Internal
+            | Self::Return
+            | Self::NamespaceExport
+            | Self::NamespaceInternal
+            | Self::Missing
+            | Self::Quote
+            | Self::Expression
+            | Self::Substitute
+            | Self::UseMethod
+            | Self::OnExit => SexpType::Special,
         }
     }
 }

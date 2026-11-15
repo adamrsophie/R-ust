@@ -54,7 +54,7 @@ fn raw_empty_tag_is_accepted_and_unsupported_printing_keeps_metadata_and_visibil
 }
 
 #[test]
-fn quote_runtime_handles_are_rejected_without_forcing() {
+fn quote_runtime_handles_are_preserved_without_forcing() {
     let environment = Environment::global();
     let state = PromiseState::new(
         &Sexp::Symbol("unbound".into()),
@@ -68,7 +68,9 @@ fn quote_runtime_handles_are_rejected_without_forcing() {
         runtime.eval(&quote_call(Sexp::Promise {
             state: state.clone()
         })),
-        Err(EvalError::NotImplemented("quoting runtime handles"))
+        Ok(Sexp::Promise {
+            state: state.clone()
+        })
     );
     assert!(matches!(state.begin_force().unwrap(), Force::Evaluate(_)));
     assert_eq!(

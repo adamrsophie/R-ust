@@ -8,6 +8,13 @@ pub(super) fn call_rep(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
         .trunc()
         .max(0.0) as usize;
 
+    if let Some(view) = value.ordinary_list() {
+        return Ok(Sexp::list_with_metadata(
+            repeat_slice(view.elements, times),
+            view.names_present,
+            None,
+        ));
+    }
     match value {
         Sexp::Nil => Ok(Sexp::Nil),
         Sexp::Logical(values) => Ok(Sexp::Logical(repeat_slice(values, times))),
@@ -44,6 +51,14 @@ pub(super) fn call_rep_len(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError
     let length_out = numeric_arg_scalar(args, 1, &["length.out"], None)?
         .trunc()
         .max(0.0) as usize;
+    if let Some(view) = value.ordinary_list() {
+        let elements = if length_out == 0 {
+            Vec::new()
+        } else {
+            repeat_to_length(view.elements, length_out)?
+        };
+        return Ok(Sexp::list_with_metadata(elements, false, None));
+    }
     if length_out == 0 {
         return Ok(match value {
             Sexp::Nil => Sexp::Nil,
@@ -102,6 +117,9 @@ pub(super) fn list_like_elements(value: &Sexp) -> Result<Option<Vec<ListElement>
             elements: values, ..
         }
         | Sexp::List(values)
+        | Sexp::NamedList {
+            elements: values, ..
+        }
         | Sexp::Dots(values) => Some(values.clone()),
         Sexp::DataFrame { columns, .. } => Some(columns.clone()),
         Sexp::PairList(values) => Some(values.as_slice().to_vec()),

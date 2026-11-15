@@ -128,6 +128,7 @@ impl RuntimeState {
                 .session_root(r_ust_sexp::EnvironmentRole::Base)?,
             callable: Sexp::Nil,
             handler_stack: None,
+            restart_stack: None,
             cleanup: std::collections::VecDeque::new(),
             arguments: Vec::new(),
             call: Sexp::Nil,

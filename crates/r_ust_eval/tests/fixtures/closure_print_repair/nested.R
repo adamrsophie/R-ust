@@ -1,0 +1,13 @@
+options(keep.source=FALSE)
+f<-function()1L;g<-function()2L;h<-function()3L
+attr(h,"leaf")<-4L;attr(g,"inner")<-h;attr(f,"outer")<-g
+cat("THREE\n")
+f
+cat("LIST\n")
+list(f)
+cat("ZERO\n")
+attr(g,"srcref")<-integer();attr(g,"inner")<-NULL;attr(f,"outer")<-g
+f
+cat("CHAR\n")
+""
+cat("DONE\n")

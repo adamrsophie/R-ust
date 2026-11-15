@@ -1,6 +1,9 @@
 use crate::{EvalError, ListElement, Sexp};
 
 pub(super) fn classes(value: &Sexp) -> Result<Sexp, EvalError> {
+    if let Some(class) = crate::closure_attributes::explicit_class(value) {
+        return Ok(class.clone());
+    }
     let names: &[&str] = match value {
         Sexp::ListObject(value) => return classes(&value.value()?),
         Sexp::Char(_) => {
@@ -8,7 +11,10 @@ pub(super) fn classes(value: &Sexp) -> Result<Sexp, EvalError> {
                 "cannot have attributes on a CHARSXP".into(),
             ));
         }
-        Sexp::ClassedList { class, .. } => {
+        Sexp::ClassedList { class, .. }
+        | Sexp::NamedList {
+            class: Some(class), ..
+        } => {
             let values = class
                 .character_values()
                 .ok_or_else(|| EvalError::Type("invalid class attribute".into()))?;
@@ -32,15 +38,17 @@ pub(super) fn classes(value: &Sexp) -> Result<Sexp, EvalError> {
             return Ok(Sexp::String(values));
         }
         Sexp::Nil => &["NULL"],
+        Sexp::Expression { .. } => &["expression"],
         Sexp::Logical(_) => &["logical"],
         Sexp::String(_) | Sexp::AttributedCharacter { .. } => &["character"],
         Sexp::Factor { ordered: true, .. } => &["ordered", "factor"],
         Sexp::Factor { ordered: false, .. } => &["factor"],
         Sexp::DataFrame { .. } => &["data.frame"],
-        Sexp::List(_) | Sexp::Vector(_) => &["list"],
+        Sexp::List(_) | Sexp::NamedList { class: None, .. } | Sexp::Vector(_) => &["list"],
         Sexp::PairList(_) | Sexp::PairListObject(_) => &["pairlist"],
         Sexp::Dots(_) => &["..."],
         Sexp::Environment(_) => &["environment"],
+        Sexp::Bytecode(_) => &["bytecode"],
         Sexp::Closure { .. } | Sexp::Primitive(_) => &["function"],
         Sexp::Symbol(_) | Sexp::MissingValue | Sexp::MissingArg(_) => &["name"],
         Sexp::Promise { .. } => &["promise"],

@@ -1,6 +1,7 @@
 use super::{
-    AssignmentOperator, BinaryOp, CallArgument, Environment, FunctionParameter, ListElement,
-    ListObject, MemberName, PairList, PairListObject, PrimitiveId, PromiseState, UnaryOp,
+    AssignmentOperator, BinaryOp, BytecodeObject, CallArgument, Environment, FunctionParameter,
+    ListElement, ListObject, MemberName, PairList, PairListObject, PrimitiveId, PromiseState,
+    UnaryOp,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -11,6 +12,9 @@ pub enum ClosureEnvironment {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum InternalOperation {
+    Identical,
+    Eval,
+    Assign,
     Environment,
     PrintDefault,
     NewEnvironment,
@@ -44,6 +48,7 @@ pub enum InternalOperation {
     Charmatch,
     Vector,
     AsVector,
+    IsVector,
     Stop,
     Inherits,
     Gettext,
@@ -52,12 +57,25 @@ pub enum InternalOperation {
     AddConditionHandlers,
     ResetConditionHandlers,
     GetErrorMessage,
+    Warning,
+    Lapply,
+    DoCall,
+    Get,
+    AddRestart,
+    GetRestart,
+    InvokeRestart,
+    DefaultWarning,
+    Sprintf,
+    Deparse,
+    Ngettext,
+    L10nInfo,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Sexp {
     Nil,
     Primitive(PrimitiveId),
+    Bytecode(BytecodeObject),
     Environment(Environment),
     MissingArg(String),
     MissingValue,
@@ -73,11 +91,20 @@ pub enum Sexp {
     Char(Option<String>),
     ListObject(ListObject),
     PairListObject(PairListObject),
+    Expression {
+        elements: Vec<ListElement>,
+        names_present: bool,
+    },
     Vector(Vec<Sexp>),
     List(Vec<ListElement>),
     ClassedList {
         elements: Vec<ListElement>,
         class: Box<Sexp>,
+        class_first: bool,
+    },
+    NamedList {
+        elements: Vec<ListElement>,
+        class: Option<Box<Sexp>>,
         class_first: bool,
     },
     PairList(PairList),
@@ -103,6 +130,7 @@ pub enum Sexp {
         parameters: Vec<FunctionParameter>,
         body: Box<Sexp>,
         environment: ClosureEnvironment,
+        attributes: Vec<ListElement>,
     },
     InternalCall {
         operation: InternalOperation,

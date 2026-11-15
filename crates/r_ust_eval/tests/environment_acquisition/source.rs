@@ -24,6 +24,7 @@ fn invoke(runtime: &mut RuntimeState, function: Sexp) -> Sexp {
 }
 fn source_closure(frame: &Environment, body: &str) -> Sexp {
     Sexp::Closure {
+        attributes: Vec::new(),
         parameters: vec![],
         body: Box::new(Parser.parse_all(body).unwrap().expressions.remove(0)),
         environment: ClosureEnvironment::Captured(frame.clone()),
@@ -86,6 +87,7 @@ fn source_session_accessors_follow_captured_origin_and_bare_primitives_follow_re
         );
     }
     let legacy = Sexp::Closure {
+        attributes: Vec::new(),
         parameters: vec![],
         body: Box::new(
             Parser

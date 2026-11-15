@@ -40,6 +40,7 @@ fn exported_heads_and_result_token() -> Result {
             Sexp::Char(Some("error".into())),
             Sexp::Nil,
             Sexp::Closure {
+                attributes: Vec::new(),
                 parameters: vec![],
                 body: Box::new(Sexp::Integer(vec![Some(3)])),
                 environment: ClosureEnvironment::Captured(producer.clone()),

@@ -1,5 +1,5 @@
 use crate::{EvalError, RuntimeState, Sexp};
-use r_ust_sexp::{canonical_language, LanguageError, ListElement};
+use r_ust_sexp::{canonical_actual_call, LanguageError, ListElement};
 
 impl RuntimeState {
     pub(super) fn formals(&mut self, value: &Sexp, call: &Sexp) -> Result<Sexp, EvalError> {
@@ -10,7 +10,7 @@ impl RuntimeState {
                     .map(|parameter| {
                         let value = match &parameter.default {
                             Some(default) => {
-                                canonical_language(default).map_err(|error| match error {
+                                canonical_actual_call(default).map_err(|error| match error {
                                     LanguageError::InternalCall => {
                                         EvalError::NotImplemented("formals internal default")
                                     }
@@ -35,6 +35,7 @@ impl RuntimeState {
             | Sexp::ListObject(_)
             | Sexp::PairListObject(_)
             | Sexp::Environment(_)
+            | Sexp::Bytecode(_)
             | Sexp::MissingArg(_)
             | Sexp::MissingValue
             | Sexp::Symbol(_)
@@ -44,8 +45,10 @@ impl RuntimeState {
             | Sexp::String(_)
             | Sexp::AttributedCharacter { .. }
             | Sexp::Vector(_)
+            | Sexp::NamedList { .. }
             | Sexp::ClassedList { .. }
             | Sexp::List(_)
+            | Sexp::Expression { .. }
             | Sexp::PairList(_)
             | Sexp::Factor { .. }
             | Sexp::DataFrame { .. }

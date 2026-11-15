@@ -9,6 +9,9 @@ pub(super) fn string_values(value: &Sexp) -> Result<Vec<Option<String>>, EvalErr
         Sexp::ClassedList {
             elements: values, ..
         }
+        | Sexp::NamedList {
+            elements: values, ..
+        }
         | Sexp::List(values) => values
             .iter()
             .map(|element| message_helpers::list_character(&element.value).map(Some))
@@ -18,6 +21,7 @@ pub(super) fn string_values(value: &Sexp) -> Result<Vec<Option<String>>, EvalErr
             .map(|value| message_helpers::list_character(value).map(Some))
             .collect(),
         Sexp::Nil => Ok(Vec::new()),
+        Sexp::Symbol(name) => Ok(vec![Some(name.clone())]),
         Sexp::Matrix { data, .. } => string_values(data),
         Sexp::String(values) | Sexp::AttributedCharacter { values, .. } => Ok(values.clone()),
         Sexp::Real(values) => Ok(values

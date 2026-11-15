@@ -61,13 +61,13 @@ fn additive_syntax_preserves_names_missingness_and_legacy_constructors() {
     };
     assert!(canonical_language(&runtime_list).is_err());
     let mut frontend = Frontend::default();
-    assert!(frontend
-        .runtime_mut()
-        .eval(&Sexp::Call {
+    assert_eq!(
+        frontend.runtime_mut().eval(&Sexp::Call {
             function: Box::new(Sexp::Symbol("quote".into())),
-            arguments: vec![CallArgument::positional(runtime_list)]
-        })
-        .is_err());
+            arguments: vec![CallArgument::positional(runtime_list.clone())]
+        }),
+        Ok(runtime_list)
+    );
 }
 
 #[test]

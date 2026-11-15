@@ -12,6 +12,7 @@ fn expression(source: &str) -> Sexp {
 
 fn closure(environment: &Environment, body: Sexp) -> Sexp {
     Sexp::Closure {
+        attributes: Vec::new(),
         parameters: vec![],
         body: Box::new(body),
         environment: ClosureEnvironment::Captured(environment.clone()),

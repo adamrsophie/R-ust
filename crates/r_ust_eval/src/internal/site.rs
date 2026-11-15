@@ -22,7 +22,14 @@ impl RuntimeState {
             | InternalOperation::RowsumValidate
             | InternalOperation::RowsumAggregate
             | InternalOperation::EncodeStringWrapper => None,
-            InternalOperation::Environment
+            InternalOperation::Identical
+            | InternalOperation::Eval
+            | InternalOperation::Assign
+            | InternalOperation::Environment
+            | InternalOperation::Sprintf
+            | InternalOperation::Deparse
+            | InternalOperation::Ngettext
+            | InternalOperation::L10nInfo
             | InternalOperation::PrintDefault
             | InternalOperation::NewEnvironment
             | InternalOperation::ParentFrame
@@ -49,6 +56,7 @@ impl RuntimeState {
             | InternalOperation::Pmatch
             | InternalOperation::Charmatch
             | InternalOperation::Vector
+            | InternalOperation::IsVector
             | InternalOperation::AsVector
             | InternalOperation::Stop
             | InternalOperation::Inherits
@@ -56,7 +64,15 @@ impl RuntimeState {
             | InternalOperation::DefaultStop
             | InternalOperation::AddConditionHandlers
             | InternalOperation::ResetConditionHandlers
-            | InternalOperation::GetErrorMessage => Some(&current),
+            | InternalOperation::GetErrorMessage
+            | InternalOperation::Warning
+            | InternalOperation::Lapply
+            | InternalOperation::DoCall
+            | InternalOperation::Get
+            | InternalOperation::AddRestart
+            | InternalOperation::GetRestart
+            | InternalOperation::InvokeRestart
+            | InternalOperation::DefaultWarning => Some(&current),
         };
         super::arity::check(operation, count, call)
     }

@@ -12,6 +12,7 @@ pub struct SourceFault {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum MissingSite {
     EvaluatedSymbol,
+    BytecodeGetvar,
     FunctionBinding,
 }
 
@@ -73,6 +74,9 @@ impl SourceFault {
             None => vec!["simpleError", "error", "condition"],
             Some(MissingSite::EvaluatedSymbol) => {
                 vec!["evalError", "missingArgError", "error", "condition"]
+            }
+            Some(MissingSite::BytecodeGetvar) => {
+                vec!["getvarError", "missingArgError", "error", "condition"]
             }
             Some(MissingSite::FunctionBinding) => {
                 vec!["getMissingError", "missingArgError", "error", "condition"]

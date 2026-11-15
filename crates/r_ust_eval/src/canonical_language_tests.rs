@@ -208,6 +208,7 @@ fn canonical_language_boundary_rejects_runtime_handles_and_internal_dispatch(
     for value in [
         Sexp::Promise { state },
         Sexp::Closure {
+            attributes: Vec::new(),
             parameters: vec![],
             body: Box::new(Sexp::Nil),
             environment: ClosureEnvironment::Captured(frame),

@@ -2,7 +2,13 @@ use crate::{EvalError, ListElement, Sexp};
 
 pub(super) fn restore(value: Sexp) -> Result<Sexp, EvalError> {
     match value {
-        Sexp::List(values) => Ok(if values.is_empty() {
+        Sexp::List(values)
+        | Sexp::ClassedList {
+            elements: values, ..
+        }
+        | Sexp::NamedList {
+            elements: values, ..
+        } => Ok(if values.is_empty() {
             Sexp::Nil
         } else {
             Sexp::pairlist(values)

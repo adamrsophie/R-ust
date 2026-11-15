@@ -170,8 +170,6 @@ fn unrepresented_attribute_paths_fail_explicitly_without_rebinding() {
         .unwrap();
     for source in [
         "class(x)<-1L",
-        "names(x)<-NA_character_",
-        "names(x)<-character(0)",
         "attributes(x)<-list(dim=1L)",
         "storage.mode(x)<-'integer'",
     ] {
@@ -203,4 +201,17 @@ fn classed_list_matrix_empty_storage_and_default_display() {
         r_ust_eval::format_sexp(&values[0]).unwrap(),
         "$a\n[1] 1\n\nattr(,\"class\")\n[1] \"box\""
     );
+}
+
+#[test]
+fn formerly_unrepresented_names_preserve_class_and_original_alias(
+) -> Result<(), Box<dyn std::error::Error>> {
+    for source in ["names(x)<-NA_character_", "names(x)<-character(0)"] {
+        let mut frontend = Frontend::default();
+        frontend.eval_source("x<-structure(list(a=1L),class='box');saved<-x")?;
+        frontend.eval_source(source)?;
+        let values = frontend.eval_source("identical(names(x),NA_character_) && identical(class(x),'box') && identical(names(saved),'a')")?;
+        assert_eq!(values.last(), Some(&Sexp::Logical(vec![Some(true)])));
+    }
+    Ok(())
 }

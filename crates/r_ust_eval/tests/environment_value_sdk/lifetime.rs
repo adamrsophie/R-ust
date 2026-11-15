@@ -25,6 +25,7 @@ fn environment_value_survives_origin_and_consumer_through_list_promise_and_closu
         };
         lease.complete(&value)?;
         let closure = Sexp::Closure {
+            attributes: Vec::new(),
             parameters: vec![],
             body: Box::new(value.clone()),
             environment: ClosureEnvironment::Captured(frame.clone()),

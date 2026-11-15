@@ -28,6 +28,7 @@ fn roots(class_storage: bool) -> Result<(), GraphError> {
             ListElement {
                 name: Some("callback".into()),
                 value: Sexp::Closure {
+                    attributes: Vec::new(),
                     parameters: vec![],
                     body: Box::new(Sexp::Symbol("marker".into())),
                     environment: ClosureEnvironment::Captured(frame.clone()),

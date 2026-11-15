@@ -11,7 +11,9 @@ impl RuntimeState {
                 Ok(CallArgument {
                     name: argument.name.clone(),
                     value: match &argument.value {
-                        Sexp::Promise { state } => state.expression()?,
+                        Sexp::Promise { state } => {
+                            r_ust_sexp::bytecode_source(&state.expression()?)?
+                        }
                         value => value.clone(),
                     },
                 })
@@ -54,6 +56,7 @@ impl RuntimeState {
     ) -> Result<String, EvalError> {
         match expression {
             Sexp::Nil => Ok("NULL".into()),
+            Sexp::Bytecode(_) => Ok("<bytecode>".into()),
             Sexp::MissingArg(_) | Sexp::MissingValue => Ok(String::new()),
             Sexp::Symbol(name) => Ok(symbol(name)),
             Sexp::Integer(values) if values.len() == 1 => {
@@ -116,8 +119,10 @@ impl RuntimeState {
             | Sexp::String(_)
             | Sexp::AttributedCharacter { .. }
             | Sexp::Vector(_)
+            | Sexp::NamedList { .. }
             | Sexp::ClassedList { .. }
             | Sexp::List(_)
+            | Sexp::Expression { .. }
             | Sexp::PairList(_)
             | Sexp::Factor { .. }
             | Sexp::DataFrame { .. }

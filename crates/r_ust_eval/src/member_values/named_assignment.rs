@@ -38,9 +38,14 @@ pub(crate) fn assign_list_name(
         });
     }
 
+    let view = value.ordinary_list();
+    let names_present = view.is_some_and(|view| view.names_present);
     let mut out = match value {
         Sexp::Nil => Vec::new(),
         Sexp::ClassedList {
+            elements: values, ..
+        }
+        | Sexp::NamedList {
             elements: values, ..
         }
         | Sexp::List(values) => values.clone(),
@@ -63,7 +68,7 @@ pub(crate) fn assign_list_name(
             out[index].value = replacement.clone();
         }
     } else if !matches!(replacement, Sexp::Nil) {
-        if out.iter().all(|element| element.name.is_none()) {
+        if !names_present {
             for element in &mut out {
                 element.name = Some(String::new());
             }
@@ -73,16 +78,18 @@ pub(crate) fn assign_list_name(
             value: replacement.clone(),
         });
     }
-    let reconstructed = out.len() != original_len;
-    let mut result = crate::list_attributes::preserve_class(value, out);
-    if reconstructed {
-        if let (Sexp::ClassedList { elements, .. }, Sexp::ClassedList { class_first, .. }) =
-            (value, &mut result)
-        {
-            if elements.iter().any(|element| element.name.is_some()) {
-                *class_first = false;
-            }
-        }
-    }
-    Ok(result)
+    let present = names_present || out.iter().any(|element| element.name.is_some());
+    let class = view.and_then(|view| {
+        view.class.map(|class| {
+            (
+                class.clone(),
+                if out.len() != original_len && names_present {
+                    false
+                } else {
+                    view.class_first
+                },
+            )
+        })
+    });
+    Ok(Sexp::list_with_metadata(out, present, class))
 }

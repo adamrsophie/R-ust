@@ -142,6 +142,12 @@ impl RuntimeState {
             match projection.as_ref() {
                 Sexp::Nil => arguments.clear(),
                 Sexp::List(values)
+                | Sexp::ClassedList {
+                    elements: values, ..
+                }
+                | Sexp::NamedList {
+                    elements: values, ..
+                }
                 | Sexp::DataFrame {
                     columns: values, ..
                 } => {

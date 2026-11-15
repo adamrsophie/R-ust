@@ -1,6 +1,6 @@
 use super::{names, LanguagePrintError, Writer};
 use crate::Sexp;
-impl Writer {
+impl Writer<'_> {
     pub(super) fn atom(&mut self, value: &Sexp) -> Result<(), LanguagePrintError> {
         let text = match value {
             Sexp::Nil => "NULL".into(),
@@ -17,7 +17,9 @@ impl Writer {
                 [Some(value)] if *value == i32::MIN => {
                     return Err(LanguagePrintError::UnsupportedNode)
                 }
+                [Some(value)] if self.strip_integer_suffix => value.to_string(),
                 [Some(value)] => format!("{value}L"),
+                [None] if self.strip_integer_suffix => "NA".into(),
                 [None] => "NA_integer_".into(),
                 [] | [_, _, ..] => return Err(LanguagePrintError::NonScalar),
             },

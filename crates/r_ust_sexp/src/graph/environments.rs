@@ -55,17 +55,13 @@ impl Store {
         self.frame(frame.store.unwrap_or(id))
     }
 
-    pub(super) fn write_binding(
-        &mut self,
-        id: NodeId,
-        name: String,
-        value: StoredValue,
-    ) -> Result<(), GraphError> {
-        let frame = self.binding_frame(id)?;
+    pub(super) fn writable_frame(&self, id: NodeId, name: &str) -> Result<NodeId, GraphError> {
+        let target = self.frame(id)?.store.unwrap_or(id);
+        let frame = self.frame(target)?;
         match frame.role {
             EnvironmentRole::Empty => return Err(GraphError::EmptyEnvironment),
             EnvironmentRole::Base | EnvironmentRole::BaseNamespace => {
-                return Err(if frame.bindings.contains_key(&name) {
+                return Err(if frame.bindings.contains_key(name) {
                     GraphError::BindingLocked
                 } else {
                     GraphError::EnvironmentLocked
@@ -73,7 +69,37 @@ impl Store {
             }
             EnvironmentRole::Ordinary | EnvironmentRole::Global | EnvironmentRole::Autoloads => {}
         }
-        if self.frame_mut(id)?.bindings.insert(name, value).is_some() {
+        Ok(target)
+    }
+
+    pub(super) fn write_binding(
+        &mut self,
+        id: NodeId,
+        name: String,
+        value: StoredValue,
+    ) -> Result<(), GraphError> {
+        let target = self.writable_frame(id, &name)?;
+        let old = self
+            .frame(target)?
+            .bindings
+            .get(&name)
+            .map(StoredValue::copy_edges);
+        if !old
+            .as_ref()
+            .is_some_and(|old| old.same_direct_reference(&value))
+        {
+            let pending = self.frame_mut(target)?.assignment_pending.remove(&name);
+            match old {
+                Some(old) if !pending => self.replace_value_references(&old, &value),
+                _ => self.acquire_edges(&value.edges),
+            }
+        }
+        if self
+            .frame_mut(target)?
+            .bindings
+            .insert(name, value)
+            .is_some()
+        {
             self.collect();
         }
         Ok(())
@@ -169,8 +195,20 @@ impl Environment {
             .map(|(name, value)| Ok((name.clone(), StoredValue::new(value, heap)?)))
             .collect::<Result<_, GraphError>>()?;
         let mut store = heap.lock();
-        let frame = store.frame_mut(base.0.id())?;
-        if !frame.initialized {
+        if !store.frame(base.0.id())?.initialized {
+            let old = store
+                .frame(base.0.id())?
+                .bindings
+                .values()
+                .flat_map(|value| value.edges.iter().copied())
+                .collect::<Vec<_>>();
+            let new = bindings
+                .values()
+                .flat_map(|value| value.edges.iter().copied())
+                .collect::<Vec<_>>();
+            store.release_edges(&old);
+            store.acquire_edges(&new);
+            let frame = store.frame_mut(base.0.id())?;
             frame.bindings = bindings;
             frame.initialized = true;
         }

@@ -10,6 +10,7 @@ impl RuntimeState {
     ) -> Result<EvalFlow, EvalError> {
         let EvalFlow::Value(sequence) = self.eval_flow(sequence)?;
         let values = sequence_elements(&sequence)?;
+        self.assign_local(variable.into(), Sexp::Nil)?;
         self.with_loop(|runtime, id| {
             for value in values {
                 runtime.assign_local(variable.into(), value)?;

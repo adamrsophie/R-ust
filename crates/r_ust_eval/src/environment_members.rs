@@ -98,6 +98,7 @@ pub(super) fn member_graph_error(error: GraphError, name: &str) -> EvalError {
         | GraphError::WrongKind
         | GraphError::IndexOutOfBounds
         | GraphError::InvalidCharacter
+        | GraphError::InvalidBytecode
         | GraphError::PromiseUnderEvaluation
         | GraphError::PromiseNotEvaluating => EvalError::Graph(error),
     }

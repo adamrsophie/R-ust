@@ -5,6 +5,23 @@ use crate::Sexp;
 type Constant = (&'static str, fn() -> Sexp);
 
 const CONSTANTS: &[Constant] = &[
+    ("..deparseOpts", || {
+        strings(&[
+            "all",
+            "keepInteger",
+            "quoteExpressions",
+            "showAttributes",
+            "useSource",
+            "warnIncomplete",
+            "delayPromises",
+            "keepNA",
+            "S_compatible",
+            "hexNumeric",
+            "digits17",
+            "niceNames",
+            "exact",
+        ])
+    }),
     ("T", || Sexp::Logical(vec![Some(true)])),
     ("F", || Sexp::Logical(vec![Some(false)])),
     ("pi", || Sexp::Real(vec![std::f64::consts::PI])),

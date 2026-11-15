@@ -1,10 +1,18 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, Weak};
 
 use super::environments::{EnvironmentRole, SessionRoots};
 use super::promises::Promise;
 use super::values::StoredValue;
 use super::{GraphError, Link};
+#[path = "heap/collection.rs"]
+mod collection;
+#[path = "heap/ownership.rs"]
+mod ownership;
+#[path = "heap/promotion.rs"]
+mod promotion;
+use ownership::semantic_edges;
+pub(super) use promotion::RootPromotion;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) struct NodeId {
@@ -21,17 +29,20 @@ impl NodeId {
 #[derive(Default)]
 pub(super) struct Frame {
     pub bindings: HashMap<String, StoredValue>,
+    pub assignment_pending: HashSet<String>,
     pub parent: Option<NodeId>,
     pub global: Option<NodeId>,
     pub role: EnvironmentRole,
     pub store: Option<NodeId>,
     pub session: Option<SessionRoots>,
     pub initialized: bool,
+    pub bytecode_ready: bool,
 }
 
 pub(super) enum Node {
     Frame(Frame),
     Promise(Promise),
+    Bytecode(Box<super::bytecode::BytecodeNode>),
     Vector(super::list_objects::VectorNode),
     Cons(super::cons_objects::ConsNode),
 }
@@ -39,13 +50,14 @@ pub(super) enum Node {
 struct Slot {
     generation: u64,
     node: Option<Node>,
+    references: u16,
 }
 
 #[derive(Default)]
 pub(super) struct Store {
     slots: Vec<Slot>,
     free: Vec<usize>,
-    roots: Vec<(NodeId, Weak<RootToken>)>,
+    roots: Vec<(NodeId, Weak<RootToken>, bool)>,
 }
 
 #[derive(Default)]
@@ -54,11 +66,16 @@ pub(super) struct Heap(Mutex<Store>);
 pub(super) struct RootToken {
     pub heap: Arc<Heap>,
     pub id: NodeId,
+    semantic_owner: bool,
 }
 
 impl Drop for RootToken {
     fn drop(&mut self) {
-        self.heap.lock().collect();
+        let mut store = self.heap.lock();
+        if self.semantic_owner {
+            store.decrement_reference(self.id);
+        }
+        store.collect();
     }
 }
 
@@ -94,8 +111,10 @@ impl Heap {
 
 impl Store {
     pub(super) fn insert(&mut self, node: Node) -> NodeId {
+        self.acquire_edges(&semantic_edges(&node));
         if let Some(slot) = self.free.pop() {
             self.slots[slot].node = Some(node);
+            self.slots[slot].references = 0;
             NodeId {
                 slot,
                 generation: self.slots[slot].generation,
@@ -108,6 +127,7 @@ impl Store {
             self.slots.push(Slot {
                 generation: 0,
                 node: Some(node),
+                references: 0,
             });
             id
         }
@@ -128,63 +148,15 @@ impl Store {
             .and_then(|s| s.node.as_mut())
             .ok_or(GraphError::StaleNode)
     }
-
-    pub fn root(
-        &mut self,
-        heap: &Arc<Heap>,
-        id: NodeId,
-        staging: &mut Vec<Arc<RootToken>>,
-    ) -> Link {
-        let root = Arc::new(RootToken {
-            heap: Arc::clone(heap),
-            id,
-        });
-        // The alias outlives this lock even if a partially promoted value unwinds.
-        staging.push(Arc::clone(&root));
-        self.roots.push((id, Arc::downgrade(&root)));
-        Link::Root(root)
-    }
-
-    pub(super) fn collect(&mut self) {
-        self.roots.retain(|(_, root)| root.strong_count() != 0);
-        let mut pending: Vec<_> = self.roots.iter().map(|(id, _)| *id).collect();
-        let mut marked = vec![false; self.slots.len()];
-        while let Some(id) = pending.pop() {
-            let Ok(node) = self.node(id) else { continue };
-            if marked[id.slot] {
-                continue;
-            }
-            marked[id.slot] = true;
-            match node {
-                Node::Frame(frame) => {
-                    pending.extend(frame.parent);
-                    pending.extend(frame.global);
-                    pending.extend(frame.store);
-                    if let Some(session) = frame.session {
-                        pending.extend(session.ids());
-                    }
-                    for value in frame.bindings.values() {
-                        value.edges(&mut pending);
-                    }
-                }
-                Node::Promise(promise) => promise.edges(&mut pending),
-                Node::Vector(vector) => vector.payload.edges(&mut pending),
-                Node::Cons(cons) => {
-                    cons.car.edges(&mut pending);
-                    pending.extend(cons.cdr);
-                }
-            }
-        }
-        for (index, slot) in self.slots.iter_mut().enumerate() {
-            if !marked[index] && slot.node.take().is_some() {
-                if let Some(next) = slot.generation.checked_add(1) {
-                    slot.generation = next;
-                    self.free.push(index);
-                }
-            }
-        }
-    }
 }
+
+#[cfg(test)]
+#[path = "bytecode_tests.rs"]
+mod bytecode_tests;
+
+#[cfg(test)]
+#[path = "bytecode_sharing_tests.rs"]
+mod bytecode_sharing_tests;
 
 #[path = "session.rs"]
 mod session;
@@ -254,3 +226,15 @@ mod shared_attributes_tests;
 #[cfg(test)]
 #[path = "import_validation_tests.rs"]
 mod import_validation_tests;
+
+#[cfg(test)]
+#[path = "expression_tests.rs"]
+mod expression_tests;
+
+#[cfg(test)]
+#[path = "substitute_quote_tests.rs"]
+mod substitute_quote_tests;
+
+#[cfg(test)]
+#[path = "list_names_tests.rs"]
+mod list_names_tests;

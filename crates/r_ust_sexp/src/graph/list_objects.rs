@@ -10,7 +10,10 @@ pub(super) struct VectorNode {
 
 fn elements(value: &Sexp) -> Result<&[ListElement], GraphError> {
     match value {
-        Sexp::List(values)
+        Sexp::NamedList {
+            elements: values, ..
+        }
+        | Sexp::List(values)
         | Sexp::ClassedList {
             elements: values, ..
         } => Ok(values),
@@ -44,6 +47,15 @@ impl ListObject {
             header: SexpHeader::new(SexpType::Vector),
             payload,
         }))))
+    }
+
+    /// Counts stored graph references and explicit semantic leases, excluding scratch roots.
+    pub fn semantic_reference_count(&self) -> Result<usize, GraphError> {
+        self.0.heap()?.lock().semantic_reference_count(self.0.id())
+    }
+
+    pub fn shallow_copy(&self) -> Result<Self, GraphError> {
+        self.copy_with(&self.value()?)
     }
 
     pub fn same_object(&self, other: &Self) -> bool {
@@ -102,17 +114,28 @@ impl ListObject {
             return Ok(());
         }
         let slots = match &mut payload {
-            Sexp::List(values)
+            Sexp::NamedList {
+                elements: values, ..
+            }
+            | Sexp::List(values)
             | Sexp::ClassedList {
                 elements: values, ..
             } => values,
             _ => return Err(GraphError::WrongKind),
         };
+        let mut changes = Vec::with_capacity(updates.len());
         for (index, value) in updates {
             let slot = slots.get_mut(index).ok_or(GraphError::IndexOutOfBounds)?;
+            changes.push((
+                StoredValue::from_edges(slot.value.clone())?,
+                value.copy_edges(),
+            ));
             slot.value = value.value;
         }
         let payload = StoredValue::from_edges(payload)?;
+        for (old, new) in changes {
+            store.replace_value_references(&old, &new);
+        }
         store.vector_mut(self.0.id())?.payload = payload;
         store.collect();
         Ok(())

@@ -28,6 +28,7 @@ fn run_kind(class_storage: bool) -> Result {
         frame.insert("x".into(), &Sexp::Integer(vec![Some(42)]))?;
         alias = frame.clone();
         let callback = Sexp::Closure {
+            attributes: Vec::new(),
             parameters: vec![],
             body: Box::new(Sexp::Environment(frame.clone())),
             environment: ClosureEnvironment::Captured(frame.clone()),

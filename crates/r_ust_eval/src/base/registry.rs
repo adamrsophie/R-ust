@@ -16,6 +16,13 @@ fn definitions() -> impl Iterator<Item = &'static (&'static str, &'static str)> 
     definitions::DEFINITIONS
         .iter()
         .chain(super::conditions::DEFINITIONS.iter())
+        .chain(super::warning_sources::DEFINITIONS.iter())
+        .chain(super::restart_sources::DEFINITIONS.iter())
+        .chain(super::invocation_sources::DEFINITIONS.iter())
+        .chain(super::apply_sources::DEFINITIONS.iter())
+        .chain(super::format_sources::DEFINITIONS.iter())
+        .chain(super::deparse_sources::DEFINITIONS.iter())
+        .chain(super::quote_sources::DEFINITIONS.iter())
         .chain(bitwise::DEFINITIONS.iter())
         .chain(run_length::DEFINITIONS.iter())
         .chain(rowsum::DEFINITIONS.iter())
@@ -47,6 +54,7 @@ fn template(name: &str, source: &str) -> Result<Sexp, EvalError> {
         lower(&mut body)?;
     }
     Ok(Sexp::Closure {
+        attributes: Vec::new(),
         parameters: parameters.clone(),
         body,
         environment: ClosureEnvironment::Base,
@@ -77,3 +85,7 @@ pub(crate) fn iter() -> Result<impl Iterator<Item = (&'static str, &'static Sexp
 #[cfg(test)]
 #[path = "registry_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "bootstrap_tests.rs"]
+mod bootstrap_tests;

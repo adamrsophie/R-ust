@@ -7,7 +7,7 @@ pub(super) fn value_len(value: &Sexp) -> Result<usize, EvalError> {
         Sexp::Char(value) => value.as_deref().unwrap_or("NA").len(),
         Sexp::Nil => 0,
         Sexp::MissingArg(_) => 1,
-        Sexp::Primitive(_) | Sexp::Environment(_) => 1,
+        Sexp::Bytecode(_) | Sexp::Primitive(_) | Sexp::Environment(_) => 1,
         Sexp::Symbol(_) | Sexp::MissingValue => 1,
         Sexp::PairList(values) => values.as_slice().len(),
         Sexp::Call { arguments, .. } => 1 + arguments.len(),
@@ -15,8 +15,12 @@ pub(super) fn value_len(value: &Sexp) -> Result<usize, EvalError> {
         Sexp::Integer(values) => values.len(),
         Sexp::Real(values) => values.len(),
         Sexp::String(values) | Sexp::AttributedCharacter { values, .. } => values.len(),
+        Sexp::Expression { elements, .. } => elements.len(),
         Sexp::Vector(values) => values.len(),
         Sexp::ClassedList {
+            elements: values, ..
+        }
+        | Sexp::NamedList {
             elements: values, ..
         }
         | Sexp::List(values) => values.len(),

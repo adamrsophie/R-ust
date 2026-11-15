@@ -39,6 +39,7 @@ pub(super) fn source_session() {
         integer(11)
     );
     let legacy = Sexp::Closure {
+        attributes: Vec::new(),
         parameters: vec![],
         body: Box::new(Sexp::Symbol("sentinel".into())),
         environment: ClosureEnvironment::Base,

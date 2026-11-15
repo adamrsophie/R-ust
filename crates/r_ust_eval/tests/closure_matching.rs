@@ -49,6 +49,7 @@ fn fingerprint(value: &Sexp) -> (String, String) {
                         let name = entry
                             .name
                             .as_ref()
+                            .filter(|name| !name.is_empty())
                             .map_or_else(|| "_".into(), |name| hex(name.as_bytes()));
                         format!("{name}={}", fingerprint(&entry.value).1)
                     })
@@ -58,6 +59,24 @@ fn fingerprint(value: &Sexp) -> (String, String) {
         ),
         other => panic!("unexpected fixture value {other:?}"),
     }
+}
+
+#[test]
+fn fixture_names_follow_the_r_observers_blank_tag_encoding() {
+    let entries = [None, Some(""), Some("b")]
+        .into_iter()
+        .map(|name| r_ust_sexp::ListElement {
+            name: name.map(str::to_owned),
+            value: Sexp::Integer(vec![Some(1)]),
+        })
+        .collect();
+    assert_eq!(
+        fingerprint(&Sexp::List(entries)),
+        (
+            "list".into(),
+            "list|3|_=integer|1|1;_=integer|1|1;62=integer|1|1".into()
+        )
+    );
 }
 
 fn warning_payload(text: &str) -> String {

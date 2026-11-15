@@ -23,6 +23,7 @@ fn evaluation_functions_are_base_closures_with_genuine_formals_and_symbol_body()
             parameters,
             body,
             environment,
+            ..
         } = value
         else {
             panic!("{name} is not a closure");

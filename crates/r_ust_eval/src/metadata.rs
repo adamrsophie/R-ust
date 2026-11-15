@@ -1,6 +1,9 @@
 use super::*;
 
 pub(super) fn class_value(value: &Sexp) -> Result<Sexp, EvalError> {
+    if let Some(class) = crate::closure_attributes::explicit_class(value) {
+        return Ok(class.clone());
+    }
     if matches!(value, Sexp::Char(_)) {
         return Err(EvalError::Domain(
             "cannot have attributes on a CHARSXP".into(),
@@ -8,8 +11,11 @@ pub(super) fn class_value(value: &Sexp) -> Result<Sexp, EvalError> {
     }
     let projection = ordinary_values::read(value)?;
     let value = projection.as_ref();
-    if let Sexp::ClassedList { class, .. } = value {
-        return Ok(class.as_ref().clone());
+    if let Some(view) = value.ordinary_list() {
+        return Ok(view
+            .class
+            .cloned()
+            .unwrap_or_else(|| Sexp::String(vec![Some("list".into())])));
     }
     let values = match value {
         Sexp::Symbol(_) | Sexp::MissingValue => vec!["name".to_string()],
@@ -48,6 +54,8 @@ pub(super) fn class_value(value: &Sexp) -> Result<Sexp, EvalError> {
 pub(super) fn typeof_value(value: &Sexp) -> &'static str {
     match value {
         Sexp::Environment(_) => "environment",
+        Sexp::Bytecode(_) => "bytecode",
+        Sexp::Expression { .. } => "expression",
         Sexp::Nil => "NULL",
         Sexp::Logical(_) => "logical",
         Sexp::Integer(_) | Sexp::Factor { .. } => "integer",
@@ -55,6 +63,7 @@ pub(super) fn typeof_value(value: &Sexp) -> &'static str {
         Sexp::String(_) | Sexp::AttributedCharacter { .. } => "character",
         Sexp::Char(_) => "char",
         Sexp::DataFrame { .. }
+        | Sexp::NamedList { .. }
         | Sexp::ClassedList { .. }
         | Sexp::List(_)
         | Sexp::ListObject(_)
@@ -63,30 +72,13 @@ pub(super) fn typeof_value(value: &Sexp) -> &'static str {
         Sexp::Dots(_) => "...",
         Sexp::Promise { .. } => "promise",
         Sexp::Closure { .. } | Sexp::Function { .. } => "closure",
-        Sexp::Primitive(id) => match id {
-            r_ust_sexp::PrimitiveId::Sum
-            | r_ust_sexp::PrimitiveId::Nargs
-            | r_ust_sexp::PrimitiveId::GlobalEnv
-            | r_ust_sexp::PrimitiveId::BaseEnv
-            | r_ust_sexp::PrimitiveId::EmptyEnv
-            | r_ust_sexp::PrimitiveId::IsEnvironment
-            | r_ust_sexp::PrimitiveId::Primitive
-            | r_ust_sexp::PrimitiveId::Length
-            | r_ust_sexp::PrimitiveId::Invisible
-            | r_ust_sexp::PrimitiveId::Add
-            | r_ust_sexp::PrimitiveId::Subtract
-            | r_ust_sexp::PrimitiveId::Multiply
-            | r_ust_sexp::PrimitiveId::Divide
-            | r_ust_sexp::PrimitiveId::Power
-            | r_ust_sexp::PrimitiveId::Modulo
-            | r_ust_sexp::PrimitiveId::IntegerDivide
-            | r_ust_sexp::PrimitiveId::Colon => "builtin",
-            r_ust_sexp::PrimitiveId::Return
-            | r_ust_sexp::PrimitiveId::Missing
-            | r_ust_sexp::PrimitiveId::Quote
-            | r_ust_sexp::PrimitiveId::UseMethod
-            | r_ust_sexp::PrimitiveId::OnExit => "special",
-        },
+        Sexp::Primitive(id) => {
+            if id.sexptype() == r_ust_sexp::SexpType::Special {
+                "special"
+            } else {
+                "builtin"
+            }
+        }
         Sexp::Symbol(_) | Sexp::MissingValue => "symbol",
         Sexp::PairList(_) | Sexp::PairListObject(_) => "pairlist",
         _ => "language",
@@ -103,6 +95,7 @@ pub(super) fn mode_value(value: &Sexp) -> &'static str {
         Sexp::String(_) | Sexp::AttributedCharacter { .. } => "character",
         Sexp::Char(_) => "char",
         Sexp::DataFrame { .. }
+        | Sexp::NamedList { .. }
         | Sexp::ClassedList { .. }
         | Sexp::List(_)
         | Sexp::ListObject(_)
@@ -111,16 +104,4 @@ pub(super) fn mode_value(value: &Sexp) -> &'static str {
         Sexp::Closure { .. } | Sexp::Function { .. } | Sexp::Primitive(_) => "function",
         _ => typeof_value(value),
     }
-}
-
-pub(super) fn is_vector_value(value: &Sexp) -> Result<bool, EvalError> {
-    let projection = ordinary_values::read(value)?;
-    let value = projection.as_ref();
-    if let Sexp::AttributedCharacter { attributes, .. } = value {
-        return Ok(attributes.is_empty());
-    }
-    Ok(matches!(
-        value,
-        Sexp::Logical(_) | Sexp::Integer(_) | Sexp::Real(_) | Sexp::String(_) | Sexp::List(_)
-    ))
 }

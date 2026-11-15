@@ -2,6 +2,16 @@ use super::{atomic, lists, strings::BlankPolicy};
 use crate::{EvalError, EvaluatedArgument, RuntimeState, Sexp};
 
 impl RuntimeState {
+    pub(crate) fn integer_values_with_warning(
+        &mut self,
+        value: &Sexp,
+        call: &Sexp,
+    ) -> Result<Vec<Option<i32>>, EvalError> {
+        let (values, warnings) = atomic::integers(value, BlankPolicy::environment())?;
+        self.record_warnings_at(&warnings.messages(), Some(call))?;
+        Ok(values)
+    }
+
     pub(crate) fn scalar_real_with_warning(&mut self, value: &Sexp) -> Result<f64, EvalError> {
         let (number, warnings) = atomic::scalar_real(value, BlankPolicy::environment());
         self.record_warnings_at(&warnings.messages(), Some(&self.source_current_call()))?;

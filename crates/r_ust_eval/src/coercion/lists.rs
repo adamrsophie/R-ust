@@ -16,6 +16,7 @@ pub(super) fn convert(
     let elements: Vec<&Sexp> = match value {
         Sexp::Vector(values) => values.iter().collect(),
         Sexp::ClassedList { elements, .. }
+        | Sexp::NamedList { elements, .. }
         | Sexp::List(elements)
         | Sexp::DataFrame {
             columns: elements, ..
@@ -72,6 +73,7 @@ pub(super) fn vectorizable(value: &Sexp) -> Result<bool, EvalError> {
             | Sexp::String(_)
             | Sexp::AttributedCharacter { .. }
             | Sexp::Vector(_)
+            | Sexp::NamedList { .. }
             | Sexp::ClassedList { .. }
             | Sexp::List(_)
             | Sexp::Factor { .. }

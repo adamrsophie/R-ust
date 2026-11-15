@@ -40,6 +40,7 @@ fn d1_new_edges_release_cycles_after_last_export() {
         let heap = Arc::clone(container.0.heap().unwrap());
         let ids = [container.0.id(), capture.0.id()];
         let closure = Sexp::Closure {
+            attributes: Vec::new(),
             parameters: vec![],
             body: Box::new(Sexp::Environment(capture.clone())),
             environment: ClosureEnvironment::Captured(capture.clone()),
