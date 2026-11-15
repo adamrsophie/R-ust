@@ -54,6 +54,15 @@ impl RuntimeState {
                 })?;
                 integer(self.control.parent_number(number, &self.global))
             }
+            InternalOperation::SysCall => {
+                let number = number.ok_or_else(|| {
+                    crate::SourceFault::domain(
+                        "invalid 'which' argument".into(),
+                        &self.source_current_call(),
+                    )
+                })?;
+                self.control.frame_call(number)
+            }
             InternalOperation::SysFrame => {
                 let number = number.ok_or_else(|| {
                     crate::SourceFault::domain(

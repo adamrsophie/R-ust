@@ -92,7 +92,8 @@ impl RuntimeState {
             InternalOperation::Environment => self.function_environment(&args[0].value),
             InternalOperation::NewEnvironment => self.new_environment(args),
             InternalOperation::ParentFrame => self.parent_frame(&args[0].value),
-            InternalOperation::SysFrame
+            InternalOperation::SysCall
+            | InternalOperation::SysFrame
             | InternalOperation::SysFunction
             | InternalOperation::SysParent
             | InternalOperation::SysNFrame => self.dynamic_frame(operation, args),

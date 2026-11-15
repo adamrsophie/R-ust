@@ -19,6 +19,7 @@ pub(super) const DEFINITIONS: &[(&str, &str)] = &[
     ("environment", "function(fun = NULL) .Internal(environment(fun))"),
     ("new.env", "function(hash = TRUE, parent = parent.frame(), size = 29L) .Internal(new.env(hash, parent, size))"),
     ("parent.frame", "function(n = 1) .Internal(parent.frame(n))"),
+    ("sys.call", "function(which = 0L) .Internal(sys.call(which))"),
     ("sys.frame", "function(which = 0L) .Internal(sys.frame(which))"),
     ("sys.function", "function(which = 0L) .Internal(sys.function(which))"),
     ("sys.parent", "function(n = 1L) .Internal(sys.parent(n))"),

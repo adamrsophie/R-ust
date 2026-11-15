@@ -20,6 +20,7 @@ pub enum InternalOperation {
     PrintDefault,
     NewEnvironment,
     ParentFrame,
+    SysCall,
     SysFrame,
     SysFunction,
     SysParent,

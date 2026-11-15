@@ -19,7 +19,8 @@ pub(super) fn check(
         InternalOperation::PrintDefault => ("print.default", 3),
         InternalOperation::NewEnvironment => ("new.env", 3),
         InternalOperation::ParentFrame => ("parent.frame", 1),
-        InternalOperation::SysFrame
+        InternalOperation::SysCall
+        | InternalOperation::SysFrame
         | InternalOperation::SysFunction
         | InternalOperation::SysParent
         | InternalOperation::SysNFrame => return Ok(()),
@@ -77,7 +78,8 @@ pub(super) fn check(
             true
         }
         InternalOperation::Sprintf => true,
-        InternalOperation::SysFrame
+        InternalOperation::SysCall
+        | InternalOperation::SysFrame
         | InternalOperation::SysFunction
         | InternalOperation::SysParent
         | InternalOperation::SysNFrame => true,

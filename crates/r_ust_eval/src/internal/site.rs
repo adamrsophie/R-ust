@@ -34,6 +34,7 @@ impl RuntimeState {
             | InternalOperation::PrintDefault
             | InternalOperation::NewEnvironment
             | InternalOperation::ParentFrame
+            | InternalOperation::SysCall
             | InternalOperation::SysFrame
             | InternalOperation::SysFunction
             | InternalOperation::SysParent

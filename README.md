@@ -2,7 +2,7 @@
 
 ## Porting progress
 
-Target: **R 4.6.0**. Updated **November 14, 2026**.
+Target: **R 4.6.0**. Updated **November 15, 2026**.
 
 | Tracked area | Done | Partial | Missing | Total |
 | --- | ---: | ---: | ---: | ---: |
@@ -18,7 +18,8 @@ This tracker is refreshed with every push. Inventory counts change only when ref
 - **Focused verification:** 109 graph tests passed, including 15 new aggregate SDK and bytecode integration checks. The SDK now preserves persistent aggregate slots and shallow closure copies; evaluator-wide managed-value migration remains open. Selected evaluator suites recorded 465 passes and 1 failure; all 47 `identical()` checks also passed with bytecode disabled. These are isolated-checkout results, not a full-workspace test pass.
 - **CLI checkpoint:** 365 of 370 comparisons passed across expression, file, stdin, Rscript-file, and Rscript-expression modes. All 370 fresh GNU R reference comparisons passed. Warning output now requires exact reference bytes; the five remaining failures are the atomic-attribute case in each mode. Verifier adversarial self-checks passed. Feature inventory counts remain unchanged.
 - **Latest CLI milestone:** `quit` and `q` are genuine closures, supporting aliases, `lapply()`, and `do.call()`. All 14 new checks passed with bytecode enabled and disabled; original quit scenarios and 12 base-registry checks passed. All 138 CLI tests now pass with exact GNU warning-output comparisons. The separate compatibility corpus still has the five atomic-attribute failures above. Inventory counts remain unchanged.
-- **Known open work:** the warning reference matrix still requires `unclass()`; atomic attributes, complex superassignment, nested mutation sharing, and broader bytecode coverage remain incomplete. Additional compatibility gaps remain.
+- **Latest language milestone:** `sys.call()` now returns the selected dynamic call through its genuine base closure. Scalar language `[[` and `[[<-` preserve argument tags, aliases, and unforced payloads across reads, replacement, extension, and deletion. All 38 focused checks passed with bytecode enabled and disabled, with both settings recorded explicitly. All 138 CLI tests passed again. Broader selected regressions recorded 142 passes and two existing failures in nested mutation sharing and an obsolete unsupported-operation expectation. Inventory counts remain unchanged.
+- **Known open work:** the warning reference matrix still requires `unclass()`; atomic attributes, complex superassignment, nested mutation sharing, and broader bytecode coverage remain incomplete. Recursive language indices, partial matching, and arbitrary language attributes remain open. Additional compatibility gaps remain.
 - **Next:** close those failures, run broader CLI and regression checks, and push smaller verified milestones.
 
 ## Overview

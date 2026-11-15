@@ -15,6 +15,7 @@ pub fn resolve(name: &str) -> Option<InternalOperation> {
         "print.default" => Some(InternalOperation::PrintDefault),
         "new.env" => Some(InternalOperation::NewEnvironment),
         "parent.frame" => Some(InternalOperation::ParentFrame),
+        "sys.call" => Some(InternalOperation::SysCall),
         "sys.frame" => Some(InternalOperation::SysFrame),
         "sys.function" => Some(InternalOperation::SysFunction),
         "sys.parent" => Some(InternalOperation::SysParent),

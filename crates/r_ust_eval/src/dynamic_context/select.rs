@@ -59,6 +59,15 @@ impl ControlState {
             .map_or_else(|| global.clone(), |context| context.execution.clone()))
     }
 
+    pub(crate) fn frame_call(&self, which: i32) -> Result<Sexp, EvalError> {
+        let Some(context) = self.selected_frame(which)? else {
+            return Ok(Sexp::Nil);
+        };
+        // Context calls may retain parser nodes and runtime leaves, including promises.
+        r_ust_sexp::canonical_actual_call(&context.call)
+            .map_err(|_| EvalError::NotImplemented("sys.call source representation"))
+    }
+
     pub(crate) fn frame_function(&self, which: i32) -> Result<Sexp, EvalError> {
         Ok(self
             .selected_frame(which)?
