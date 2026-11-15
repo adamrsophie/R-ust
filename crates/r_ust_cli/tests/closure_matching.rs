@@ -209,13 +209,15 @@ fn partial_warning_policy_preserves_merged_event_order() {
                 "TRUE",
                 0,
                 0,
-                format!("BEFORE\nBODY\nARG\n[1] 2\nWarning message:\n{warning} \nAFTER\n"),
+                format!(
+                    "BEFORE\nBODY\nARG\n[1] 2\nWarning message:\nIn f(al = {{ : {warning}\nAFTER\n"
+                ),
             ),
             (
                 "TRUE",
                 1,
                 0,
-                format!("BEFORE\nWarning: {warning}\nBODY\nARG\n[1] 2\nAFTER\n"),
+                format!("BEFORE\nWarning in f(al = {{ : {warning}\nBODY\nARG\n[1] 2\nAFTER\n"),
             ),
             (
                 "TRUE",

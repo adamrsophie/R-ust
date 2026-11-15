@@ -53,6 +53,10 @@ fn accessor_rscript_preserves_independent_r_handles_effects_and_validation() {
 }
 
 fn check_fixture(fixture: Fixture) -> (usize, usize) {
+    assert_eq!(
+        fixture.reference.lines().next(),
+        Some("id\tcategory\toutcome\tnode_hex\ttypeof\tclass_hex\tmode\tlength\tvisible\tprint_hex\twarnings_hex\teffects_hex\tstatus\tstdout_hex\tstderr_hex\tmerged_hex")
+    );
     let inputs: Vec<_> = fixture.cases.lines().skip(1).collect();
     let values: Vec<_> = fixture.reference.lines().skip(1).collect();
     let mappings: Vec<_> = fixture.mapping.lines().skip(1).collect();
@@ -63,6 +67,7 @@ fn check_fixture(fixture: Fixture) -> (usize, usize) {
     for ((input, expected), mapping) in inputs.into_iter().zip(values).zip(mappings) {
         let fields: Vec<_> = input.split('\t').collect();
         let observed: Vec<_> = expected.split('\t').collect();
+        assert_eq!(observed.len(), 16, "reference field count");
         let (id, kind) = mapping.split_once('\t').unwrap();
         assert_eq!(fields[0], id);
         assert_eq!(observed[0], id);
@@ -113,13 +118,7 @@ fn check_fixture(fixture: Fixture) -> (usize, usize) {
                 };
             format!("{prefix}{payload}\n")
         } else {
-            let conditions = decode(observed[10]);
-            conditions
-                .lines()
-                .collect::<Vec<_>>()
-                .chunks(3)
-                .map(|condition| format!("Warning: {}\n", condition[1]))
-                .collect()
+            decode(observed[14])
         };
         assert_eq!(output.stderr, stderr.as_bytes(), "{id} stderr");
         checked += 1;
