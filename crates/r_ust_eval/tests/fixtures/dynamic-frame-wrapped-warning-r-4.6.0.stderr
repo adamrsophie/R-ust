@@ -1,0 +1,6 @@
+Error in new.env(hash = "bad", parent = NULL, size = "bad") : 
+  use of NULL environment is defunct
+In addition: Warning message:
+In new.env(hash = "bad", parent = NULL, size = "bad") :
+  NAs introduced by coercion
+Execution halted

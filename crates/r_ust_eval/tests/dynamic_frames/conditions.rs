@@ -1,4 +1,10 @@
-use super::json;
+use super::{
+    json,
+    reader::{self, Row},
+};
+
+#[cfg(test)]
+mod tests;
 use r_ust_eval::{EvalError, OutputEvent};
 use std::collections::BTreeMap;
 
@@ -57,38 +63,49 @@ pub(super) fn read() -> Result<BTreeMap<String, Conditions>, String> {
 }
 
 impl Conditions {
-    fn warnings(&self) -> Result<String, String> {
+    fn warnings<'a>(&self, row: &'a Row) -> Result<&'a str, String> {
         if let Some(error) = self
             .error
             .as_ref()
             .and_then(|error| error.strip_prefix("(converted from warning) "))
         {
-            if self.warnings != [error] {
+            if self.warnings != [error] || row.stderr.contains("Warning message") {
                 return Err("converted warning payload".into());
             }
-            return Ok(String::new());
+            return Ok("");
         }
-        match self.warnings.as_slice() {
-            [] => Ok(String::new()),
-            [message] => Ok(format!("Warning message:\n{message} \n")),
-            messages if messages.len() <= 10 => Ok(format!(
-                "Warning messages:\n{}",
-                messages
-                    .iter()
-                    .enumerate()
-                    .map(|(index, message)| format!("{}: {message} \n", index + 1))
-                    .collect::<String>()
-            )),
-            _ => Err("unsupported warning envelope".into()),
+        if self.warnings.is_empty() {
+            if row.stderr.contains("Warning message") {
+                return Err("unexpected reference warning".into());
+            }
+            return Ok("");
         }
+        let expected = if self.error.is_some() {
+            row.stderr
+                .split_once("\nIn addition: ")
+                .and_then(|(_, warning)| warning.strip_suffix("Execution halted\n"))
+                .ok_or("reference terminal warning envelope")?
+        } else {
+            row.stderr.as_str()
+        };
+        let heading = if self.warnings.len() == 1 {
+            "Warning message:\n"
+        } else {
+            "Warning messages:\n"
+        };
+        if !expected.starts_with(heading) || !expected.ends_with('\n') {
+            return Err("reference warning envelope".into());
+        }
+        validate_reference(expected, &self.warnings)?;
+        Ok(expected)
     }
 
-    pub(super) fn check_error(&self, error: &EvalError) -> Result<(), String> {
+    pub(super) fn check_error(&self, error: &EvalError, row: &Row) -> Result<(), String> {
         let (error, warnings) = match error {
             EvalError::WithWarnings { error, warnings } => (error.as_ref(), warnings.as_str()),
             other => (other, ""),
         };
-        if warnings != self.warnings()? {
+        if warnings != self.warnings(row)? {
             return Err(format!("warning envelope: {warnings:?}"));
         }
         let (frame, payload) = match error {
@@ -104,19 +121,16 @@ impl Conditions {
         Ok(())
     }
 
-    pub(super) fn check_effects(
-        &self,
-        actual: Vec<OutputEvent>,
-        stdout: Vec<u8>,
-    ) -> Result<(), String> {
+    pub(super) fn check_effects(&self, actual: Vec<OutputEvent>, row: &Row) -> Result<(), String> {
+        let stdout = reader::effects(row)?;
         let mut expected = Vec::new();
         if !stdout.is_empty() {
             expected.push((false, stdout));
         }
         if self.error.is_none() {
-            let warnings = self.warnings()?;
+            let warnings = self.warnings(row)?;
             if !warnings.is_empty() {
-                expected.push((true, warnings.into_bytes()));
+                expected.push((true, warnings.as_bytes().to_vec()));
             }
         }
         let mut observed: Vec<(bool, Vec<u8>)> = Vec::new();
@@ -140,4 +154,43 @@ impl Conditions {
         }
         Ok(())
     }
+}
+
+fn validate_reference(expected: &str, messages: &[String]) -> Result<(), String> {
+    let heading = if messages.len() == 1 {
+        "Warning message:\n"
+    } else {
+        "Warning messages:\n"
+    };
+    let mut remaining = expected
+        .strip_prefix(heading)
+        .ok_or("reference warning heading")?;
+    for (index, message) in messages.iter().enumerate() {
+        if messages.len() > 1 {
+            remaining = remaining
+                .strip_prefix(&format!("{}: ", index + 1))
+                .ok_or("reference warning number")?;
+        }
+        remaining =
+            consume_reference_warning(remaining, message).ok_or("reference warning payload")?;
+    }
+    if !remaining.is_empty() {
+        return Err("reference warning trailing content".into());
+    }
+    Ok(())
+}
+
+fn consume_reference_warning<'a>(body: &'a str, message: &str) -> Option<&'a str> {
+    if let Some(remaining) = body.strip_prefix(&format!("{message} \n")) {
+        return Some(remaining);
+    }
+    let body = body.strip_prefix("In ")?;
+    for separator in [" : ", " :\n  "] {
+        if let Some((call, remaining)) = body.split_once(&format!("{separator}{message}\n")) {
+            if !call.is_empty() && !call.contains(['\n', '\r']) {
+                return Some(remaining);
+            }
+        }
+    }
+    None
 }

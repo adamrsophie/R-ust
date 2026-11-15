@@ -156,10 +156,10 @@ fn check(row: &Row, conditions: &Conditions) -> Result<(), String> {
             if row.status == 0 {
                 return Err(format!("unexpected native error: {error:?}"));
             }
-            conditions.check_error(&error)?;
+            conditions.check_error(&error, row)?;
         }
     }
-    conditions.check_effects(frontend.runtime_mut().take_output(), reader::effects(row)?)?;
+    conditions.check_effects(frontend.runtime_mut().take_output(), row)?;
     let recovery = frontend
         .eval_source("sys.nframe();42L")
         .map_err(|error| format!("recovery: {error:?}"))?;

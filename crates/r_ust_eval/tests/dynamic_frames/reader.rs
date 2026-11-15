@@ -10,6 +10,7 @@ pub(super) struct Row {
     pub(super) node: String,
     pub(super) status: i32,
     pub(super) stdout: Vec<u8>,
+    pub(super) stderr: String,
     pub(super) contract: String,
 }
 
@@ -97,6 +98,13 @@ fn row(line: &str) -> Result<Row, String> {
     }
     let typed = raw.get("run-1")?.get("typed")?;
     let status = typed.get("status")?.integer()?;
+    let stderr = json::unhex(typed.get("stderr")?.text()?)?;
+    let repeated = raw.get("run-2")?.get("typed")?;
+    if repeated.get("status")?.integer()? != status
+        || json::unhex(repeated.get("stderr")?.text()?)? != stderr
+    {
+        return Err("reference warning capture differs".into());
+    }
     if !matches!(status, 0 | 1) {
         return Err("reference status".into());
     }
@@ -113,6 +121,7 @@ fn row(line: &str) -> Result<Row, String> {
         node,
         status,
         stdout: json::hex(typed.get("stdout")?.text()?)?,
+        stderr,
         contract: (*contract).into(),
     })
 }

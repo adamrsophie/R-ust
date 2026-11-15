@@ -136,7 +136,7 @@ fn new_env_hash_coerce_before_parent_validation() {
             error: Box::new(EvalError::Domain(
                 "use of NULL environment is defunct".into()
             )),
-            warnings: "Warning message:\nNAs introduced by coercion \n".into(),
+            warnings: "Warning message:\nIn new.env(hash = \"bad\", parent = NULL, size = \"bad\") :\n  NAs introduced by coercion\n".into(),
         })
     );
 }
