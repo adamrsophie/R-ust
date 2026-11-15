@@ -13,8 +13,8 @@ Target: **R 4.6.0**. Updated **November 14, 2026**.
 
 - **Latest verified milestone:** [dynamic frames, source dispatch, and condition unwinding](https://github.com/adamrsophie/R-ust/commit/3e26f056f83d390059da8e373a502e212a774ed9), with 689 passing tests and 1,030 CLI comparisons for that milestone.
 - **Development checkpoint:** canonical execution, `substitute()`, expression vectors, `eval()` / `evalq()`, warning/restart handling, formatting, and initial bytecode execution are included as unfinished work. This checkpoint is not a validated release; completion counts above remain unchanged.
-- **Focused verification:** 94 graph tests passed. Selected evaluator suites recorded 461 passes and 4 failures. These are isolated-checkout results, not a full-workspace test pass.
-- **Known open work:** bytecode registration and missing-argument checks for `identical()`, a compiled-body inventory assertion, the `unclass()` dependency, atomic attributes, complex superassignment, and nested mutation sharing. Additional compatibility gaps remain.
+- **Focused verification:** 94 graph tests passed. Selected evaluator suites recorded 465 passes and 1 failure; all 47 `identical()` checks also passed with bytecode disabled. These are isolated-checkout results, not a full-workspace test pass.
+- **Known open work:** the warning reference matrix still requires `unclass()`; atomic attributes, complex superassignment, nested mutation sharing, and broader bytecode coverage remain incomplete. Additional compatibility gaps remain.
 - **Next:** close those failures, run broader CLI and regression checks, and push smaller verified milestones.
 
 ## Overview

@@ -21,17 +21,13 @@ fn installed_base_inventory_matches_root_free_templates() {
             assert_eq!(environment, &ClosureEnvironment::Base);
             *environment = ClosureEnvironment::Captured(namespace.clone());
         }
-        assert_eq!(
+        for actual in [
             base.get_local(name).unwrap(),
-            Some(expected.clone()),
-            "{name}"
-        );
-        assert_eq!(
             namespace.get_local(name).unwrap(),
-            Some(expected.clone()),
-            "{name}"
-        );
-        assert_eq!(runtime.get(name).unwrap(), Some(expected), "{name}");
+            runtime.get(name).unwrap(),
+        ] {
+            assert_installed_source(actual, &expected, name);
+        }
     }
     for (name, role) in [
         (".GlobalEnv", EnvironmentRole::Global),
@@ -71,4 +67,27 @@ fn installed_sdk_inventory_is_preserved_even_when_empty() {
             assert_eq!(base.get_local(&name).unwrap(), Some(value));
         }
     }
+}
+
+fn assert_installed_source(actual: Option<Sexp>, expected: &Sexp, name: &str) {
+    let mut actual = actual.expect(name);
+    let mut expected = expected.clone();
+    if let (Sexp::Closure { body: actual, .. }, Sexp::Closure { body: expected, .. }) =
+        (&mut actual, &mut expected)
+    {
+        if matches!(actual.as_ref(), Sexp::Bytecode(_)) {
+            **actual = r_ust_sexp::bytecode_source(actual).unwrap();
+            **expected = r_ust_sexp::canonical_actual_call(expected).unwrap();
+        }
+    }
+    assert_eq!(actual, expected, "{name}");
+}
+
+#[test]
+fn identical_internal_metadata_enables_real_base_compilation() {
+    let runtime = RuntimeState::default();
+    let Some(Sexp::Closure { body, .. }) = runtime.get("identical").unwrap() else {
+        panic!("expected identical source closure");
+    };
+    assert!(matches!(body.as_ref(), Sexp::Bytecode(_)));
 }

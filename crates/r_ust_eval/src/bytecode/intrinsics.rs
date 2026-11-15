@@ -9,7 +9,7 @@ pub(super) fn print_flag(name: &str) -> Option<u8> {
         | "findInterval" | "strtoi" | "pmatch" | "charmatch" | "is.vector" | "as.vector"
         | "vector" | "stop" | "inherits" | "gettext" | ".signalCondition" | ".dfltStop"
         | "geterrmessage" | "get" | ".addRestart" | ".getRestart" | ".invokeRestart"
-        | ".dfltWarn" => Some(0),
+        | ".dfltWarn" | "identical" | "sprintf" | "deparse" | "ngettext" | "l10n_info" => Some(0),
         _ => None,
     }
 }
