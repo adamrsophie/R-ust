@@ -25,6 +25,7 @@ impl Store {
                 }
                 Node::Promise(promise) => promise.edges(&mut pending),
                 Node::Bytecode(code) => code.edges(&mut pending),
+                Node::Value(value) => value.edges(&mut pending),
                 Node::Vector(vector) => vector.payload.edges(&mut pending),
                 Node::Cons(cons) => {
                     cons.car.edges(&mut pending);

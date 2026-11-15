@@ -45,6 +45,7 @@ pub(super) enum Node {
     Bytecode(Box<super::bytecode::BytecodeNode>),
     Vector(super::list_objects::VectorNode),
     Cons(super::cons_objects::ConsNode),
+    Value(super::value_objects::ValueNode),
 }
 
 struct Slot {
@@ -238,3 +239,19 @@ mod substitute_quote_tests;
 #[cfg(test)]
 #[path = "list_names_tests.rs"]
 mod list_names_tests;
+
+#[cfg(test)]
+#[path = "value_object_tests.rs"]
+mod value_object_tests;
+
+#[cfg(test)]
+#[path = "value_object_validation_tests.rs"]
+mod value_object_validation_tests;
+
+#[cfg(test)]
+#[path = "value_object_duplicate_tests.rs"]
+mod value_object_duplicate_tests;
+
+#[cfg(test)]
+#[path = "value_object_bytecode_tests.rs"]
+mod value_object_bytecode_tests;

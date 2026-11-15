@@ -20,8 +20,8 @@ pub use value::{ClosureEnvironment, InternalOperation, Sexp};
 
 pub use graph::{
     bytecode_source, BytecodeObject, BytecodeParts, Environment, EnvironmentRole, Force,
-    ForceLease, GraphError, ListObject, PairListObject, PromiseMetadata, PromiseState,
-    ValueRetention,
+    ForceLease, GraphError, ListObject, PairListObject, PromiseMetadata, PromiseState, ValueImport,
+    ValueKind, ValueObject, ValueObjectRetention, ValueRetention, ValueView,
 };
 pub use operators::BinaryOp;
 pub use promise::{EvaluationEnvironmentId, EvaluationOrigin, EvaluationSessionId};

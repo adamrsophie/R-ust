@@ -50,17 +50,21 @@ impl Store {
     fn promise(&self, id: NodeId) -> Result<&Promise, GraphError> {
         match self.node(id)? {
             Node::Promise(promise) => Ok(promise),
-            Node::Frame(_) | Node::Vector(_) | Node::Cons(_) | Node::Bytecode(_) => {
-                Err(GraphError::WrongKind)
-            }
+            Node::Frame(_)
+            | Node::Vector(_)
+            | Node::Cons(_)
+            | Node::Bytecode(_)
+            | Node::Value(_) => Err(GraphError::WrongKind),
         }
     }
     fn promise_mut(&mut self, id: NodeId) -> Result<&mut Promise, GraphError> {
         match self.node_mut(id)? {
             Node::Promise(promise) => Ok(promise),
-            Node::Frame(_) | Node::Vector(_) | Node::Cons(_) | Node::Bytecode(_) => {
-                Err(GraphError::WrongKind)
-            }
+            Node::Frame(_)
+            | Node::Vector(_)
+            | Node::Cons(_)
+            | Node::Bytecode(_)
+            | Node::Value(_) => Err(GraphError::WrongKind),
         }
     }
 }

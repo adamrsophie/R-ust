@@ -115,3 +115,6 @@ pub struct PairListObject(Link);
 
 #[cfg(test)]
 mod gc_reference_history_tests;
+
+mod value_objects;
+pub use value_objects::{ValueImport, ValueKind, ValueObject, ValueObjectRetention, ValueView};

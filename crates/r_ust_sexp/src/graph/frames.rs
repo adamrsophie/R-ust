@@ -7,17 +7,21 @@ impl Store {
     pub(super) fn frame(&self, id: NodeId) -> Result<&Frame, GraphError> {
         match self.node(id)? {
             Node::Frame(frame) => Ok(frame),
-            Node::Promise(_) | Node::Vector(_) | Node::Cons(_) | Node::Bytecode(_) => {
-                Err(GraphError::WrongKind)
-            }
+            Node::Promise(_)
+            | Node::Vector(_)
+            | Node::Cons(_)
+            | Node::Bytecode(_)
+            | Node::Value(_) => Err(GraphError::WrongKind),
         }
     }
     pub(super) fn frame_mut(&mut self, id: NodeId) -> Result<&mut Frame, GraphError> {
         match self.node_mut(id)? {
             Node::Frame(frame) => Ok(frame),
-            Node::Promise(_) | Node::Vector(_) | Node::Cons(_) | Node::Bytecode(_) => {
-                Err(GraphError::WrongKind)
-            }
+            Node::Promise(_)
+            | Node::Vector(_)
+            | Node::Cons(_)
+            | Node::Bytecode(_)
+            | Node::Value(_) => Err(GraphError::WrongKind),
         }
     }
 }

@@ -92,6 +92,7 @@ pub(super) fn semantic_edges(node: &Node) -> Vec<NodeId> {
         }
         Node::Promise(promise) => promise.semantic_edges(&mut edges),
         Node::Bytecode(code) => code.edges(&mut edges),
+        Node::Value(value) => value.edges(&mut edges),
         Node::Vector(vector) => vector.payload.edges(&mut edges),
         Node::Cons(cons) => {
             cons.car.edges(&mut edges);
