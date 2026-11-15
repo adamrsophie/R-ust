@@ -21,6 +21,7 @@ This tracker is refreshed with every push. Inventory counts change only when ref
 - **Latest language milestone:** `sys.call()` now returns the selected dynamic call through its genuine base closure. Scalar language `[[` and `[[<-` preserve argument tags, aliases, and unforced payloads across reads, replacement, extension, and deletion. All 38 focused checks passed with bytecode enabled and disabled, with both settings recorded explicitly. All 138 CLI tests passed again. Broader selected regressions recorded 142 passes and two existing failures in nested mutation sharing and an obsolete unsupported-operation expectation. Inventory counts remain unchanged.
 - **Warning verification milestone:** all 24 dynamic-frame SDK tests passed with bytecode enabled and disabled. Warning checks preserve exact GNU call, wrapping, and whitespace bytes while validating reference messages and counts independently. Active tests reject forged payloads, trailing content, and duplicate warning blocks. Inventory counts remain unchanged.
 - **Parse-warning milestone:** printed evaluation returns public errors when parser warnings are promoted, while preserving deferred warning timing and error attachments. All five numeric-warning tests passed with bytecode enabled and disabled under Rust 1.92. Inventory counts remain unchanged.
+- **Continuous integration:** [Rust CI](https://github.com/adamrsophie/R-ust/actions/workflows/ci.yml) checks every workspace target and runs the full test suite on Ubuntu and macOS with bytecode enabled and disabled. The C ABI smoke check runs on both platforms. Compatibility failures fail CI; inventory counts remain unchanged.
 - **Known open work:** the warning reference matrix still requires `unclass()`; atomic attributes, complex superassignment, nested mutation sharing, and broader bytecode coverage remain incomplete. Recursive language indices, partial matching, and arbitrary language attributes remain open. Additional compatibility gaps remain.
 - **Next:** close those failures, run broader CLI and regression checks, and push smaller verified milestones.
 
@@ -257,8 +258,10 @@ Several Rmath families use different algorithms from R, and their agreement with
 
 ## Testing
 
+CI runs on pushes to `main`, pull requests, and manual dispatch. It uses serial tests, the committed lockfile, and both `R_DISABLE_BYTECODE` settings. The live R comparison scripts below remain separate from these Rust and C ABI checks.
+
 ```bash
-cargo test
+cargo test --workspace --no-fail-fast --locked -- --test-threads=1
 scripts/check-c-abi.sh
 python3 scripts/check-cli-quit.py
 python3 scripts/check-cli-session.py

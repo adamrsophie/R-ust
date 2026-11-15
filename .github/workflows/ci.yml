@@ -1,0 +1,64 @@
+name: Rust CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  RUSTUP_TOOLCHAIN: stable
+  CARGO_TERM_COLOR: always
+  CARGO_BUILD_JOBS: "1"
+  CARGO_INCREMENTAL: "0"
+  CARGO_PROFILE_DEV_OPT_LEVEL: "0"
+  CARGO_PROFILE_DEV_DEBUG: "0"
+  CARGO_PROFILE_DEV_DEBUG_ASSERTIONS: "true"
+  CARGO_PROFILE_DEV_OVERFLOW_CHECKS: "true"
+  CARGO_PROFILE_TEST_OPT_LEVEL: "0"
+  CARGO_PROFILE_TEST_DEBUG: "0"
+  CARGO_PROFILE_TEST_DEBUG_ASSERTIONS: "true"
+  CARGO_PROFILE_TEST_OVERFLOW_CHECKS: "true"
+  LC_ALL: C
+  LANG: C
+  R_DEFAULT_PACKAGES: base
+  R_ENABLE_JIT: "0"
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / R_DISABLE_BYTECODE=${{ matrix.bytecode }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        bytecode: ["0", "1"]
+    env:
+      R_DISABLE_BYTECODE: ${{ matrix.bytecode }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install stable Rust
+        run: rustup toolchain install stable --profile minimal
+      - name: Record toolchain
+        run: |
+          rustc --version --verbose
+          cargo --version
+      - name: Check all workspace targets
+        run: cargo check --workspace --all-targets --locked
+      - name: Check C ABI
+        if: matrix.bytecode == '0'
+        run: bash scripts/check-c-abi.sh
+      - name: Test workspace
+        run: cargo test --workspace --no-fail-fast --locked -- --test-threads=1
