@@ -1547,8 +1547,6 @@ fn is_builtin(name: &str) -> bool {
             | "cat"
             | "writeLines"
             | "message"
-            | "q"
-            | "quit"
     )
 }
 

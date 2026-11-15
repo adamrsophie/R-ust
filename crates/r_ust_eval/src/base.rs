@@ -13,6 +13,7 @@ mod format_sources;
 mod invocation_sources;
 mod list_values;
 mod printing;
+mod quit_sources;
 mod quote_sources;
 mod registry;
 mod restart_sources;
@@ -196,3 +197,6 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod quit_tests;

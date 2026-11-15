@@ -58,9 +58,6 @@ impl RuntimeState {
         if name == "anyNA" {
             return self.eval_any_na(arguments, call).map(EvalFlow::Value);
         }
-        if matches!(name, "q" | "quit") {
-            return self.eval_quit_call(arguments);
-        }
         if name == "commandArgs" {
             return self.eval_command_args(arguments);
         }

@@ -64,6 +64,7 @@ impl RuntimeState {
                     | InternalOperation::PrintDefault
                     | InternalOperation::Warning
                     | InternalOperation::Assign
+                    | InternalOperation::Quit
             );
         }
         Ok(value)
@@ -77,6 +78,7 @@ impl RuntimeState {
     ) -> Result<Sexp, EvalError> {
         self.internal_arity(operation, args.len(), inner_call)?;
         match operation {
+            InternalOperation::Quit => self.internal_quit(args),
             InternalOperation::Identical => {
                 crate::identity::call(args, &self.source_current_call())
             }

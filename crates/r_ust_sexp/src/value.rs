@@ -12,6 +12,7 @@ pub enum ClosureEnvironment {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum InternalOperation {
+    Quit,
     Identical,
     Eval,
     Assign,

@@ -39,7 +39,7 @@ impl RuntimeState {
     ) -> Result<Sexp, EvalError> {
         self.visible = true;
         let result = match name {
-            "q" | "quit" | "commandArgs" | "readline" | "getOption" => {
+            "commandArgs" | "readline" | "getOption" => {
                 let arguments = args
                     .iter()
                     .map(|arg| CallArgument {
@@ -50,8 +50,7 @@ impl RuntimeState {
                 let result = match name {
                     "commandArgs" => self.eval_command_args(&arguments),
                     "readline" => self.eval_readline(&arguments),
-                    "getOption" => self.eval_get_option(&arguments),
-                    _ => self.eval_quit_call(&arguments),
+                    _ => self.eval_get_option(&arguments),
                 };
                 let EvalFlow::Value(value) = result?;
                 return Ok(value);

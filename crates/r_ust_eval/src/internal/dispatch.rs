@@ -3,6 +3,7 @@ use r_ust_sexp::InternalOperation;
 
 pub fn resolve(name: &str) -> Option<InternalOperation> {
     match name {
+        "quit" => Some(InternalOperation::Quit),
         "identical" => Some(InternalOperation::Identical),
         "eval" => Some(InternalOperation::Eval),
         "assign" => Some(InternalOperation::Assign),

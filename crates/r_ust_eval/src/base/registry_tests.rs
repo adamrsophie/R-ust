@@ -14,6 +14,11 @@ fn base_registry_enumeration_is_unique_complete() {
         .map(|(name, _)| *name)
         .chain(constants::iter().map(|(name, _)| name))
         .chain(
+            super::super::quit_sources::ALIASES
+                .iter()
+                .map(|(alias, _)| *alias),
+        )
+        .chain(
             crate::primitive_calls::names::NAMES
                 .iter()
                 .filter(|name| PrimitiveId::from_name(name).is_some())

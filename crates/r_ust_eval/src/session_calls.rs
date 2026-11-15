@@ -17,26 +17,11 @@ impl RuntimeState {
         Ok(())
     }
 
-    pub(super) fn eval_quit_call(
+    pub(super) fn internal_quit(
         &mut self,
-        arguments: &[CallArgument],
-    ) -> Result<EvalFlow, EvalError> {
-        let arguments = expand_dots_call_arguments(arguments, &self.current)?;
-        let bound = bind_named_arguments(&arguments, ["save", "status", "runLast"])?;
-        let mut values = [
-            Sexp::String(vec![Some("default".to_string())]),
-            Sexp::Integer(vec![Some(0)]),
-            Sexp::Logical(vec![Some(true)]),
-        ];
-        for (index, argument) in bound.into_iter().enumerate() {
-            if let Some(argument) = argument.filter(|arg| !matches!(arg.value, Sexp::MissingArg(_)))
-            {
-                values[index] = match self.eval_flow(&argument.value)? {
-                    EvalFlow::Value(value) => value,
-                };
-            }
-        }
-        let save = match string_scalar(&values[0], "save")?.as_str() {
+        args: &[super::EvaluatedArgument],
+    ) -> Result<Sexp, EvalError> {
+        let save = match string_scalar(&args[0].value, "save")?.as_str() {
             "default" => SaveAction::Default,
             "no" => SaveAction::No,
             "yes" => SaveAction::Yes,
@@ -47,8 +32,8 @@ impl RuntimeState {
                 ))
             }
         };
-        let status = self.scalar_integer_with_warning(&values[1])?;
-        let run_last = coerce_logical_values(&values[2])?
+        let status = self.scalar_integer_with_warning(&args[1].value)?;
+        let run_last = coerce_logical_values(&args[2].value)?
             .first()
             .copied()
             .flatten();

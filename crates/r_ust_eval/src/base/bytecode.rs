@@ -8,6 +8,12 @@ pub(super) fn finalize(environment: &Environment) -> Result<(), EvalError> {
     let namespace = environment.session_root(EnvironmentRole::BaseNamespace)?;
     let mut replacements = Vec::new();
     for (name, _) in super::iter()? {
+        if super::quit_sources::ALIASES
+            .iter()
+            .any(|(alias, _)| *alias == name)
+        {
+            continue;
+        }
         let Some(previous) = namespace.get_local(name)? else {
             continue;
         };
@@ -33,6 +39,15 @@ pub(super) fn finalize(environment: &Environment) -> Result<(), EvalError> {
                 environment: capture.clone(),
                 attributes: attributes.clone(),
             };
+            for (alias, original) in super::quit_sources::ALIASES {
+                if *original == name {
+                    if let Some(old_alias) = namespace.get_local(alias)? {
+                        if old_alias == previous {
+                            replacements.push(((*alias).into(), old_alias, replacement.clone()));
+                        }
+                    }
+                }
+            }
             replacements.push((name.into(), previous, replacement));
         }
     }

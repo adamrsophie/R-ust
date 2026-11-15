@@ -7,6 +7,7 @@ pub(super) fn check(
     call: Option<&crate::Sexp>,
 ) -> Result<(), EvalError> {
     let (name, arity) = match operation {
+        InternalOperation::Quit => ("quit", 3),
         InternalOperation::Identical => ("identical", 8),
         InternalOperation::Eval => ("eval", 3),
         InternalOperation::Assign => ("assign", 4),
@@ -89,7 +90,8 @@ pub(super) fn check(
             }
             true
         }
-        InternalOperation::Eval
+        InternalOperation::Quit
+        | InternalOperation::Eval
         | InternalOperation::Assign
         | InternalOperation::Environment
         | InternalOperation::Deparse

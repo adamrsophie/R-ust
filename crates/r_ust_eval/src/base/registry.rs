@@ -23,6 +23,7 @@ fn definitions() -> impl Iterator<Item = &'static (&'static str, &'static str)> 
         .chain(super::format_sources::DEFINITIONS.iter())
         .chain(super::deparse_sources::DEFINITIONS.iter())
         .chain(super::quote_sources::DEFINITIONS.iter())
+        .chain(super::quit_sources::DEFINITIONS.iter())
         .chain(bitwise::DEFINITIONS.iter())
         .chain(run_length::DEFINITIONS.iter())
         .chain(rowsum::DEFINITIONS.iter())
@@ -79,7 +80,16 @@ pub(crate) fn iter() -> Result<impl Iterator<Item = (&'static str, &'static Sexp
         })
         .as_ref()
         .map_err(Clone::clone)?;
-    Ok(values.iter().map(|(name, value)| (*name, value)))
+    Ok(values.iter().map(|(name, value)| (*name, value)).chain(
+        super::quit_sources::ALIASES
+            .iter()
+            .filter_map(move |(alias, original)| {
+                values
+                    .iter()
+                    .find(|(name, _)| name == original)
+                    .map(|(_, value)| (*alias, value))
+            }),
+    ))
 }
 
 #[cfg(test)]
