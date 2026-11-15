@@ -11,9 +11,12 @@ Target: **R 4.6.0**. Updated **November 14, 2026**.
 
 **49.5% of tracked language features are done.** Counts reflect the latest recorded inventory and targeted updates, not an exhaustive compatibility audit or a percentage of the entire R port. Recommended packages are not included. “Done” means the recorded reference checks passed; “Partial” means known gaps remain.
 
+This tracker is refreshed with every push. Inventory counts change only when reference checks support reclassification.
+
 - **Latest verified milestone:** [dynamic frames, source dispatch, and condition unwinding](https://github.com/adamrsophie/R-ust/commit/3e26f056f83d390059da8e373a502e212a774ed9), with 689 passing tests and 1,030 CLI comparisons for that milestone.
 - **Development checkpoint:** canonical execution, `substitute()`, expression vectors, `eval()` / `evalq()`, warning/restart handling, formatting, and initial bytecode execution are included as unfinished work. This checkpoint is not a validated release; completion counts above remain unchanged.
 - **Focused verification:** 94 graph tests passed. Selected evaluator suites recorded 465 passes and 1 failure; all 47 `identical()` checks also passed with bytecode disabled. These are isolated-checkout results, not a full-workspace test pass.
+- **CLI checkpoint:** 365 of 370 comparisons passed across expression, file, stdin, Rscript-file, and Rscript-expression modes. All 370 fresh GNU R reference comparisons passed. Warning output now requires exact reference bytes; the five remaining failures are the atomic-attribute case in each mode. Verifier adversarial self-checks passed. Feature inventory counts remain unchanged.
 - **Known open work:** the warning reference matrix still requires `unclass()`; atomic attributes, complex superassignment, nested mutation sharing, and broader bytecode coverage remain incomplete. Additional compatibility gaps remain.
 - **Next:** close those failures, run broader CLI and regression checks, and push smaller verified milestones.
 

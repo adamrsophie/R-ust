@@ -38,7 +38,7 @@ def native_diagnostic(row: Row) -> bytes:
         assert row.case.identifier in FRAMES and row.typed is None
         return (FRAMES[row.case.identifier] + row.error + "\n").encode()
     assert row.case.identifier not in FRAMES and row.typed is not None
-    return "".join("Warning: " + warning.message + "\n" for warning in row.typed.warnings).encode()
+    return unhex(row.raw["stderr"])
 
 
 def expected_native(row: Row) -> Capture:

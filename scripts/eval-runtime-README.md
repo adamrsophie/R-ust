@@ -35,7 +35,7 @@ Fresh GNU R output must match the frozen stdout, stderr, merged order and status
 | `control-flow error: ` | break_outside, break_other_environment |
 | No prefix | missing_expression, missing_evalq, computed_missing, bound_missing, omitted_forward, expr_force_first, expression_error |
 
-Warnings use exactly `Warning: MESSAGE` plus a newline. These are source-declared native envelopes, not a claim of byte-identical GNU R framing or hidden condition-object parity. Native error calls/classes and warning metadata require their SDK checks.
+Warnings require the exact frozen GNU R stderr bytes, including the call, wrapping and whitespace, at their captured position in the merged stream. The previous single-line native warning envelope is rejected. Error prefixes above remain source-declared native envelopes. Native error calls/classes and hidden warning metadata require their SDK checks.
 
 ## Capture integrity
 

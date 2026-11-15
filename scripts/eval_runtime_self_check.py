@@ -113,8 +113,10 @@ def comparator_checks(rows: tuple[Row, ...]) -> list[str]:
             for mutation in (b"JUNK" + raw, raw + b"JUNK", raw[:-1] if raw else b"X"):
                 assert not native_matches(row, altered(gold, field, mutation)), (row.case.identifier, field)
         if row.typed is not None and row.typed.warnings:
-            assert unhex(gold["stderr"]) == ("Warning: " + row.typed.warnings[0].message + "\n").encode()
+            assert gold["stderr"] == row.raw["stderr"]
             assert not native_matches(row, altered(gold, "stderr", b""))
+            legacy = ("Warning: " + row.typed.warnings[0].message + "\n").encode()
+            assert not native_matches(row, altered(gold, "stderr", legacy))
         if row.error is not None:
             for payload in (b"Calls: forged\n", b"Execution halted\n", b"Error in user_call() : changed\n"):
                 assert not native_matches(row, altered(gold, "stderr", unhex(gold["stderr"]) + payload))
