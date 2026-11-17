@@ -40,7 +40,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        # ARM capacity failures can cancel macos-latest jobs before any step runs.
+        os: [ubuntu-latest, macos-15-intel]
         bytecode: ["0", "1"]
     env:
       R_DISABLE_BYTECODE: ${{ matrix.bytecode }}
