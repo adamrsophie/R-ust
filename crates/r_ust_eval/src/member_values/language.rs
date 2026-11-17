@@ -1,5 +1,5 @@
-mod index;
-mod selection;
+pub(super) mod index;
+pub(super) mod selection;
 
 use crate::{CallArgument, EvalError, ListElement, Sexp};
 use r_ust_sexp::canonical_actual_call;
@@ -60,7 +60,7 @@ pub(super) fn assign(value: &Sexp, subscript: &Sexp, rhs: &Sexp) -> Result<Sexp,
     restore(elements)
 }
 
-fn elements(value: &Sexp) -> Result<Vec<ListElement>, EvalError> {
+pub(super) fn elements(value: &Sexp) -> Result<Vec<ListElement>, EvalError> {
     let canonical = canonical_actual_call(value)
         .map_err(|_| EvalError::NotImplemented("language member canonicalization"))?;
     let Sexp::Call {
@@ -81,7 +81,7 @@ fn elements(value: &Sexp) -> Result<Vec<ListElement>, EvalError> {
     Ok(values)
 }
 
-fn restore(elements: Vec<ListElement>) -> Result<Sexp, EvalError> {
+pub(super) fn restore(elements: Vec<ListElement>) -> Result<Sexp, EvalError> {
     let mut elements = elements.into_iter();
     let Some(head) = elements.next() else {
         return Ok(Sexp::Nil);

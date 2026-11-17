@@ -1,11 +1,11 @@
 use crate::{EvalError, ListElement, Sexp};
 
-pub(super) struct Selection {
-    pub(super) positions: Vec<Option<usize>>,
-    pub(super) new_tag: Option<String>,
+pub(in crate::member_values) struct Selection {
+    pub(in crate::member_values) positions: Vec<Option<usize>>,
+    pub(in crate::member_values) new_tag: Option<String>,
 }
 
-pub(super) fn select(
+pub(in crate::member_values) fn select(
     elements: &[ListElement],
     index: &Sexp,
     extend: bool,

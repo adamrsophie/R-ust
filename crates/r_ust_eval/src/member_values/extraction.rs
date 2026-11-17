@@ -3,6 +3,14 @@ use crate::{extraction_position, string_scalar, EvalError, Sexp};
 pub(crate) fn extract_value(value: &Sexp, index: &Sexp) -> Result<Sexp, EvalError> {
     let projection = crate::ordinary_values::read(value)?;
     let value = projection.as_ref();
+    let subscript = crate::coercion::storage::read(index)?;
+    let index = subscript.as_ref();
+    if matches!(value, Sexp::Nil) && !matches!(index, Sexp::MissingValue | Sexp::MissingArg(_)) {
+        return Ok(Sexp::Nil);
+    }
+    if crate::value_len(index)? > 1 {
+        return super::recursive::extract(value, index);
+    }
     if matches!(value, Sexp::AttributedAggregate { .. }) {
         return super::typed::extract(value, index);
     }

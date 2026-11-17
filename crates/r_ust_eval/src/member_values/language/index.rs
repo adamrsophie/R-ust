@@ -1,6 +1,9 @@
 use crate::{EvalError, ListElement, Sexp};
 
-pub(super) fn read(elements: &[ListElement], index: &Sexp) -> Result<Option<usize>, EvalError> {
+pub(in crate::member_values) fn read(
+    elements: &[ListElement],
+    index: &Sexp,
+) -> Result<Option<usize>, EvalError> {
     if let Sexp::Matrix { data, .. } = index {
         return read(elements, data);
     }

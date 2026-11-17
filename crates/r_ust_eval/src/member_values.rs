@@ -1,5 +1,6 @@
 mod extraction;
 mod language;
+mod recursive;
 pub(super) use extraction::extract_value;
 mod named_assignment;
 mod typed;
@@ -45,6 +46,11 @@ pub(super) fn extract_assign_value(
     index: &Sexp,
     replacement: &Sexp,
 ) -> Result<Sexp, EvalError> {
+    let subscript = crate::coercion::storage::read(index)?;
+    let index = subscript.as_ref();
+    if crate::value_len(index)? > 1 {
+        return recursive::assign(value, index, replacement);
+    }
     if value.sexptype() == r_ust_sexp::SexpType::Language {
         return language::assign(value, index, replacement);
     }
