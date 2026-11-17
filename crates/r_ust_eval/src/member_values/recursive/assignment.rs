@@ -17,7 +17,13 @@ pub(in crate::member_values) fn assign(
                 exact_position(&slots, &at(subscript, level)?)?;
             }
         }
-        let (position, child) = descend(&current, subscript, (level, true))?;
+        let (position, child) = descend(
+            &current,
+            subscript,
+            level,
+            NameMatching::Partial,
+            &mut |_, _| Ok(()),
+        )?;
         frames.push((current, position));
         current = child;
     }

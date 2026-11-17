@@ -1,4 +1,5 @@
 use super::*;
+use crate::list_attributes::engine;
 
 pub(super) fn slots(value: &Sexp) -> Result<Option<Vec<ListElement>>, EvalError> {
     let value = crate::ordinary_values::read(value)?;
@@ -18,7 +19,7 @@ pub(super) fn slots(value: &Sexp) -> Result<Option<Vec<ListElement>>, EvalError>
                 .collect(),
         ),
         Sexp::AttributedAggregate { values, .. } => {
-            let names = crate::names_value(value.as_ref())?;
+            let names = engine::payload(&crate::names_value(value.as_ref())?)?;
             let names = names.character_values();
             Some(
                 values
@@ -67,7 +68,7 @@ pub(super) fn scalars(value: &Sexp) -> Result<Vec<ListElement>, EvalError> {
         Sexp::Environment(_) => Vec::new(),
         _ => vec![Sexp::Nil; crate::value_len(storage.as_ref())?],
     };
-    let names = crate::names_value(value)?;
+    let names = engine::payload(&crate::names_value(value)?)?;
     let names = names.character_values();
     Ok(values
         .into_iter()
@@ -127,7 +128,8 @@ pub(super) fn restore(original: &Sexp, slots: Vec<ListElement>) -> Result<Sexp, 
             if values.len() != old_len {
                 attributes.retain(|a| !matches!(a.name.as_deref(), Some("dim" | "dimnames")));
             }
-            if named {
+            let old_names = engine::payload(&crate::names_value(original)?)?;
+            if named && names.character_values() != old_names.character_values() {
                 if let Some(attr) = attributes
                     .iter_mut()
                     .find(|a| a.name.as_deref() == Some("names"))

@@ -6,42 +6,20 @@ impl RuntimeState {
         target: &Sexp,
         arguments: &[CallArgument],
     ) -> Result<EvalFlow, EvalError> {
+        let mut supplied = vec![CallArgument::positional(target.clone())];
+        supplied.extend_from_slice(arguments);
+        let call = Sexp::Call {
+            function: Box::new(Sexp::Symbol("[[".into())),
+            arguments: supplied.clone(),
+        };
         if let Some(function) = self.lookup("[[")? {
-            let mut supplied = vec![CallArgument::positional(target.clone())];
-            supplied.extend_from_slice(arguments);
-            let call = Sexp::Call {
-                function: Box::new(Sexp::Symbol("[[".into())),
-                arguments: supplied.clone(),
-            };
             return self.call_value(function, &supplied, &call);
         }
         let EvalFlow::Value(value) = self.eval_flow(target)?;
-        let args = self.eval_arguments(arguments, true, None)?;
-        let mut indices = args
-            .iter()
-            .filter(|arg| arg.name.as_deref() != Some("exact"));
-        let index = indices
-            .next()
-            .ok_or_else(|| EvalError::Domain("no index specified".into()))?;
-        if indices.next().is_some() {
-            return Err(EvalError::NotImplemented("multidimensional extraction"));
-        }
-        let exact: Vec<_> = args
-            .iter()
-            .filter(|arg| arg.name.as_deref() == Some("exact"))
-            .collect();
-        if exact.len() > 1 {
-            return Err(EvalError::Domain("incorrect number of subscripts".into()));
-        }
-        if let Some(exact) = exact.first() {
-            if crate::logical_scalar(&exact.value, "exact")? != Some(true) {
-                return Err(EvalError::NotImplemented("partial list extraction"));
-            }
-        }
-        Ok(EvalFlow::Value(self.read_member(
-            &value,
-            crate::environment_members::MemberKey::Index(&index.value),
-        )?))
+        let mut args = self.eval_arguments(arguments, true, None)?;
+        args.insert(0, crate::EvaluatedArgument { name: None, value });
+        self.read_extraction_arguments(&args, &call)
+            .map(EvalFlow::Value)
     }
 
     pub(super) fn eval_replacement_call(

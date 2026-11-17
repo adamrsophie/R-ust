@@ -19,7 +19,7 @@ impl RuntimeState {
         let arguments = self.syntax_access_arguments(arguments, call)?;
         let result = match id {
             P::Subset => subset(&arguments),
-            P::Extract => self.syntax_extract(&arguments),
+            P::Extract => self.read_extraction_arguments(&arguments, call),
             P::Subassign => subassign(&arguments),
             P::ExtractAssign => {
                 let [object, index, value] = arguments.as_slice() else {
@@ -60,36 +60,6 @@ impl RuntimeState {
                 })
             })
             .collect()
-    }
-
-    fn syntax_extract(&mut self, arguments: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
-        let Some((object, arguments)) = arguments.split_first() else {
-            return Err(EvalError::Domain("no index specified".into()));
-        };
-        let indices: Vec<_> = arguments
-            .iter()
-            .filter(|arg| arg.name.as_deref() != Some("exact"))
-            .collect();
-        let [index] = indices.as_slice() else {
-            return Err(if indices.is_empty() {
-                EvalError::Domain("no index specified".into())
-            } else {
-                EvalError::NotImplemented("multidimensional extraction")
-            });
-        };
-        let exact: Vec<_> = arguments
-            .iter()
-            .filter(|arg| arg.name.as_deref() == Some("exact"))
-            .collect();
-        if exact.len() > 1 {
-            return Err(EvalError::Domain("incorrect number of subscripts".into()));
-        }
-        if let Some(exact) = exact.first() {
-            if crate::logical_scalar(&exact.value, "exact")? != Some(true) {
-                return Err(EvalError::NotImplemented("partial list extraction"));
-            }
-        }
-        self.read_member(&object.value, MemberKey::Index(&index.value))
     }
 
     fn syntax_dollar(

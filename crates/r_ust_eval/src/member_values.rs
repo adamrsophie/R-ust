@@ -1,7 +1,9 @@
 mod extraction;
 mod language;
+mod matching;
 mod recursive;
-pub(super) use extraction::extract_value;
+pub(super) use extraction::{extract_matching, extract_value};
+pub(super) use matching::NameMatching;
 mod named_assignment;
 mod typed;
 pub(super) use named_assignment::assign_list_name;

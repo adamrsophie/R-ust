@@ -2,19 +2,32 @@ mod assignment;
 mod leaf;
 mod values;
 
+use super::{matching, NameMatching};
 use crate::{EvalError, ListElement, Sexp};
 pub(super) use assignment::assign;
 
-pub(super) fn extract(value: &Sexp, subscript: &Sexp) -> Result<Sexp, EvalError> {
+pub(super) fn extract(
+    value: &Sexp,
+    subscript: &Sexp,
+    matching: NameMatching,
+    warn: &mut impl FnMut(&str, bool) -> Result<(), EvalError>,
+) -> Result<Sexp, EvalError> {
     let length = crate::value_len(subscript)?;
+    if length == 0 {
+        return super::language::index::read(&[], subscript).map(|_| Sexp::Nil);
+    }
     let mut value = value.clone();
     for level in 0..length - 1 {
-        let (_, child) = descend(&value, subscript, (level, false))?;
+        let (_, child) = descend(&value, subscript, level, matching, warn)?;
         value = child;
     }
-    let index = at(subscript, length - 1)?;
+    let index = if length == 1 {
+        subscript.clone()
+    } else {
+        at(subscript, length - 1)?
+    };
     let elements = values::scalars(&value)?;
-    let position = super::language::index::read(&elements, &index)?;
+    let position = matching::position(&elements, &index, matching, warn)?;
     let Some(position) = position else {
         return if values::slots(&value)?.is_some() {
             Ok(Sexp::Nil)
@@ -34,6 +47,7 @@ pub(super) fn extract(value: &Sexp, subscript: &Sexp) -> Result<Sexp, EvalError>
                 | Sexp::Real(_)
                 | Sexp::Raw(_)
                 | Sexp::String(_)
+                | Sexp::AttributedCharacter { .. }
                 | Sexp::Factor { .. }
         )
     {
@@ -70,7 +84,9 @@ fn at(index: &Sexp, position: usize) -> Result<Sexp, EvalError> {
 fn descend(
     value: &Sexp,
     subscript: &Sexp,
-    (level, partial): (usize, bool),
+    level: usize,
+    matching: NameMatching,
+    warn: &mut impl FnMut(&str, bool) -> Result<(), EvalError>,
 ) -> Result<(usize, Sexp), EvalError> {
     let elements = values::slots(value)?.ok_or_else(|| {
         EvalError::Domain(if level == 0 {
@@ -80,22 +96,7 @@ fn descend(
         })
     })?;
     let index = at(subscript, level)?;
-    let mut position = super::language::index::read(&elements, &index)?;
-    if partial && position.is_none() {
-        if let Some(Some(name)) = index.character_values().and_then(|v| v.first()) {
-            if !name.is_empty() {
-                let matches = elements
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, slot)| slot.name.as_ref().is_some_and(|tag| tag.starts_with(name)))
-                    .map(|(index, _)| index)
-                    .collect::<Vec<_>>();
-                if let [index] = matches.as_slice() {
-                    position = Some(*index);
-                }
-            }
-        }
-    }
+    let position = matching::position(&elements, &index, matching, warn)?;
     let position = position
         .filter(|p| *p < elements.len())
         .ok_or_else(|| EvalError::Domain(format!("no such index at level {}\n", level + 1)))?;

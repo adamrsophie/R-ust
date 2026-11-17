@@ -1,6 +1,16 @@
-use crate::{extraction_position, string_scalar, EvalError, Sexp};
+use super::NameMatching;
+use crate::{extraction_position, EvalError, Sexp};
 
 pub(crate) fn extract_value(value: &Sexp, index: &Sexp) -> Result<Sexp, EvalError> {
+    extract_matching(value, index, NameMatching::Exact, &mut |_, _| Ok(()))
+}
+
+pub(crate) fn extract_matching(
+    value: &Sexp,
+    index: &Sexp,
+    matching: NameMatching,
+    warn: &mut impl FnMut(&str, bool) -> Result<(), EvalError>,
+) -> Result<Sexp, EvalError> {
     let projection = crate::ordinary_values::read(value)?;
     let value = projection.as_ref();
     let subscript = crate::coercion::storage::read(index)?;
@@ -9,7 +19,10 @@ pub(crate) fn extract_value(value: &Sexp, index: &Sexp) -> Result<Sexp, EvalErro
         return Ok(Sexp::Nil);
     }
     if crate::value_len(index)? > 1 {
-        return super::recursive::extract(value, index);
+        return super::recursive::extract(value, index, matching, warn);
+    }
+    if index.character_values().is_some() || matches!(index, Sexp::Symbol(_)) {
+        return super::recursive::extract(value, index, matching, warn);
     }
     if matches!(value, Sexp::AttributedAggregate { .. }) {
         return super::typed::extract(value, index);
@@ -26,33 +39,6 @@ pub(crate) fn extract_value(value: &Sexp, index: &Sexp) -> Result<Sexp, EvalErro
     }
     if let Sexp::PairList(values) = value {
         return extract_value(&Sexp::List(values.as_slice().to_vec()), index);
-    }
-    if let Ok(name) = string_scalar(index, "extraction index") {
-        if name.is_empty() && value.ordinary_list().is_some() {
-            return Ok(Sexp::Nil);
-        }
-        return match value {
-            Sexp::DataFrame { columns, .. } => Ok(columns
-                .iter()
-                .find(|element| element.name.as_deref() == Some(name.as_str()))
-                .map(|element| element.value.clone())
-                .unwrap_or(Sexp::Nil)),
-            Sexp::ClassedList {
-                elements: values, ..
-            }
-            | Sexp::NamedList {
-                elements: values, ..
-            }
-            | Sexp::List(values) => Ok(values
-                .iter()
-                .find(|element| element.name.as_deref() == Some(name.as_str()))
-                .map(|element| element.value.clone())
-                .unwrap_or(Sexp::Nil)),
-            other => Err(EvalError::Type(format!(
-                "cannot extract named element from type {:?}",
-                other.sexptype()
-            ))),
-        };
     }
 
     let position = extraction_position(index)?;
