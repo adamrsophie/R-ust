@@ -40,8 +40,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # ARM capacity failures can cancel macos-latest jobs before any step runs.
-        os: [ubuntu-latest, macos-15-intel]
+        # Pin macOS 15 ARM after repeated Intel runner allocation failures.
+        os: [ubuntu-latest, macos-15]
         bytecode: ["0", "1"]
     env:
       R_DISABLE_BYTECODE: ${{ matrix.bytecode }}
