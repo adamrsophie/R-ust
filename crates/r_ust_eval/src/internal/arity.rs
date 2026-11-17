@@ -8,6 +8,8 @@ pub(super) fn check(
 ) -> Result<(), EvalError> {
     let (name, arity) = match operation {
         InternalOperation::Quit => ("quit", 3),
+        InternalOperation::CommandArgs => ("commandArgs", 0),
+        InternalOperation::Readline => ("readline", 1),
         InternalOperation::Identical => ("identical", 8),
         InternalOperation::Eval => ("eval", 3),
         InternalOperation::Assign => ("assign", 4),
@@ -92,7 +94,9 @@ pub(super) fn check(
             }
             true
         }
-        InternalOperation::Quit
+        InternalOperation::CommandArgs
+        | InternalOperation::Readline
+        | InternalOperation::Quit
         | InternalOperation::Eval
         | InternalOperation::Assign
         | InternalOperation::Environment

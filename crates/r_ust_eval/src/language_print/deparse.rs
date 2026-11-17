@@ -10,28 +10,14 @@ impl Writer<'_> {
         value: &Sexp,
         context: (bool, u8),
     ) -> Result<(), LanguagePrintError> {
-        if matches!(value, Sexp::ListObject(_) | Sexp::PairListObject(_)) {
-            if self.ancestry.iter().any(|prior| match (prior, value) {
-                (Sexp::ListObject(left), Sexp::ListObject(right)) => left.same_object(right),
-                (Sexp::PairListObject(left), Sexp::PairListObject(right)) => {
-                    left.same_object(right)
-                }
-                _ => false,
-            }) {
-                return Err(EvalError::NotImplemented("deparse cyclic graph value").into());
-            }
-            self.ancestry.push(value.clone());
-            let projection =
-                crate::ordinary_values::read(value).map_err(LanguagePrintError::from)?;
-            let result = self.deparse_node(projection.as_ref(), context);
-            self.ancestry.pop();
-            return result;
-        }
         if let Some(view) = value.ordinary_list() {
             let attributes = self.list_attributes(view);
             return self.deparse_list(view.elements, &attributes, false);
         }
         match value {
+            Sexp::AttributedAtomic { .. } | Sexp::AttributedAggregate { .. } => {
+                self.deparse_typed(value)?;
+            }
             Sexp::Nil => self.emit("NULL"),
             Sexp::MissingValue | Sexp::MissingArg(_) => {}
             Sexp::Symbol(name) => {
@@ -51,7 +37,7 @@ impl Writer<'_> {
             } => {
                 let options = self.options();
                 let quote = options & QUOTE != 0
-                    && !matches!(function.as_ref(), Sexp::Symbol(name) if name == "~");
+                    && !matches!(super::managed::inspect(function)?.as_ref(), Sexp::Symbol(name) if name == "~");
                 if quote {
                     self.emit("quote(");
                     self.set_options(options & SIMPLE);
@@ -65,11 +51,18 @@ impl Writer<'_> {
                     self.emit(")");
                 }
             }
-            Sexp::Logical(_) | Sexp::Integer(_) | Sexp::Real(_) | Sexp::String(_) => {
+            Sexp::Raw(_)
+            | Sexp::Logical(_)
+            | Sexp::Integer(_)
+            | Sexp::Real(_)
+            | Sexp::String(_) => {
                 self.deparse_atomic(value, &[])?;
             }
             Sexp::AttributedCharacter { values, attributes } => {
-                self.deparse_atomic(&Sexp::String(values.clone()), attributes)?;
+                self.deparse_atomic(
+                    &Sexp::String(values.clone()),
+                    &super::managed::projected_names(attributes)?,
+                )?;
             }
             Sexp::Primitive(id) => self.emit(&format!(".Primitive(\"{}\")", id.name())),
             Sexp::Environment(_) => {

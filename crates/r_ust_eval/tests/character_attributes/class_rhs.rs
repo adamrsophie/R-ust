@@ -50,7 +50,7 @@ fn class_metadata_identity_preservation_and_validation() -> Result {
         strings(&[]),
         attributed(
             &[Some("box")],
-            vec![attribute("names", strings(&[Some("n")]))],
+            vec![attribute("names", strings(&[Some("n"), Some("extra")]))],
         ),
     ] {
         let malformed = Sexp::ClassedList {

@@ -2,6 +2,7 @@ mod extraction;
 mod language;
 pub(super) use extraction::extract_value;
 mod named_assignment;
+mod typed;
 pub(super) use named_assignment::assign_list_name;
 
 use super::{

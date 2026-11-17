@@ -43,6 +43,10 @@ impl RuntimeState {
             | PrimitiveId::AsCall
             | PrimitiveId::AsEnvironment
             | PrimitiveId::IsSymbol
+            | PrimitiveId::IsInteger
+            | PrimitiveId::AnyNa
+            | PrimitiveId::Abs
+            | PrimitiveId::Unclass
             | PrimitiveId::UseMethod
             | PrimitiveId::OnExit
             | PrimitiveId::Nargs => {
@@ -96,6 +100,10 @@ impl RuntimeState {
                 | PrimitiveId::AsCall
                 | PrimitiveId::AsEnvironment
                 | PrimitiveId::IsSymbol
+                | PrimitiveId::IsInteger
+                | PrimitiveId::AnyNa
+                | PrimitiveId::Abs
+                | PrimitiveId::Unclass
                 | PrimitiveId::UseMethod
                 | PrimitiveId::OnExit
                 | PrimitiveId::Nargs => Err(EvalError::NotImplemented("non-unary primitive")),

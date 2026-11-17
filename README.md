@@ -2,7 +2,7 @@
 
 ## Porting progress
 
-Target: **R 4.6.0**. Updated **November 15, 2026**.
+Target: **R 4.6.0**. Updated **November 17, 2026**.
 
 | Tracked area | Done | Partial | Missing | Total |
 | --- | ---: | ---: | ---: | ---: |
@@ -13,17 +13,12 @@ Target: **R 4.6.0**. Updated **November 15, 2026**.
 
 This tracker is refreshed with every push. Inventory counts change only when reference checks support reclassification.
 
-- **Latest verified milestone:** [dynamic frames, source dispatch, and condition unwinding](https://github.com/adamrsophie/R-ust/commit/3e26f056f83d390059da8e373a502e212a774ed9), with 689 passing tests and 1,030 CLI comparisons for that milestone.
-- **Development checkpoint:** canonical execution, `substitute()`, expression vectors, `eval()` / `evalq()`, warning/restart handling, formatting, and initial bytecode execution are included as unfinished work. This checkpoint is not a validated release; completion counts above remain unchanged.
-- **Focused verification:** 109 graph tests passed, including 15 new aggregate SDK and bytecode integration checks. The SDK now preserves persistent aggregate slots and shallow closure copies; evaluator-wide managed-value migration remains open. Selected evaluator suites recorded 465 passes and 1 failure; all 47 `identical()` checks also passed with bytecode disabled. These are isolated-checkout results, not a full-workspace test pass.
-- **CLI checkpoint:** 365 of 370 comparisons passed across expression, file, stdin, Rscript-file, and Rscript-expression modes. All 370 fresh GNU R reference comparisons passed. Warning output now requires exact reference bytes; the five remaining failures are the atomic-attribute case in each mode. Verifier adversarial self-checks passed. Feature inventory counts remain unchanged.
-- **Latest CLI milestone:** `quit` and `q` are genuine closures, supporting aliases, `lapply()`, and `do.call()`. All 14 new checks passed with bytecode enabled and disabled; original quit scenarios and 12 base-registry checks passed. All 138 CLI tests now pass with exact GNU warning-output comparisons. The separate compatibility corpus still has the five atomic-attribute failures above. Inventory counts remain unchanged.
-- **Latest language milestone:** `sys.call()` now returns the selected dynamic call through its genuine base closure. Scalar language `[[` and `[[<-` preserve argument tags, aliases, and unforced payloads across reads, replacement, extension, and deletion. All 38 focused checks passed with bytecode enabled and disabled, with both settings recorded explicitly. All 138 CLI tests passed again. Broader selected regressions recorded 142 passes and two existing failures in nested mutation sharing and an obsolete unsupported-operation expectation. Inventory counts remain unchanged.
-- **Warning verification milestone:** all 24 dynamic-frame SDK tests passed with bytecode enabled and disabled. Warning checks preserve exact GNU call, wrapping, and whitespace bytes while validating reference messages and counts independently. Active tests reject forged payloads, trailing content, and duplicate warning blocks. Inventory counts remain unchanged.
-- **Parse-warning milestone:** printed evaluation returns public errors when parser warnings are promoted, while preserving deferred warning timing and error attachments. All five numeric-warning tests passed with bytecode enabled and disabled under Rust 1.92. Inventory counts remain unchanged.
-- **Continuous integration:** [Rust CI](https://github.com/adamrsophie/R-ust/actions/workflows/ci.yml) checks every workspace target and runs the full test suite on Ubuntu and macOS with bytecode enabled and disabled. The C ABI smoke check runs on both platforms. Compatibility failures fail CI; inventory counts remain unchanged.
-- **Known open work:** the warning reference matrix still requires `unclass()`; atomic attributes, complex superassignment, nested mutation sharing, and broader bytecode coverage remain incomplete. Recursive language indices, partial matching, and arbitrary language attributes remain open. Additional compatibility gaps remain.
-- **Next:** close those failures, run broader CLI and regression checks, and push smaller verified milestones.
+- **Latest runtime checkpoint:** supported atomic and aggregate attributes, checked SDK value transport, storage-mode replacement, and primitive-backed callable bindings now work together. List replacement preserves aliases and the timing of selector side effects. Numeric, array, and list printing and warning diagnostics have new reference coverage.
+- **Full-workspace verification:** 1,584 tests passed across 148 suites on macOS with bytecode enabled, and all 1,584 passed again with bytecode disabled. Both runs used serial tests, debug assertions, overflow checks, and unchanged source snapshots. All workspace targets and the C ABI smoke check also passed.
+- **CLI verification:** all 370 comparisons across expression, file, stdin, Rscript-file, and Rscript-expression modes passed. All 370 fresh GNU R comparisons passed too, including the previously failing atomic-attribute case. The separate typed SDK tests passed; verifier adversarial self-checks passed.
+- **Additional reference checks:** five replacement scenarios cover aliases created during getters and setters, including root rebinding. Seven updated Unicode warning fixtures match fresh GNU R bytes. These checks target R 4.6.0; they do not establish full R compatibility.
+- **Continuous integration:** [Rust CI](https://github.com/adamrsophie/R-ust/actions/workflows/ci.yml) checks every workspace target and runs the full test suite on Ubuntu and macOS with bytecode enabled and disabled. The C ABI smoke check runs on both platforms. Compatibility failures fail CI.
+- **Known open work:** broader bytecode execution, recursive language indices, unrestricted language attributes, package loading, S4, graphics, regular expressions, and R-compatible RNG streams remain unfinished. The inventory above is unchanged; this checkpoint is not a completed R port.
 
 ## Overview
 

@@ -72,11 +72,12 @@ fn inherited_root_shadow_survives_selector_failure() {
         else {
             panic!("retained activation frame")
         };
-        assert_eq!(
-            local.get_local(target).unwrap(),
-            Some(original.clone()),
-            "{source}"
-        );
+        let local_value = local.get_local(target).unwrap().unwrap();
+        let local_value = match local_value {
+            Sexp::ListObject(value) => value.value().unwrap(),
+            value => value,
+        };
+        assert_eq!(local_value, original, "{source}");
         assert_eq!(frontend.runtime().get(target).unwrap(), Some(original));
         assert_eq!(frame.get_local("x").unwrap(), Some(integer(1)));
         assert_eq!(
@@ -147,35 +148,29 @@ fn nested_named_outer_selector_rebinds_locally() {
     else {
         panic!("retained local holder")
     };
+    let local_value = local.get_local("h").unwrap().unwrap();
+    let Sexp::ListObject(local_value) = local_value else {
+        panic!("local holder retains runtime list identity")
+    };
     assert_eq!(
-        local.get_local("h").unwrap(),
+        Some(local_value.value().unwrap()),
         frontend.runtime().get("h").unwrap()
     );
     assert_eq!(frame.get_local("x").unwrap(), Some(integer(5)));
 }
 
 #[test]
-fn nested_list_copy_on_write_is_an_explicit_boundary() {
+fn nested_list_copy_on_write_retains_aliases_at_each_depth() {
     let mut frontend = Frontend::default();
     frontend
-        .eval_source("h<-list(list(x=1L),list(x=2L));i<-0L")
+        .eval_source("h<-list(list(x=1L),list(x=2L));i<-0L;h[[{i<<-i+1L;i}]]$x<-9L")
         .unwrap();
     assert_eq!(
-        frontend.eval_source("h[[{i<<-i+1L;i}]]$x<-9L"),
-        Err(EvalError::NotImplemented(
-            "nested non-environment member replacement"
-        ))
+        frontend.eval_source("h[[1L]]$x;h[[2L]]$x;i").unwrap(),
+        [integer(9), integer(9), integer(2)]
     );
-    assert_eq!(
-        frontend.eval_source("h[[1L]]$x;h[[2L]]$x").unwrap(),
-        [integer(1), integer(2)]
-    );
-    assert_eq!(
-        frontend.eval_source("h[[1L]]$x$y<-9L"),
-        Err(EvalError::NotImplemented(
-            "member replacement deeper than two selectors"
-        ))
-    );
+    assert_eq!(frontend.eval_source("h<-list(list(x=list(y=1L)));saved<-h;h[[1L]]$x$y<-9L;identical(h,list(list(x=list(y=9L)))) && identical(saved,list(list(x=list(y=1L))))").unwrap().last(),
+        Some(&Sexp::Logical(vec![Some(true)])));
     assert_eq!(frontend.eval_source("7L").unwrap(), [integer(7)]);
 }
 

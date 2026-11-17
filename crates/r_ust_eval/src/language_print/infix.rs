@@ -41,8 +41,9 @@ impl Writer<'_> {
                 self.linebreak(&mut continued);
             }
             if op.kind == Kind::Dollar {
-                if let Sexp::String(values) = &rhs.value {
-                    let [Some(member)] = values.as_slice() else {
+                let projected = super::managed::inspect(&rhs.value)?;
+                if let Some(values) = projected.character_values() {
+                    let [Some(member)] = values else {
                         return Err(LanguagePrintError::MalformedCall);
                     };
                     self.check_name(member)?;
@@ -74,7 +75,7 @@ impl Writer<'_> {
         side: (bool, u8),
     ) -> Result<(), LanguagePrintError> {
         let (left, deep) = side;
-        let parens = needs_parens(op, value, (left, deep));
+        let parens = needs_parens(op, value, (left, deep))?;
         if parens {
             self.emit("(");
         }

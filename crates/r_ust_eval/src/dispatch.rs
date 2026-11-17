@@ -1,4 +1,5 @@
 mod classes;
+mod internal;
 mod lookup;
 mod method;
 

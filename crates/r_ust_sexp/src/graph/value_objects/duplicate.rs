@@ -1,7 +1,7 @@
 use super::*;
 
 impl ValueNode {
-    fn copied(&self) -> Self {
+    pub(super) fn copied(&self) -> Self {
         let payload = match &self.payload {
             Payload::Leaf(value) => Payload::Leaf(value.copy_edges()),
             Payload::Aggregate { shape, slots } => Payload::Aggregate {
@@ -52,6 +52,6 @@ impl ValueObject {
             *attributes = store.insert(Node::Value(node));
         }
         let id = store.insert(Node::Value(copy));
-        Ok(Self(store.root(heap, id, &mut staging)))
+        Ok(Self(store.root(heap, id, &mut staging), self.1))
     }
 }

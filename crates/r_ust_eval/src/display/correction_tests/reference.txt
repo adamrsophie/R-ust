@@ -1,0 +1,63 @@
+CASE null_dim_print
+[1] 1 2 3
+END
+CASE null_dim_deparse
+structure(1:3, dim = 3L, dimnames = list(NULL))
+END
+CASE character_dim_print
+a b c 
+1 2 3 
+END
+CASE character_dim_deparse
+structure(1:3, dim = 3L, dimnames = list(c("a", "b", "c")))
+END
+CASE labels
+$`a b`
+[1] 1
+
+$`NA`
+[1] 2
+
+$<NA>
+[1] 3
+
+[[4]]
+[1] 4
+
+$`a\nb`
+[1] 5
+
+$`a\\b`
+[1] 6
+
+$`a`b`
+[1] 7
+
+END
+CASE nested_attribute_labels
+$outer
+$outer$`a b`
+[1] 1
+
+
+attr(,"note")
+attr(,"note")$`a\nb`
+attr(,"note")$`a\nb`$`NA`
+[1] 2
+
+
+END
+CASE acyclic_list
+[[1]]
+[1] 1
+
+END
+CASE unknown_matrix
+     [,1] [,2] [,3]
+[1,] ?    ?    ?   
+END
+CASE unknown_mixed_matrix
+     [,1] [,2]
+[1,] ?    ?   
+[2,] ?    ?   
+END

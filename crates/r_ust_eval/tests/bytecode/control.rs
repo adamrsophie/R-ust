@@ -52,7 +52,7 @@ fn constant_pool_retains_list_after_returned_alias_mutation() -> Result {
     let bytecode = raw(
         frontend.runtime(),
         vec![12, 16, 1, 1],
-        vec![Sexp::Nil, value],
+        vec![value.clone(), value],
     )?;
     bind(&frontend, "program", &bytecode)?;
     frontend.eval_source("alias<-eval(program);alias[[1L]]<-9L")?;

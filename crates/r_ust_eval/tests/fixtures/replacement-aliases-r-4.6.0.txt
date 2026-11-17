@@ -1,0 +1,5 @@
+h<-list(list(x=1L),list(x=2L));s<-NULL;i<-0L;h[[{s<<-h;i<<-i+1L;i}]]$x<-9L;identical(h,list(list(x=1L),list(x=9L))) && identical(s,list(list(x=1L),list(x=2L)))
+h<-list(list(x=1L),list(x=2L));s<-NULL;i<-0L;h[[{i<<-i+1L;if(i==2L)s<<-h;i}]]$x<-9L;identical(h,list(list(x=9L),list(x=9L))) && identical(s,list(list(x=9L),list(x=2L)))
+h<-list(list(x=list(y=1L)));s<-NULL;h[[1L]]$x[[{s<<-h;'y'}]]<-9L;identical(s,list(list(x=list(y=9L)))) && identical(h,list(list(x=list(y=9L))))
+h<-list(list(x=1L),list(x=2L));s<-NULL;i<-0L;h[[{i<<-i+1L;if(i==1L){s<<-h;h<<-NULL};i}]]$x<-9L;identical(h,list(list(x=1L),list(x=9L))) && identical(s,list(list(x=1L),list(x=2L)))
+h<-list(list(x=1L));s<-NULL;h[[1L]][[{s<<-h[[1L]];'x'}]]<-9L;identical(s,list(x=1L)) && identical(h,list(list(x=9L)))

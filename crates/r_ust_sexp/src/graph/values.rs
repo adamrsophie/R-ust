@@ -69,16 +69,10 @@ impl StoredValue {
     }
 
     pub(super) fn same_direct_reference(&self, other: &Self) -> bool {
-        matches!((&self.value, &other.value),
-            (Sexp::ListObject(left), Sexp::ListObject(right)) if left == right)
-            || matches!((&self.value, &other.value),
-                (Sexp::PairListObject(left), Sexp::PairListObject(right)) if left == right)
-            || matches!((&self.value, &other.value),
-                (Sexp::Environment(left), Sexp::Environment(right)) if left == right)
-            || matches!((&self.value, &other.value),
-                (Sexp::Bytecode(left), Sexp::Bytecode(right)) if left == right)
-            || matches!((&self.value, &other.value),
-                (Sexp::Promise { state: left }, Sexp::Promise { state: right }) if left == right)
+        match (direct_identity(&self.value), direct_identity(&other.value)) {
+            (Some(left), Some(right)) => left == right,
+            _ => false,
+        }
     }
 
     pub fn copy_edges(&self) -> Self {
@@ -95,4 +89,17 @@ pub(super) fn same_snapshot(left: &Sexp, right: &Sexp) -> Result<bool, GraphErro
     let left_bits = walk::real_bits(&mut left)?;
     let right_bits = walk::real_bits(&mut right)?;
     Ok(left == right && left_bits == right_bits)
+}
+
+fn direct_identity(value: &Sexp) -> Option<(crate::SexpType, &Link)> {
+    let link = match value {
+        Sexp::Managed(value) => &value.0,
+        Sexp::Bytecode(value) => &value.0,
+        Sexp::Environment(value) => &value.0,
+        Sexp::ListObject(value) => &value.0,
+        Sexp::PairListObject(value) => &value.0,
+        Sexp::Promise { state } => &state.0,
+        _ => return None,
+    };
+    Some((value.sexptype(), link))
 }

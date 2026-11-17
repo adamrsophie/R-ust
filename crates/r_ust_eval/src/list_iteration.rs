@@ -4,6 +4,7 @@ pub(super) fn sequence_elements(value: &Sexp) -> Result<Vec<Sexp>, EvalError> {
     let projection = ordinary_values::read(value)?;
     let value = projection.as_ref();
     match value {
+        Sexp::Raw(values) => Ok(values.iter().map(|v| Sexp::Raw(vec![*v])).collect()),
         Sexp::Nil => Ok(Vec::new()),
         Sexp::PairList(values) => Ok(values
             .as_slice()

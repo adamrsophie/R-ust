@@ -6,6 +6,7 @@ mod display;
 mod environment;
 mod invocation;
 mod namespace;
+mod unclass;
 pub(super) use display::format_primitive;
 pub(crate) mod names;
 
@@ -92,6 +93,10 @@ impl RuntimeState {
             | PrimitiveId::AsCall
             | PrimitiveId::AsEnvironment
             | PrimitiveId::IsSymbol
+            | PrimitiveId::IsInteger
+            | PrimitiveId::AnyNa
+            | PrimitiveId::Abs
+            | PrimitiveId::Unclass
             | PrimitiveId::IsPairList
             | PrimitiveId::IsExpression
             | PrimitiveId::Primitive
@@ -143,6 +148,7 @@ impl RuntimeState {
             PrimitiveId::AsCall
             | PrimitiveId::AsEnvironment
             | PrimitiveId::IsSymbol
+            | PrimitiveId::Unclass
             | PrimitiveId::IsPairList => self.call_invocation_primitive(id, arguments, call),
             PrimitiveId::NamespaceExport | PrimitiveId::NamespaceInternal => {
                 Err(EvalError::NotImplemented(
@@ -191,6 +197,11 @@ impl RuntimeState {
                         call,
                     ));
                 }
+                self.call_builtin(id.name(), arguments)
+            }
+            PrimitiveId::AnyNa => self.call_any_na(arguments, Some(call)),
+            PrimitiveId::IsInteger | PrimitiveId::Abs => {
+                invocation::one_argument((id.name(), arguments), call)?;
                 self.call_builtin(id.name(), arguments)
             }
             PrimitiveId::InternalEval => self.internal_eval(arguments),

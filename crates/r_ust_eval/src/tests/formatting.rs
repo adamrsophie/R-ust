@@ -1,11 +1,20 @@
 use super::{format_sexp, EvalError, Frontend, Sexp};
 
 #[test]
-fn prints_small_doubles_without_losing_precision() {
+fn prints_small_doubles_without_losing_precision() -> Result<(), EvalError> {
+    let value = Sexp::Real(vec![1e-13, 1.0 / f64::from(i32::MAX)]);
+    assert_eq!(format_sexp(&value)?, "[1] 1.000000e-13 4.656613e-10");
+    let Sexp::Real(values) = &value else {
+        panic!("real storage changed");
+    };
     assert_eq!(
-        format_sexp(&Sexp::Real(vec![1e-13, 1.0 / i32::MAX as f64])).unwrap(),
-        "[1]             1e-13 4.65661287525e-10"
+        values
+            .iter()
+            .map(|value| value.to_bits())
+            .collect::<Vec<_>>(),
+        vec![0x3d3c25c268497682, 0x3e00000000200000]
     );
+    Ok(())
 }
 
 #[test]

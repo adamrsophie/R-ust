@@ -4,11 +4,15 @@ use crate::{EvalError, Sexp};
 
 pub(super) fn read(value: &Sexp) -> Result<Cow<'_, Sexp>, EvalError> {
     Ok(match value {
+        Sexp::Managed(value) => Cow::Owned(read(value.borrow()?.value())?.into_owned()),
         Sexp::ListObject(value) => Cow::Owned(value.value()?),
         Sexp::PairListObject(value) => Cow::Owned(Sexp::pairlist(value.elements()?)),
         _ => Cow::Borrowed(value),
     })
 }
+
+#[cfg(test)]
+mod tests;
 
 pub(super) fn replaced(original: &Sexp, replacement: Sexp) -> Result<Sexp, EvalError> {
     match original {

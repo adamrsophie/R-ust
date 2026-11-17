@@ -1,5 +1,5 @@
 use super::{
-    profile::{DIGITS17, HEX, KEEP_INTEGER, KEEP_NA, S_COMPAT},
+    profile::{DIGITS17, HEX, KEEP_INTEGER, KEEP_NA, NICE_NAMES, S_COMPAT},
     LanguagePrintError, Writer,
 };
 use crate::{ListElement, Sexp};
@@ -10,6 +10,24 @@ impl Writer<'_> {
         value: &Sexp,
         attributes: &[ListElement],
     ) -> Result<(), LanguagePrintError> {
+        if let Sexp::Raw(values) = value {
+            let plan = self.begin_attributes(attributes, false, true);
+            self.emit("as.raw(");
+            if values.len() != 1 {
+                self.emit("c(");
+            }
+            for (index, value) in values.iter().enumerate() {
+                if index != 0 {
+                    self.emit(", ");
+                }
+                self.emit(&format!("0x{value:02x}"));
+            }
+            if values.len() != 1 {
+                self.emit(")");
+            }
+            self.emit(")");
+            return self.end_attributes(plan);
+        }
         let length = match value {
             Sexp::Logical(v) => v.len(),
             Sexp::Integer(v) => v.len(),
@@ -22,11 +40,21 @@ impl Writer<'_> {
         } else {
             None
         };
-        let plan = self.begin_attributes(attributes, true, sequence.is_some() || length == 0);
-        let names = attributes
-            .iter()
-            .find(|a| a.name.as_deref() == Some("names"))
-            .and_then(|a| a.value.character_values());
+        let names = super::metadata::names(attributes)?;
+        let original_options = self.options();
+        let force_names = names.is_some() && (sequence.is_some() || length == 0);
+        if force_names {
+            self.set_options(original_options & !NICE_NAMES);
+        }
+        let mut plan = self.begin_attributes(attributes, true, force_names);
+        if !force_names
+            && names.is_some()
+            && !attributes
+                .iter()
+                .any(|a| a.name.as_deref() == Some("names"))
+        {
+            plan.inline_names = original_options & NICE_NAMES != 0;
+        }
         if let Some(sequence) = sequence {
             self.emit(&sequence);
         } else if length == 0 {
@@ -74,7 +102,7 @@ impl Writer<'_> {
                     break;
                 }
                 if plan.inline_names {
-                    if let Some(name) = names.and_then(|values| values.get(index)) {
+                    if let Some(name) = names.as_ref().and_then(|values| values.get(index)) {
                         let name = name.as_deref().unwrap_or("NA");
                         if !name.is_empty() {
                             self.emit(&self.tag_name(name)?);
@@ -98,7 +126,9 @@ impl Writer<'_> {
                 self.emit(")");
             }
         }
-        self.end_attributes(plan)
+        let result = self.end_attributes(plan);
+        self.set_options(original_options);
+        result
     }
 
     fn atomic_token(

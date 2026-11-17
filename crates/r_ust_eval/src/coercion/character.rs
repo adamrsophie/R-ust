@@ -18,6 +18,9 @@ impl RuntimeState {
                 call,
             ));
         }
+        if let Some(value) = self.dispatch_internal_generic("as.character", arguments, call)? {
+            return Ok(value);
+        }
         self.character_coercion_value(&first.value)
     }
 

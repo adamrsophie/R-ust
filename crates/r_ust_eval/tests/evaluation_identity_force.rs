@@ -29,7 +29,10 @@ fn evaluation_functions_are_base_closures_with_genuine_formals_and_symbol_body()
             panic!("{name} is not a closure");
         };
         assert_eq!(parameters, vec![FunctionParameter::required("x")]);
-        assert_eq!(*body, Sexp::Symbol("x".into()));
+        assert_eq!(
+            r_ust_sexp::bytecode_source(&body).unwrap(),
+            Sexp::Symbol("x".into())
+        );
         let ClosureEnvironment::Captured(namespace) = environment else {
             panic!("{name} has no session namespace");
         };

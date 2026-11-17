@@ -1,5 +1,11 @@
 use super::*;
-use crate::{ClosureEnvironment, FunctionParameter, ListElement, SexpType};
+use crate::{
+    AggregateVector, AtomicVector, ClosureEnvironment, FunctionParameter, ListElement, SexpType,
+};
+mod aggregate_attributes;
+mod atomic_attributes;
+mod attribute_rules;
+mod restore;
 mod validation;
 pub(super) use validation::validate_shape;
 
@@ -8,6 +14,13 @@ type Source = (Sexp, Option<ValueImport>, Option<ValueKind>);
 #[derive(Clone)]
 pub(in crate::graph) enum Shape {
     Value(Sexp),
+    Aggregate {
+        expression: bool,
+        length: usize,
+    },
+    Atomic {
+        values: AtomicVector,
+    },
     Character {
         values: Vec<Option<String>>,
     },
@@ -24,18 +37,57 @@ pub(super) fn storage_type(value: &Sexp) -> SexpType {
     }
 }
 
+pub(super) fn header(value: &Sexp) -> Result<SexpHeader, GraphError> {
+    let mut header = SexpHeader::new(storage_type(value));
+    header.set_object(match value {
+        Sexp::AttributedAtomic { values, attributes } => {
+            atomic_attributes::validate(values, attributes)?
+        }
+        Sexp::AttributedAggregate { values, attributes } => {
+            aggregate_attributes::validate(values, attributes)?
+        }
+        Sexp::Factor { .. } | Sexp::DataFrame { .. } => true,
+        Sexp::ClassedList { class, .. } => class_object(class)?,
+        Sexp::NamedList { class, .. } => class
+            .as_deref()
+            .map(class_object)
+            .transpose()?
+            .unwrap_or(false),
+        Sexp::Closure { attributes, .. } | Sexp::AttributedCharacter { attributes, .. } => {
+            attributes
+                .iter()
+                .find(|attribute| attribute.name.as_deref() == Some("class"))
+                .map(|attribute| class_object(&attribute.value))
+                .transpose()?
+                .unwrap_or(false)
+        }
+        _ => false,
+    });
+    Ok(header)
+}
+
 pub(super) fn kind(value: &Sexp, mode: ValueImport) -> ValueKind {
     match value {
         Sexp::Closure { .. } => ValueKind::Closure,
         Sexp::Expression { .. } => ValueKind::Expression,
         Sexp::AttributedCharacter { .. } => ValueKind::Character,
+        Sexp::AttributedAtomic { .. } => ValueKind::Atomic,
+        Sexp::AttributedAggregate {
+            values: AggregateVector::Vector(_),
+            ..
+        } => ValueKind::Vector,
+        Sexp::AttributedAggregate {
+            values: AggregateVector::Expression(_),
+            ..
+        } => ValueKind::Expression,
         Sexp::Matrix { .. } => ValueKind::Matrix,
         Sexp::DataFrame { .. } => ValueKind::DataFrame,
         Sexp::Vector(_) => ValueKind::Vector,
         Sexp::List(_) | Sexp::NamedList { .. } | Sexp::ClassedList { .. } => ValueKind::List,
         Sexp::PairList(_) => ValueKind::PairList,
         Sexp::Dots(_) => ValueKind::Dots,
-        Sexp::Nil
+        Sexp::Managed(_)
+        | Sexp::Nil
         | Sexp::Primitive(_)
         | Sexp::Bytecode(_)
         | Sexp::Environment(_)
@@ -43,6 +95,7 @@ pub(super) fn kind(value: &Sexp, mode: ValueImport) -> ValueKind {
         | Sexp::MissingValue
         | Sexp::Symbol(_)
         | Sexp::Logical(_)
+        | Sexp::Raw(_)
         | Sexp::Integer(_)
         | Sexp::Real(_)
         | Sexp::String(_)
@@ -96,6 +149,39 @@ pub(super) fn split(value: &Sexp) -> Result<(Shape, Vec<Source>), GraphError> {
             ],
         ));
     }
+    if let Sexp::AttributedAggregate { values, attributes } = value {
+        let expression = matches!(values, AggregateVector::Expression(_));
+        let child_mode = expression.then_some(ValueImport::Code);
+        let mut children = values
+            .values()
+            .iter()
+            .map(|value| (value.clone(), child_mode, None))
+            .collect::<Vec<_>>();
+        children.push((
+            Sexp::pairlist(attributes.clone()),
+            Some(ValueImport::Evaluated),
+            Some(ValueKind::Attributes),
+        ));
+        return Ok((
+            Shape::Aggregate {
+                expression,
+                length: values.len(),
+            },
+            children,
+        ));
+    }
+    if let Sexp::AttributedAtomic { values, attributes } = value {
+        return Ok((
+            Shape::Atomic {
+                values: values.clone(),
+            },
+            vec![(
+                Sexp::pairlist(attributes.clone()),
+                Some(ValueImport::Evaluated),
+                Some(ValueKind::Attributes),
+            )],
+        ));
+    }
     if let Sexp::AttributedCharacter { values, attributes } = value {
         return Ok((
             Shape::Character {
@@ -122,79 +208,24 @@ pub(super) fn split(value: &Sexp) -> Result<(Shape, Vec<Source>), GraphError> {
     Ok((Shape::Value(shape), sources))
 }
 
-impl Shape {
-    pub(super) fn restore(self, values: Vec<Sexp>) -> Result<Sexp, GraphError> {
-        match self {
-            Self::Character { values: text } => {
-                let mut slots = values.into_iter();
-                let attributes = attributes(slots.next())?;
-                if slots.next().is_some() {
-                    return Err(GraphError::WrongKind);
-                }
-                Ok(Sexp::AttributedCharacter {
-                    values: text,
-                    attributes,
-                })
-            }
-            Self::Value(mut value) => {
-                let mut values = values.into_iter();
-                children::children(&mut value, &mut |child| {
-                    *child = values.next().ok_or(GraphError::WrongKind)?;
-                    Ok(())
-                })?;
-                if values.next().is_some() {
-                    return Err(GraphError::WrongKind);
-                }
-                Ok(value)
-            }
-            Self::Closure {
-                defaults,
-                base_environment,
-            } => {
-                let mut slots = values.into_iter();
-                let formals = match slots.next() {
-                    Some(Sexp::Nil) => Vec::new(),
-                    Some(Sexp::PairList(value)) => value.as_slice().to_vec(),
-                    _ => return Err(GraphError::WrongKind),
-                };
-                if formals.len() != defaults.len() {
-                    return Err(GraphError::WrongKind);
-                }
-                let parameters = formals
-                    .into_iter()
-                    .zip(defaults)
-                    .map(|(p, has_default)| {
-                        Ok(FunctionParameter {
-                            name: p.name.ok_or(GraphError::WrongKind)?,
-                            default: if has_default { Some(p.value) } else { None },
-                        })
-                    })
-                    .collect::<Result<Vec<_>, GraphError>>()?;
-                let body = Box::new(slots.next().ok_or(GraphError::WrongKind)?);
-                let environment = match (base_environment, slots.next()) {
-                    (true, Some(Sexp::Nil)) => ClosureEnvironment::Base,
-                    (false, Some(Sexp::Environment(value))) => ClosureEnvironment::Captured(value),
-                    _ => return Err(GraphError::WrongKind),
-                };
-                let attributes = attributes(slots.next())?;
-                if slots.next().is_some() {
-                    return Err(GraphError::WrongKind);
-                }
-                Ok(Sexp::Closure {
-                    parameters,
-                    body,
-                    environment,
-                    attributes,
-                })
-            }
-        }
+fn class_object(value: &Sexp) -> Result<bool, GraphError> {
+    match value {
+        Sexp::Managed(value) => class_object(value.borrow()?.value()),
+        Sexp::Nil => Ok(false),
+        Sexp::String(values)
+        | Sexp::AttributedCharacter { values, .. }
+        | Sexp::AttributedAtomic {
+            values: AtomicVector::String(values),
+            ..
+        } => Ok(!values.is_empty()),
+        _ => Ok(true),
     }
 }
 
-fn attributes(value: Option<Sexp>) -> Result<Vec<ListElement>, GraphError> {
-    match value {
-        Some(Sexp::Nil) => Ok(Vec::new()),
-        Some(Sexp::PairList(value)) => Ok(value.as_slice().to_vec()),
-        _ => Err(GraphError::WrongKind),
-    }
+pub(super) fn validate_attributes(
+    kind: SexpType,
+    length: usize,
+    attributes: &[ListElement],
+) -> Result<bool, GraphError> {
+    attribute_rules::validate(kind, length, attributes)
 }

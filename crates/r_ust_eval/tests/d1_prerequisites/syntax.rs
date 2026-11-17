@@ -83,7 +83,7 @@ fn source_templates_are_real_closures() {
         else {
             panic!("{name} is not a closure");
         };
-        assert!(canonical_language(body).is_ok());
+        assert!(canonical_language(&r_ust_sexp::bytecode_source(body).unwrap()).is_ok());
     }
 }
 

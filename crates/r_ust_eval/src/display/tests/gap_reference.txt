@@ -1,0 +1,8 @@
+CASE list_factor_matrix
+     [,1] [,2]    
+[1,] a    factor,2
+END
+CASE list_long_character
+     [,1]                                                                                                             
+[1,] "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" [truncated]
+END

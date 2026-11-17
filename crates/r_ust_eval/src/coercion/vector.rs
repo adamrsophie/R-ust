@@ -3,26 +3,32 @@ use crate::{EvalError, RuntimeState, Sexp};
 
 impl RuntimeState {
     pub(crate) fn vector_length(&mut self, value: &Sexp) -> Result<usize, EvalError> {
-        let mut value = value;
-        while let Sexp::Matrix { data, .. } = value {
-            value = data;
-        }
         let invalid = || EvalError::Domain("invalid 'length' argument".into());
-        if crate::value_len(value)? != 1 {
-            return Err(invalid());
-        }
         match value {
+            Sexp::Managed(_) | Sexp::AttributedAtomic { .. } => {
+                let projection = super::storage::read(value)?;
+                return self.vector_length(projection.as_ref());
+            }
+            Sexp::Matrix { data, .. } => return self.vector_length(data),
             Sexp::Integer(values) => {
+                if values.len() != 1 {
+                    return Err(invalid());
+                }
                 let length = values[0]
                     .ok_or_else(|| EvalError::Domain("vector size cannot be NA".into()))?;
                 return usize::try_from(length).map_err(|_| invalid());
             }
             Sexp::Factor { codes, .. } => {
+                if codes.len() != 1 {
+                    return Err(invalid());
+                }
                 return codes[0]
                     .ok_or_else(|| EvalError::Domain("vector size cannot be NA".into()));
             }
             Sexp::Real(_) | Sexp::String(_) | Sexp::AttributedCharacter { .. } => {}
-            Sexp::Nil
+            Sexp::Raw(_)
+            | Sexp::AttributedAggregate { .. }
+            | Sexp::Nil
             | Sexp::MissingArg(_)
             | Sexp::Symbol(_)
             | Sexp::MissingValue
@@ -34,7 +40,6 @@ impl RuntimeState {
             | Sexp::ClassedList { .. }
             | Sexp::List(_)
             | Sexp::DataFrame { .. }
-            | Sexp::Matrix { .. }
             | Sexp::Dots(_)
             | Sexp::Promise { .. }
             | Sexp::Closure { .. }
@@ -71,6 +76,9 @@ impl RuntimeState {
             | Sexp::Binary { .. }
             | Sexp::Unary { .. }
             | Sexp::Parenthesized(_) => return Err(invalid()),
+        }
+        if crate::value_len(value)? != 1 {
+            return Err(invalid());
         }
         let (length, warnings) = atomic::scalar_real(value, BlankPolicy::environment());
         self.record_parse_warnings(&warnings.messages())?;

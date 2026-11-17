@@ -1,3 +1,4 @@
+use super::{managed::inspect, LanguagePrintError};
 use crate::Sexp;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Kind {
@@ -69,20 +70,26 @@ pub(super) fn info(name: &str) -> Info {
         right,
     }
 }
-pub(super) fn needs_parens(main: Info, arg: &Sexp, side: (bool, u8)) -> bool {
+pub(super) fn needs_parens(
+    main: Info,
+    arg: &Sexp,
+    side: (bool, u8),
+) -> Result<bool, LanguagePrintError> {
+    let projected = inspect(arg)?;
     let (left, deep) = side;
     let Sexp::Call {
         function,
         arguments,
-    } = arg
+    } = projected.as_ref()
     else {
-        return false;
+        return Ok(false);
     };
+    let function = inspect(function)?;
     let Sexp::Symbol(name) = function.as_ref() else {
-        return false;
+        return Ok(false);
     };
     if user_binop(name) && !super::primitives::NAMES.contains(&name.as_str()) {
-        return main.precedence > 11 || (main.precedence == 11 && left == main.right);
+        return Ok(main.precedence > 11 || (main.precedence == 11 && left == main.right));
     }
     let mut arg = info(name);
     if matches!(arg.kind, Kind::Binary | Kind::Binary2) {
@@ -94,10 +101,10 @@ pub(super) fn needs_parens(main: Info, arg: &Sexp, side: (bool, u8)) -> bool {
                 arg.kind = Kind::Unary;
             }
             2 => {}
-            _ => return false,
+            _ => return Ok(false),
         }
     }
-    match arg.kind {
+    Ok(match arg.kind {
         Kind::Subset
             if matches!(main.kind, Kind::Dollar | Kind::Subset)
                 && main.precedence > arg.precedence =>
@@ -120,12 +127,13 @@ pub(super) fn needs_parens(main: Info, arg: &Sexp, side: (bool, u8)) -> bool {
         | Kind::Function
         | Kind::Break
         | Kind::Next => false,
-    }
+    })
 }
-pub(super) fn parenthesize_caller(head: &Sexp) -> bool {
-    match head {
+pub(super) fn parenthesize_caller(head: &Sexp) -> Result<bool, LanguagePrintError> {
+    let head = inspect(head)?;
+    Ok(match head.as_ref() {
         Sexp::Closure { .. } => true,
-        Sexp::Call { function, .. } => match function.as_ref() {
+        Sexp::Call { function, .. } => match inspect(function)?.as_ref() {
             Sexp::Symbol(name) => {
                 if user_binop(name)
                     || matches!(
@@ -140,7 +148,7 @@ pub(super) fn parenthesize_caller(head: &Sexp) -> bool {
                             | ".Call.graphics"
                     )
                 {
-                    return true;
+                    return Ok(true);
                 }
                 let info = info(name);
                 info.precedence < 15 && !matches!(info.kind, Kind::Call | Kind::Paren | Kind::Curly)
@@ -148,5 +156,5 @@ pub(super) fn parenthesize_caller(head: &Sexp) -> bool {
             _ => true,
         },
         _ => false,
-    }
+    })
 }

@@ -100,7 +100,7 @@ fn expression_mode_runs_split_and_table_helpers() {
     assert!(stdout.contains("$b\n[1] 2 4\n"));
     assert!(stdout.contains("$a\n  x g\n1 1 a\n2 3 a\n"));
     assert!(stdout.contains("$a\n[1] 2\n"));
-    assert!(stdout.contains("$<NA>\n[1] 1\n"));
+    assert!(stdout.contains("$`<NA>`\n[1] 1\n"));
     assert!(stdout.contains("[1,] 1 1\n[2,] 1 1\n"));
 }
 
@@ -125,7 +125,7 @@ fn expression_mode_runs_lapply_and_sapply() {
     assert!(stdout.contains("[[2]]\n[1] 4\n"));
     assert!(stdout.contains("[1] 2 4 6\n"));
     assert!(stdout.contains("[1,] 1 2 3\n[2,] 11 12 13\n"));
-    assert!(stdout.contains("[1]              1 1.414213562373 1.732050807569\n"));
+    assert!(stdout.contains("[1] 1.000000 1.414214 1.732051\n"));
     assert!(stdout.contains("[1] 11 12 13\n"));
     assert!(stdout.contains("[1] 2 5\n"));
 }

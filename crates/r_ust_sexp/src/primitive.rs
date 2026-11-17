@@ -41,11 +41,19 @@ pub enum PrimitiveId {
     AsCall,
     AsEnvironment,
     IsSymbol,
+    Unclass,
+    IsInteger,
+    AnyNa,
+    Abs,
 }
 
 impl PrimitiveId {
     pub fn from_name(name: &str) -> Option<Self> {
         match name {
+            "is.integer" => Some(Self::IsInteger),
+            "anyNA" => Some(Self::AnyNa),
+            "abs" => Some(Self::Abs),
+            "unclass" => Some(Self::Unclass),
             "call" => Some(Self::Call),
             "is.pairlist" => Some(Self::IsPairList),
             "sum" => Some(Self::Sum),
@@ -90,6 +98,10 @@ impl PrimitiveId {
             Self::Syntax(id) => id.name(),
             Self::InternalEval => "eval",
             Self::Call => "call",
+            Self::Unclass => "unclass",
+            Self::IsInteger => "is.integer",
+            Self::AnyNa => "anyNA",
+            Self::Abs => "abs",
             Self::IsPairList => "is.pairlist",
             Self::Sum => "sum",
             Self::List => "list",
@@ -144,6 +156,10 @@ impl PrimitiveId {
             | Self::AsCall
             | Self::AsEnvironment
             | Self::IsSymbol
+            | Self::IsInteger
+            | Self::AnyNa
+            | Self::Abs
+            | Self::Unclass
             | Self::Primitive
             | Self::Length
             | Self::Invisible

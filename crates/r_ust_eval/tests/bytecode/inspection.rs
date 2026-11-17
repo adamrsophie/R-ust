@@ -95,7 +95,11 @@ fn raw_bytecode_metadata_is_distinct_from_source_and_structural_identity() -> Re
     );
     assert_eq!(
         frontend.runtime_mut().eval(&Sexp::Bytecode(a))?,
-        Sexp::Integer(vec![Some(42)])
+        Sexp::Integer(vec![Some(if frontend.runtime().bytecode_enabled() {
+            42
+        } else {
+            100
+        })])
     );
     Ok(())
 }

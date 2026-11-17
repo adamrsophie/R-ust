@@ -85,7 +85,7 @@ fn any_na_partial_matching_uses_existing_warning_option() {
     assert_eq!(
         frontend.runtime_mut().take_output(),
         vec![OutputEvent::Stderr(
-            "Warning: partial argument match of 'r' to 'recursive'\n".into()
+            "Warning in anyNA(list(list(NA)), r = TRUE) :\n  partial argument match of 'r' to 'recursive'\n".into()
         )]
     );
 }

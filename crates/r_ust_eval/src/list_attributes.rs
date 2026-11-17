@@ -1,9 +1,13 @@
+mod environment;
+mod vector;
+pub(super) use vector::as_vector;
 mod class_assignment;
+pub(crate) mod engine;
 mod names;
 pub(super) use class_assignment::replace as replace_class;
 pub(super) use names::assign_names;
 
-use crate::{string_scalar, EvalError, EvaluatedArgument, ListElement, Sexp};
+use crate::{EvalError, ListElement, Sexp};
 
 pub(super) fn preserve_class(original: &Sexp, elements: Vec<ListElement>) -> Sexp {
     match original.ordinary_list() {
@@ -13,6 +17,17 @@ pub(super) fn preserve_class(original: &Sexp, elements: Vec<ListElement>) -> Sex
 }
 
 pub(super) fn attributes(value: &Sexp) -> Result<Sexp, EvalError> {
+    if let Some(frame) = environment::frame(value)? {
+        let values = frame.attribute_values()?;
+        return Ok(if values.is_empty() {
+            Sexp::Nil
+        } else {
+            Sexp::List(values)
+        });
+    }
+    if engine::description(value)?.is_some() {
+        return engine::all(value);
+    }
     if matches!(value, Sexp::Closure { .. }) {
         let attrs = crate::closure_attributes::attributes(value)?;
         return Ok(if attrs.is_empty() {
@@ -84,6 +99,9 @@ fn attribute(name: &str, value: Sexp) -> ListElement {
 }
 
 pub(super) fn replace(value: &Sexp, attrs: &Sexp) -> Result<Sexp, EvalError> {
+    if engine::description(value)?.is_some() || matches!(value, Sexp::Nil) {
+        return engine::replace(value, attrs);
+    }
     if matches!(value, Sexp::ListObject(_) | Sexp::PairListObject(_)) {
         let projection = crate::ordinary_values::read(value)?;
         let result = replace(projection.as_ref(), attrs)?;
@@ -153,6 +171,12 @@ pub(super) fn replace(value: &Sexp, attrs: &Sexp) -> Result<Sexp, EvalError> {
 }
 
 pub(super) fn set(value: &Sexp, name: &str, replacement: &Sexp) -> Result<Sexp, EvalError> {
+    if environment::frame(value)?.is_some() {
+        return environment::set(value, name, replacement);
+    }
+    if engine::description(value)?.is_some() || matches!(value, Sexp::Nil) {
+        return engine::set(value, name, replacement);
+    }
     if matches!(value, Sexp::Closure { .. }) {
         return crate::closure_attributes::set(value, name, replacement);
     }
@@ -229,29 +253,4 @@ fn set_class(value: &Sexp, replacement: &Sexp) -> Result<Sexp, EvalError> {
             Some((replacement.clone(), class_first))
         },
     ))
-}
-
-pub(super) fn as_vector(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
-    let [value, mode] = args else {
-        return Err(EvalError::Arity("as.vector requires two arguments".into()));
-    };
-    let mode = string_scalar(&mode.value, "mode")?;
-    let projection = crate::ordinary_values::read(&value.value)?;
-    if let Some(view) = projection.ordinary_list() {
-        return match mode.as_str() {
-            "any" | "list" => Ok(value.value.clone()),
-            "pairlist" => Ok(crate::list_construction::to_pairlist(view)),
-            _ => Err(EvalError::NotImplemented(
-                "as.vector list coercion to this mode",
-            )),
-        };
-    }
-    match (projection.as_ref(), mode.as_str()) {
-        (Sexp::Nil | Sexp::PairList(_), "pairlist") => Ok(value.value.clone()),
-        (Sexp::Nil, "list") => Ok(Sexp::List(Vec::new())),
-        (Sexp::PairList(values), "list") => {
-            Ok(crate::list_construction::from_tags(values.as_slice()))
-        }
-        _ => Err(EvalError::NotImplemented("as.vector of this type and mode")),
-    }
 }

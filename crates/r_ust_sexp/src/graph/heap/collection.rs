@@ -13,6 +13,9 @@ impl Store {
             marked[id.slot] = true;
             match node {
                 Node::Frame(frame) => {
+                    if let Some(attributes) = &frame.attributes {
+                        attributes.edges(&mut pending);
+                    }
                     pending.extend(frame.parent);
                     pending.extend(frame.global);
                     pending.extend(frame.store);

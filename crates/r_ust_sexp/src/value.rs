@@ -3,6 +3,7 @@ use super::{
     ListElement, ListObject, MemberName, PairList, PairListObject, PrimitiveId, PromiseState,
     UnaryOp,
 };
+use crate::{AggregateVector, AtomicVector, InternalOperation, ValueObject};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ClosureEnvironment {
@@ -10,72 +11,18 @@ pub enum ClosureEnvironment {
     Base,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum InternalOperation {
-    Quit,
-    Identical,
-    Eval,
-    Assign,
-    Environment,
-    PrintDefault,
-    NewEnvironment,
-    ParentFrame,
-    SysCall,
-    SysFrame,
-    SysFunction,
-    SysParent,
-    SysNFrame,
-    ParentEnvironment,
-    EnvironmentName,
-    Formals,
-    Body,
-    BitwiseNot,
-    BitwiseAnd,
-    BitwiseOr,
-    BitwiseXor,
-    BitwiseShiftL,
-    BitwiseShiftR,
-    RunLengthEncode,
-    RunLengthDecode,
-    RowsumValidate,
-    RowsumAggregate,
-    EncodeString,
-    EncodeStringWrapper,
-    Sequence,
-    Utf8ToInt,
-    IntToUtf8,
-    FindInterval,
-    Strtoi,
-    Pmatch,
-    Charmatch,
-    Vector,
-    AsVector,
-    IsVector,
-    Stop,
-    Inherits,
-    Gettext,
-    SignalCondition,
-    DefaultStop,
-    AddConditionHandlers,
-    ResetConditionHandlers,
-    GetErrorMessage,
-    Warning,
-    Lapply,
-    DoCall,
-    Get,
-    AddRestart,
-    GetRestart,
-    InvokeRestart,
-    DefaultWarning,
-    Sprintf,
-    Deparse,
-    Ngettext,
-    L10nInfo,
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub enum Sexp {
     Nil,
+    Managed(ValueObject),
+    AttributedAtomic {
+        values: AtomicVector,
+        attributes: Vec<ListElement>,
+    },
+    AttributedAggregate {
+        values: AggregateVector,
+        attributes: Vec<ListElement>,
+    },
     Primitive(PrimitiveId),
     Bytecode(BytecodeObject),
     Environment(Environment),
@@ -85,6 +32,7 @@ pub enum Sexp {
     Logical(Vec<Option<bool>>),
     Integer(Vec<Option<i32>>),
     Real(Vec<f64>),
+    Raw(Vec<u8>),
     String(Vec<Option<String>>),
     AttributedCharacter {
         values: Vec<Option<String>>,

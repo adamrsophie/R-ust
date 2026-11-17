@@ -10,10 +10,16 @@ pub(super) fn convert(
     mode: (bool, BlankPolicy),
     mut warn: impl FnMut(Warnings) -> Result<(), EvalError>,
 ) -> Result<Sexp, EvalError> {
-    let projection = crate::ordinary_values::read(value)?;
+    let projection = super::storage::read(value)?;
     let value = projection.as_ref();
     let (integer, policy) = mode;
     let elements: Vec<&Sexp> = match value {
+        Sexp::Expression { .. } => {
+            return Err(EvalError::Type(format!(
+                "'list' object cannot be coerced to type '{}'",
+                if integer { "integer" } else { "double" }
+            )));
+        }
         Sexp::Vector(values) => values.iter().collect(),
         Sexp::ClassedList { elements, .. }
         | Sexp::NamedList { elements, .. }
@@ -46,7 +52,8 @@ pub(super) fn convert(
     if integer {
         let mut values = Vec::with_capacity(elements.len());
         for element in elements {
-            let (value, warnings) = atomic::scalar_integer(element, policy);
+            let projection = super::storage::read(element)?;
+            let (value, warnings) = atomic::scalar_integer(projection.as_ref(), policy);
             warn(warnings)?;
             values.push(value);
         }
@@ -54,7 +61,8 @@ pub(super) fn convert(
     } else {
         let mut values = Vec::with_capacity(elements.len());
         for element in elements {
-            let (value, warnings) = atomic::scalar_real(element, policy);
+            let projection = super::storage::read(element)?;
+            let (value, warnings) = atomic::scalar_real(projection.as_ref(), policy);
             warn(warnings)?;
             values.push(value);
         }
@@ -63,7 +71,7 @@ pub(super) fn convert(
 }
 
 pub(super) fn vectorizable(value: &Sexp) -> Result<bool, EvalError> {
-    let projection = crate::ordinary_values::read(value)?;
+    let projection = super::storage::read(value)?;
     let value = projection.as_ref();
     Ok(matches!(
         value,
@@ -73,6 +81,7 @@ pub(super) fn vectorizable(value: &Sexp) -> Result<bool, EvalError> {
             | Sexp::String(_)
             | Sexp::AttributedCharacter { .. }
             | Sexp::Vector(_)
+            | Sexp::Expression { .. }
             | Sexp::NamedList { .. }
             | Sexp::ClassedList { .. }
             | Sexp::List(_)

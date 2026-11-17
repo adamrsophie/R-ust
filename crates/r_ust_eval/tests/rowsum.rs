@@ -1,3 +1,6 @@
+#[path = "support/warning_payload.rs"]
+mod warning_payload;
+
 use r_ust_eval::{EvalError, Frontend, OutputEvent};
 use r_ust_sexp::{is_na_real, Sexp};
 
@@ -79,14 +82,14 @@ fn rowsum_matches_r_values_warnings_errors_and_forcing() {
             .take_output()
             .into_iter()
             .map(|event| match event {
-                OutputEvent::Stderr(message) => message,
+                OutputEvent::Stderr(message) => warning_payload::payload(&message),
                 other => panic!("unexpected output {other:?}"),
             })
             .collect::<String>();
         let expected_warning = if fields[4] == "-" {
             String::new()
         } else {
-            format!("Warning message:\n{} \n", fields[4])
+            fields[4].into()
         };
         if actual != fields[2] || error != fields[3] || warnings != expected_warning {
             failures.push(format!(

@@ -9,6 +9,7 @@ mod ordinary_cycles;
 mod ordinary_values;
 mod pairlist_values;
 mod replacement_calls;
+mod runtime_lists;
 use list_prompt::readline_prompt;
 mod list_sampling;
 use list_sampling::sample_population;
@@ -89,7 +90,9 @@ use member_assignment::{MemberTarget, Selector};
 use member_values::{assign_list_name, dollar_value};
 mod body;
 mod formals;
-use atomic_values::{coerce_logical_values, string_values};
+use atomic_values::{
+    coerce_logical_values, logical_values, numeric_values, string_scalar, string_values,
+};
 mod primitive_calls;
 mod promises;
 mod quote;
@@ -112,6 +115,7 @@ mod real_literal;
 mod rowsum;
 mod run_length;
 mod session_calls;
+mod session_readline;
 mod summary;
 mod unused_arguments;
 
@@ -237,12 +241,13 @@ impl RuntimeState {
         }
         let EvalFlow::Value(result) = result.map_err(EvalError::unhandled)?;
         self.gc.alloc_header(result.sexptype());
-        Ok(result)
+        runtime_lists::expose(&result)
     }
 
     #[inline(never)]
     fn eval_legacy_expression(&mut self, expr: &Sexp) -> Result<EvalFlow, EvalError> {
         let result = match expr {
+            Sexp::Managed(_) => return self.eval_flow_body(expr),
             Sexp::Bytecode(code) => self.eval_bytecode(code)?,
             Sexp::Char(value) if value.as_ref().is_some_and(|value| value.contains('\0')) => {
                 return Err(EvalError::NotImplemented("CHARSXP with embedded NUL"));
@@ -253,11 +258,14 @@ impl RuntimeState {
                 ))
             }
             Sexp::Nil
+            | Sexp::AttributedAtomic { .. }
+            | Sexp::AttributedAggregate { .. }
             | Sexp::ListObject(_)
             | Sexp::PairListObject(_)
             | Sexp::Environment(_)
             | Sexp::Primitive(_)
             | Sexp::Logical(_)
+            | Sexp::Raw(_)
             | Sexp::Integer(_)
             | Sexp::Real(_)
             | Sexp::String(_)
@@ -468,7 +476,7 @@ impl RuntimeState {
             Sexp::NamesAssignment { target, value, .. } => {
                 let EvalFlow::Value(replacement) = self.eval_flow(value)?;
                 let current = self.lookup(target)?.unwrap_or(Sexp::Nil);
-                let updated = names_assign_value(&current, &replacement)?;
+                let updated = self.assign_runtime_names(&current, &replacement)?;
                 self.assign_local(target.clone(), updated)?;
                 EvalFlow::Value(replacement)
             }
@@ -536,7 +544,10 @@ impl RuntimeState {
     /// # Errors
     /// Returns a graph or base bootstrap error if the session cannot be read.
     pub fn get(&self, name: &str) -> Result<Option<Sexp>, EvalError> {
-        self.raw_lookup(name)
+        self.raw_lookup(name)?
+            .as_ref()
+            .map(runtime_lists::expose)
+            .transpose()
     }
 
     pub fn gc(&self) -> &Gc {
@@ -601,44 +612,7 @@ impl RuntimeState {
         } else {
             Sexp::String(vec![Some(String::new())])
         };
-        if let Some(prompt) = readline_prompt(&value)? {
-            let prompt = prompt.split('\0').next().unwrap_or_default();
-            // R's scan.c reserves one byte in its 256-byte console prompt buffer.
-            let end = prompt.len().min(255);
-            if !prompt.is_char_boundary(end) {
-                return Err(EvalError::NotImplemented(
-                    "byte-truncated non-UTF-8 console prompts",
-                ));
-            }
-            self.console_prompt = prompt[..end].to_string();
-        }
-        let answer = if self.interactive {
-            let reader = self
-                .input_reader
-                .ok_or(EvalError::NotImplemented("host console input"))?;
-            self.emit(OutputEvent::Stdout(self.console_prompt.clone()))?;
-            let line = reader();
-            self.console_prompt.clear();
-            let line = line.map_err(|error| EvalError::Input(error.to_string()))?;
-            let line = line
-                .split(['\n', '\0'])
-                .next()
-                .unwrap_or_default()
-                .trim_start_matches([' ', '\t']);
-            // R's MAXELTSIZE input buffer reserves two of its 8192 bytes.
-            let end = line.len().min(8190);
-            if !line.is_char_boundary(end) {
-                return Err(EvalError::NotImplemented(
-                    "byte-truncated non-UTF-8 console input",
-                ));
-            }
-            line[..end].trim_end_matches([' ', '\t']).to_string()
-        } else {
-            self.emit(OutputEvent::Stdout(format!("{}\n", self.console_prompt)))?;
-            String::new()
-        };
-        self.visible = true;
-        Ok(EvalFlow::Value(Sexp::String(vec![Some(answer)])))
+        self.internal_readline(&value).map(EvalFlow::Value)
     }
 
     fn eval_command_args(&mut self, arguments: &[CallArgument]) -> Result<EvalFlow, EvalError> {
@@ -1653,7 +1627,7 @@ fn dispatch_call(name: &str, args: &[EvaluatedArgument]) -> Result<Sexp, EvalErr
         "diag" => call_diag(args),
         "dim" => {
             let value = positional(args, 0, "x")?;
-            Ok(dim_value(value))
+            dim_value(value)
         }
         "nrow" => {
             let value = positional(args, 0, "x")?;
@@ -1827,14 +1801,8 @@ fn dispatch_call(name: &str, args: &[EvaluatedArgument]) -> Result<Sexp, EvalErr
         "is.list" => {
             let value = positional(args, 0, "x")?;
             Ok(Sexp::Logical(vec![Some(matches!(
-                value,
-                Sexp::ClassedList { .. }
-                    | Sexp::NamedList { .. }
-                    | Sexp::List(_)
-                    | Sexp::PairList(_)
-                    | Sexp::ListObject(_)
-                    | Sexp::PairListObject(_)
-                    | Sexp::DataFrame { .. }
+                value.sexptype(),
+                r_ust_sexp::SexpType::Vector | r_ust_sexp::SexpType::List
             ))]))
         }
         "is.atomic" => {
@@ -5178,16 +5146,16 @@ fn concatenate_factor_values(values: &[Sexp]) -> Result<Sexp, EvalError> {
     concatenate_factors(&args)
 }
 
-fn dim_value(value: &Sexp) -> Sexp {
-    match value {
+fn dim_value(value: &Sexp) -> Result<Sexp, EvalError> {
+    Ok(match value {
         Sexp::Matrix { nrow, ncol, .. } => {
             Sexp::Integer(vec![Some(*nrow as i32), Some(*ncol as i32)])
         }
         Sexp::DataFrame { columns, nrow } => {
             Sexp::Integer(vec![Some(*nrow as i32), Some(columns.len() as i32)])
         }
-        _ => Sexp::Nil,
-    }
+        _ => crate::list_attributes::engine::get(value, "dim")?,
+    })
 }
 
 fn transpose_value(value: &Sexp) -> Result<Sexp, EvalError> {
@@ -6726,68 +6694,6 @@ fn named_bool_arg(
         .copied()
         .flatten()
         .ok_or_else(|| EvalError::Domain(format!("argument {} must be TRUE or FALSE", names[0])))
-}
-
-fn numeric_values(value: &Sexp) -> Result<Vec<f64>, EvalError> {
-    match value {
-        Sexp::Nil => Ok(Vec::new()),
-        Sexp::Matrix { data, .. } => numeric_values(data),
-        Sexp::Real(values) => Ok(values.clone()),
-        Sexp::Integer(values) => Ok(values
-            .iter()
-            .map(|value| value.map_or(NA_REAL, f64::from))
-            .collect()),
-        Sexp::Logical(values) => Ok(values
-            .iter()
-            .map(|value| match value {
-                Some(true) => 1.0,
-                Some(false) => 0.0,
-                None => NA_REAL,
-            })
-            .collect()),
-        Sexp::Factor { codes, .. } => Ok(factor_numbers(codes)),
-        other => Err(EvalError::Type(format!(
-            "expected numeric value, found {:?}",
-            other.sexptype()
-        ))),
-    }
-}
-
-fn logical_values(value: &Sexp) -> Result<Vec<Option<bool>>, EvalError> {
-    match value {
-        Sexp::Nil => Ok(Vec::new()),
-        Sexp::Matrix { data, .. } => logical_values(data),
-        Sexp::Logical(values) => Ok(values.clone()),
-        Sexp::Integer(values) => Ok(values
-            .iter()
-            .map(|value| value.map(|value| value != 0))
-            .collect()),
-        Sexp::Real(values) => Ok(values
-            .iter()
-            .map(|value| {
-                if value.is_nan() {
-                    None
-                } else {
-                    Some(*value != 0.0)
-                }
-            })
-            .collect()),
-        other => Err(EvalError::Type(format!(
-            "expected logical value, found {:?}",
-            other.sexptype()
-        ))),
-    }
-}
-
-fn string_scalar(value: &Sexp, label: &str) -> Result<String, EvalError> {
-    let Some(values) = value.character_values() else {
-        return Err(EvalError::Type(format!("{label} must be a string")));
-    };
-    values
-        .first()
-        .cloned()
-        .flatten()
-        .ok_or_else(|| EvalError::Arity(format!("{label} has length 0")))
 }
 
 fn numeric_result(values: Vec<f64>, integer: bool) -> Sexp {

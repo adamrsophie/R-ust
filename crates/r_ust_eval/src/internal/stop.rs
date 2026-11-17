@@ -2,15 +2,21 @@ use super::{as_logical, character::character_values};
 use crate::{EvalError, EvaluatedArgument, Sexp};
 
 pub(super) fn stop(args: &[EvaluatedArgument], call: &Sexp) -> Result<Sexp, EvalError> {
-    let call_requested = as_logical(&args[0].value).unwrap_or(true);
-    let message = match &args[1].value {
+    let call_flag = crate::ordinary_values::read(&args[0].value)?;
+    let call_requested = as_logical(call_flag.as_ref()).unwrap_or(true);
+    let message_value = crate::ordinary_values::read(&args[1].value)?;
+    let message = match message_value.as_ref() {
         Sexp::Nil => String::new(),
-        value @ (Sexp::MissingArg(_)
+        value @ (Sexp::Managed(_)
+        | Sexp::AttributedAtomic { .. }
+        | Sexp::AttributedAggregate { .. }
+        | Sexp::MissingArg(_)
         | Sexp::Symbol(_)
         | Sexp::MissingValue
         | Sexp::Expression { .. }
         | Sexp::PairList(_)
         | Sexp::Logical(_)
+        | Sexp::Raw(_)
         | Sexp::Integer(_)
         | Sexp::Real(_)
         | Sexp::String(_)
@@ -65,3 +71,6 @@ pub(super) fn stop(args: &[EvaluatedArgument], call: &Sexp) -> Result<Sexp, Eval
     };
     Err(crate::SourceFault::stop(message, call_requested, call))
 }
+
+#[cfg(test)]
+mod tests;

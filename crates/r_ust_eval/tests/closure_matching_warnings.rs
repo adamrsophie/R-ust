@@ -15,8 +15,12 @@ fn accepted_partial_warnings_precede_unused_forcing_and_follow_formal_order() {
     assert_eq!(
         frontend.runtime_mut().take_output(),
         [
-            OutputEvent::Stderr("Warning: partial argument match of 'al' to 'alpha'\n".into()),
-            OutputEvent::Stderr("Warning: partial argument match of 'b' to 'beta'\n".into()),
+            OutputEvent::Stderr(
+                "Warning in g(...) : partial argument match of 'al' to 'alpha'\n".into()
+            ),
+            OutputEvent::Stderr(
+                "Warning in g(...) : partial argument match of 'b' to 'beta'\n".into()
+            ),
             OutputEvent::Stdout("FIRST".into()),
             OutputEvent::Stdout("SECOND".into()),
         ]

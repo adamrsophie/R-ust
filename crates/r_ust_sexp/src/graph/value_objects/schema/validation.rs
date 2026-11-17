@@ -20,9 +20,13 @@ fn names(values: &[ListElement]) -> Result<(), GraphError> {
 fn length(value: &Sexp) -> Result<usize, GraphError> {
     match value {
         Sexp::Nil => Ok(0),
+        Sexp::AttributedAtomic { values, .. } => Ok(values.len()),
+        Sexp::AttributedAggregate { values, .. } => Ok(values.len()),
+        Sexp::Managed(value) => length(&value.snapshot()?),
         Sexp::Logical(v) => Ok(v.len()),
         Sexp::Integer(v) => Ok(v.len()),
         Sexp::Real(v) => Ok(v.len()),
+        Sexp::Raw(v) => Ok(v.len()),
         Sexp::String(v) | Sexp::AttributedCharacter { values: v, .. } => Ok(v.len()),
         Sexp::Factor { codes, .. } => Ok(codes.len()),
         Sexp::Vector(v) => Ok(v.len()),

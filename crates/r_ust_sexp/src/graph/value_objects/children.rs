@@ -13,6 +13,7 @@ pub(super) fn children(
         | Sexp::MissingValue
         | Sexp::Symbol(_)
         | Sexp::Logical(_)
+        | Sexp::Raw(_)
         | Sexp::Integer(_)
         | Sexp::Real(_)
         | Sexp::String(_)
@@ -25,11 +26,27 @@ pub(super) fn children(
             }
         }
         Sexp::Bytecode(_)
+        | Sexp::Managed(_)
         | Sexp::Environment(_)
         | Sexp::ListObject(_)
         | Sexp::PairListObject(_)
         | Sexp::Promise { .. } => {}
-        Sexp::Closure { .. } => return Err(GraphError::WrongKind),
+        Sexp::Closure {
+            parameters,
+            body,
+            attributes,
+            ..
+        } => {
+            for parameter in parameters {
+                if let Some(default) = &mut parameter.default {
+                    map(default)?;
+                }
+            }
+            map(body)?;
+            for attribute in attributes {
+                map(&mut attribute.value)?;
+            }
+        }
         Sexp::Function { parameters, body } => {
             for parameter in parameters {
                 if let Some(default) = &mut parameter.default {
@@ -66,7 +83,18 @@ pub(super) fn children(
                 map(&mut element.value)?;
             }
         }
-        Sexp::AttributedCharacter {
+        Sexp::AttributedAggregate { values, attributes } => {
+            for value in values.values_mut() {
+                map(value)?;
+            }
+            for attribute in attributes {
+                map(&mut attribute.value)?;
+            }
+        }
+        Sexp::AttributedAtomic {
+            attributes: values, ..
+        }
+        | Sexp::AttributedCharacter {
             attributes: values, ..
         }
         | Sexp::Expression {

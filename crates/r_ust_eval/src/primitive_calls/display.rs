@@ -3,13 +3,16 @@ use r_ust_sexp::PrimitiveId;
 pub(crate) fn format_primitive(id: PrimitiveId) -> String {
     let signature = match id {
         PrimitiveId::Syntax(id) => syntax_signature(id),
+        PrimitiveId::AnyNa => "function (x, recursive = FALSE)  ",
+        PrimitiveId::IsInteger | PrimitiveId::Abs => "function (x)  ",
         PrimitiveId::Sum => "function (..., na.rm = FALSE)  ",
         PrimitiveId::List => "function (...)  ",
         PrimitiveId::AsCharacter => "function (x, ...)  ",
         PrimitiveId::Length | PrimitiveId::Missing | PrimitiveId::IsEnvironment => "function (x)  ",
-        PrimitiveId::AsCall | PrimitiveId::AsEnvironment | PrimitiveId::IsSymbol => {
-            "function (x)  "
-        }
+        PrimitiveId::AsCall
+        | PrimitiveId::AsEnvironment
+        | PrimitiveId::IsSymbol
+        | PrimitiveId::Unclass => "function (x)  ",
         PrimitiveId::NamespaceExport | PrimitiveId::NamespaceInternal => "function (pkg, name)  ",
         PrimitiveId::GlobalEnv
         | PrimitiveId::BaseEnv

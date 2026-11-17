@@ -77,6 +77,8 @@ fn integers<'a>(value: &'a Sexp, name: &str) -> Result<Cow<'a, [Option<i32>]>, E
 
 impl RuntimeState {
     fn bitwise_integer(&mut self, value: &Sexp) -> Result<Sexp, EvalError> {
+        let projection = crate::coercion::storage::read(value)?;
+        let value = projection.as_ref();
         if !matches!(
             data(value),
             Sexp::Nil
@@ -108,10 +110,11 @@ impl RuntimeState {
     }
 
     fn bitwise_operand<'a>(&mut self, value: &'a Sexp) -> Result<Cow<'a, Sexp>, EvalError> {
-        if matches!(data(value), Sexp::Real(_)) {
-            self.bitwise_integer(value).map(Cow::Owned)
+        let value = crate::coercion::storage::read(value)?;
+        if matches!(data(&value), Sexp::Real(_)) {
+            self.bitwise_integer(&value).map(Cow::Owned)
         } else {
-            Ok(Cow::Borrowed(value))
+            Ok(value)
         }
     }
 
@@ -132,10 +135,11 @@ impl RuntimeState {
         args: &[EvaluatedArgument],
     ) -> Result<Sexp, EvalError> {
         let left = self.bitwise_operand(&args[0].value)?;
+        let right_data = crate::coercion::storage::read(&args[1].value)?;
         let right = match operation {
             Binary::ShiftL | Binary::ShiftR => {
-                if matches!(data(&args[1].value), Sexp::Integer(_) | Sexp::Factor { .. }) {
-                    Cow::Borrowed(&args[1].value)
+                if matches!(data(&right_data), Sexp::Integer(_) | Sexp::Factor { .. }) {
+                    right_data
                 } else {
                     Cow::Owned(self.bitwise_integer(&args[1].value)?)
                 }

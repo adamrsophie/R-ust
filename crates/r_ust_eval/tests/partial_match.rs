@@ -1,3 +1,6 @@
+#[path = "support/warning_payload.rs"]
+mod warning_payload;
+
 use r_ust_eval::{EvalError, Frontend, OutputEvent};
 use r_ust_sexp::Sexp;
 
@@ -67,13 +70,13 @@ fn partial_matching_agrees_with_r_values_errors_and_warnings() {
                 },
             ),
         };
-        let output = frontend.runtime_mut().take_output();
+        let output = warning_payload::conditions(frontend.runtime_mut().take_output());
         let expected_output: Vec<_> = if fields[5] == "-" {
             Vec::new()
         } else {
             fields[5]
                 .split('|')
-                .map(|warning| OutputEvent::Stderr(format!("Warning: {warning}\n")))
+                .map(|warning| OutputEvent::Stderr(warning.into()))
                 .collect()
         };
         let passed = actual.0 == fields[2]

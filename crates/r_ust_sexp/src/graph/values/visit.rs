@@ -32,6 +32,7 @@ fn walk(
         | Sexp::MissingValue
         | Sexp::Symbol(_)
         | Sexp::Logical(_)
+        | Sexp::Raw(_)
         | Sexp::Integer(_)
         | Sexp::String(_)
         | Sexp::Factor { .. }
@@ -45,6 +46,7 @@ fn walk(
         }
         Sexp::Environment(frame) => map(&mut frame.0)?,
         Sexp::Bytecode(code) => map(&mut code.0)?,
+        Sexp::Managed(value) => map(&mut value.0)?,
         Sexp::ListObject(value) => map(&mut value.0)?,
         Sexp::PairListObject(value) => map(&mut value.0)?,
         Sexp::Promise { state } => map(&mut state.0)?,
@@ -102,6 +104,22 @@ fn walk(
             walk(class, map, reals)?;
             for element in elements {
                 walk(&mut element.value, map, reals)?;
+            }
+        }
+        Sexp::AttributedAggregate { values, attributes } => {
+            for value in values.values_mut() {
+                walk(value, map, reals)?;
+            }
+            for attribute in attributes {
+                walk(&mut attribute.value, map, reals)?;
+            }
+        }
+        Sexp::AttributedAtomic { values, attributes } => {
+            if let crate::AtomicVector::Real(values) = values {
+                reals(values);
+            }
+            for attribute in attributes {
+                walk(&mut attribute.value, map, reals)?;
             }
         }
         Sexp::AttributedCharacter {

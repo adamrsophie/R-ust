@@ -29,6 +29,8 @@ impl NodeId {
 #[derive(Default)]
 pub(super) struct Frame {
     pub bindings: HashMap<String, StoredValue>,
+    pub attributes: Option<StoredValue>,
+    pub object: bool,
     pub assignment_pending: HashSet<String>,
     pub parent: Option<NodeId>,
     pub global: Option<NodeId>,
@@ -255,3 +257,31 @@ mod value_object_duplicate_tests;
 #[cfg(test)]
 #[path = "value_object_bytecode_tests.rs"]
 mod value_object_bytecode_tests;
+
+#[cfg(test)]
+#[path = "value_transport_tests.rs"]
+mod value_transport_tests;
+
+#[cfg(test)]
+#[path = "value_projection_tests.rs"]
+mod value_projection_tests;
+
+#[cfg(test)]
+#[path = "value_atomic_tests.rs"]
+mod value_atomic_tests;
+
+#[cfg(test)]
+#[path = "value_transport_validation_tests.rs"]
+mod value_transport_validation_tests;
+
+#[cfg(test)]
+#[path = "general_attributes_tests/mod.rs"]
+mod general_attributes_tests;
+
+#[cfg(test)]
+#[path = "managed_composition_tests/mod.rs"]
+mod managed_composition_tests;
+
+#[cfg(test)]
+#[path = "attribute_replace_tests/mod.rs"]
+mod attribute_replace_tests;

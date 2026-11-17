@@ -1,0 +1,67 @@
+CASE sum
+x + 2
+END
+CASE product_of_sum
+(x + 2) * y
+END
+CASE right_difference
+x - (y - z)
+END
+CASE left_power
+(x^y)^z
+END
+CASE unary_power
+(-x)^y
+END
+CASE subset_sum
+(x + y)[i]
+END
+CASE dollar_string
+x$simple
+END
+CASE dollar_unusual
+x$"a b"
+END
+CASE dollar_symbol
+x$y
+END
+CASE computed_head
+(x + y)(z)
+END
+CASE named_operator
+`%foo%`(a = x, b = y)
+END
+CASE function_formals
+function(x, y = 2) x
+END
+CASE nested_if
+{
+    if (x) {
+        y
+    }
+    else z
+}
+END
+CASE for_symbol
+for (i in x) y
+END
+CASE formula
+x ~ y
+END
+CASE formula_quote
+x ~ y
+END
+CASE small_default
+[1] 1.000000e-13 4.656613e-10
+END
+CASE small_digits17
+[1] 1.0000000000000000e-13 4.6566128752457969e-10
+END
+CASE small_bits
+0x1.c25c268497682p-44
+0x1.00000002p-31
+
+END
+CASE small_unchanged
+TRUE
+END

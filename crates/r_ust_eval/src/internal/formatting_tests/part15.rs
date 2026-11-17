@@ -72,7 +72,11 @@ fn locale_c() {
         id: "locale_c",
         source: r#"c(names(l10n_info()),unlist(lapply(l10n_info(),as.character)))"#,
         error: false,
-        stdout: include_str!("raw/locale_c.stdout"),
+        stdout: if cfg!(target_os = "linux") {
+            include_str!("raw/locale_c_linux.stdout")
+        } else {
+            include_str!("raw/locale_c.stdout")
+        },
         stderr: include_str!("raw/locale_c.stderr"),
     });
 }

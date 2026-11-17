@@ -10,6 +10,11 @@ use crate::{EvalError, EvalFlow, RuntimeState, Sexp};
 use r_ust_sexp::{BytecodeObject, ClosureEnvironment};
 
 impl RuntimeState {
+    /// Reports the current execution mode, including host overrides.
+    pub fn bytecode_enabled(&self) -> bool {
+        self.bytecode_enabled
+    }
+
     pub fn set_bytecode_enabled(&mut self, enabled: bool) {
         self.bytecode_enabled = enabled;
     }

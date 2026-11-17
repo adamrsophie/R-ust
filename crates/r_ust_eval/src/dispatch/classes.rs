@@ -1,10 +1,15 @@
 use crate::{EvalError, ListElement, Sexp};
+mod attributed;
 
 pub(super) fn classes(value: &Sexp) -> Result<Sexp, EvalError> {
     if let Some(class) = crate::closure_attributes::explicit_class(value) {
         return Ok(class.clone());
     }
     let names: &[&str] = match value {
+        Sexp::Managed(value) => return classes(value.borrow()?.value()),
+        Sexp::AttributedAtomic { .. } | Sexp::AttributedAggregate { .. } => {
+            return attributed::classes(value)
+        }
         Sexp::ListObject(value) => return classes(&value.value()?),
         Sexp::Char(_) => {
             return Err(EvalError::Domain(
@@ -23,6 +28,7 @@ pub(super) fn classes(value: &Sexp) -> Result<Sexp, EvalError> {
             }
             &["list"]
         }
+        Sexp::Raw(_) => &["raw"],
         Sexp::Integer(_) => &["integer", "numeric"],
         Sexp::Real(_) => &["double", "numeric"],
         Sexp::Matrix { data, .. } => {
@@ -99,6 +105,9 @@ pub(super) fn classes(value: &Sexp) -> Result<Sexp, EvalError> {
         names.iter().map(|name| Some((*name).into())).collect(),
     ))
 }
+
+#[cfg(test)]
+mod tests;
 
 pub(super) fn suffix(full: &Sexp, index: usize) -> Result<Sexp, EvalError> {
     if index == 0 {

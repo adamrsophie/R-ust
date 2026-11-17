@@ -10,6 +10,12 @@ pub(super) fn is_na_values(value: &Sexp) -> Result<Vec<Option<bool>>, EvalError>
         return Ok(vec![Some(false); value_len(value)?]);
     }
     Ok(match value {
+        Sexp::AttributedAtomic { values, .. } => is_na_values(&values.clone().into_value())?,
+        Sexp::AttributedAggregate {
+            values: r_ust_sexp::AggregateVector::Vector(values),
+            ..
+        } => is_na_values(&Sexp::Vector(values.clone()))?,
+        Sexp::Raw(values) => vec![Some(false); values.len()],
         Sexp::Nil => Vec::new(),
         Sexp::Logical(values) => values.iter().map(|value| Some(value.is_none())).collect(),
         Sexp::Integer(values) => values.iter().map(|value| Some(value.is_none())).collect(),
@@ -28,8 +34,8 @@ pub(super) fn is_na_values(value: &Sexp) -> Result<Vec<Option<bool>>, EvalError>
         Sexp::Matrix { data, .. } => is_na_values(data)?,
         Sexp::Vector(values) => values
             .iter()
-            .map(|value| Some(any_na::scalar_missing(value)))
-            .collect(),
+            .map(|value| any_na::scalar_missing(value).map(Some))
+            .collect::<Result<Vec<_>, _>>()?,
         Sexp::ClassedList {
             elements: values, ..
         }
@@ -39,8 +45,8 @@ pub(super) fn is_na_values(value: &Sexp) -> Result<Vec<Option<bool>>, EvalError>
         | Sexp::List(values)
         | Sexp::Dots(values) => values
             .iter()
-            .map(|element| Some(any_na::scalar_missing(&element.value)))
-            .collect(),
+            .map(|element| any_na::scalar_missing(&element.value).map(Some))
+            .collect::<Result<Vec<_>, _>>()?,
         _ => vec![Some(false)],
     })
 }
@@ -55,6 +61,14 @@ pub(super) fn numeric_predicate_values(
         return Err(EvalError::NotImplemented("CHARSXP numeric predicates"));
     }
     Ok(match value {
+        Sexp::AttributedAtomic { values, .. } => {
+            numeric_predicate_values(&values.clone().into_value(), predicate)?
+        }
+        Sexp::AttributedAggregate {
+            values: r_ust_sexp::AggregateVector::Vector(values),
+            ..
+        } => vec![Some(false); values.len()],
+        Sexp::Raw(values) => vec![Some(false); values.len()],
         Sexp::Nil => Vec::new(),
         Sexp::Logical(values) => values
             .iter()

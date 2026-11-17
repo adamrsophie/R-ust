@@ -42,8 +42,8 @@ fn substitute_matches_independent_r_nodes() -> Result<(), Box<dyn std::error::Er
         let output = frontend.runtime_mut().take_output();
         let expected = if row.id == "substitute_partial_match" {
             vec![
-                OutputEvent::Stderr("Warning: partial argument match of 'ex' to 'expr'\n".into()),
-                OutputEvent::Stderr("Warning: partial argument match of 'en' to 'env'\n".into()),
+                OutputEvent::Stderr("Warning in substitute(ex = x, en = list(x = 3L)) :\n  partial argument match of 'ex' to 'expr'\n".into()),
+                OutputEvent::Stderr("Warning in substitute(ex = x, en = list(x = 3L)) :\n  partial argument match of 'en' to 'env'\n".into()),
             ]
         } else if row.stdout.is_empty() {
             vec![]

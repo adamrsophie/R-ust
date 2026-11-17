@@ -18,11 +18,11 @@ fn decode(text: &str) -> String {
     .unwrap()
 }
 
+#[path = "support/warning_payload.rs"]
+mod observed_warnings;
+
 fn warning_payload(text: &str) -> String {
-    text.lines()
-        .map(|line| line.strip_prefix("Warning: ").unwrap())
-        .collect::<Vec<_>>()
-        .join("\n")
+    observed_warnings::payload(text)
 }
 
 #[test]

@@ -5,9 +5,14 @@ mod deparse_attributes;
 mod deparse_closure;
 mod deparse_special;
 mod deparse_values;
+mod managed;
+mod metadata;
 mod profile;
+pub(crate) use profile::format_coercion;
 pub(super) use profile::{format_deparse, Profile, WARN};
 mod calls;
+#[cfg(test)]
+mod coercion_tests;
 mod control;
 mod infix;
 mod layout;
@@ -84,6 +89,12 @@ impl Writer<'_> {
         if !self.active() {
             return Ok(());
         }
+        if matches!(
+            value,
+            Sexp::Managed(_) | Sexp::ListObject(_) | Sexp::PairListObject(_)
+        ) {
+            return self.write_graph(value);
+        }
         let argument = self.fnarg;
         let left = self.left;
         self.fnarg = false;
@@ -92,6 +103,10 @@ impl Writer<'_> {
             self.deparse_node(value, (argument, left))
         } else {
             match value {
+                Sexp::AttributedAtomic { .. } | Sexp::AttributedAggregate { .. } => {
+                    self.deparse_typed(value)
+                }
+                Sexp::Managed(_) => self.write_graph(value),
                 Sexp::Expression {
                     elements,
                     names_present,
@@ -100,6 +115,7 @@ impl Writer<'_> {
                     function,
                     arguments,
                 } => self.call(function, arguments, (argument, left)),
+                Sexp::Raw(_) => self.deparse_atomic(value, &[]),
                 Sexp::Nil
                 | Sexp::MissingValue
                 | Sexp::Symbol(_)
@@ -158,3 +174,6 @@ impl Writer<'_> {
         result
     }
 }
+
+#[cfg(test)]
+mod native_feedback_tests;

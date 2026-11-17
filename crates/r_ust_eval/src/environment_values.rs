@@ -2,6 +2,9 @@ use crate::{value_len, EvalError, EvaluatedArgument, RuntimeState};
 use r_ust_sexp::{Environment, EnvironmentRole, Sexp};
 
 pub(super) fn length(value: &Sexp) -> Result<Sexp, EvalError> {
+    if let Sexp::Managed(value) = value {
+        return length(value.borrow()?.value());
+    }
     let length = match value {
         Sexp::Environment(frame) => frame.local_len()?,
         other => value_len(other)?,

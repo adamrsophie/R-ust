@@ -1,5 +1,12 @@
 #![allow(non_camel_case_types)]
 
+mod aggregate;
+mod attributes;
+pub use aggregate::AggregateVector;
+pub use attributes::expanded_row_names;
+mod atomic;
+mod value_type;
+pub use atomic::AtomicVector;
 mod character;
 mod graph;
 mod language;
@@ -10,18 +17,20 @@ mod primitive;
 mod promise;
 mod syntax_primitive;
 pub use list_metadata::OrdinaryListView;
+mod internal_operation;
 mod value;
+pub use internal_operation::InternalOperation;
 
 pub use language::{canonical_actual_call, canonical_language};
 pub use language_types::{AssignmentOperator, LanguageError, MemberName, PairList};
 pub use primitive::PrimitiveId;
 pub use syntax_primitive::SyntaxPrimitive;
-pub use value::{ClosureEnvironment, InternalOperation, Sexp};
+pub use value::{ClosureEnvironment, Sexp};
 
 pub use graph::{
     bytecode_source, BytecodeObject, BytecodeParts, Environment, EnvironmentRole, Force,
-    ForceLease, GraphError, ListObject, PairListObject, PromiseMetadata, PromiseState, ValueImport,
-    ValueKind, ValueObject, ValueObjectRetention, ValueRetention, ValueView,
+    ForceLease, GraphError, ListObject, PairListObject, PromiseMetadata, PromiseState, ValueBorrow,
+    ValueImport, ValueKind, ValueObject, ValueObjectRetention, ValueRetention, ValueView,
 };
 pub use operators::BinaryOp;
 pub use promise::{EvaluationEnvironmentId, EvaluationOrigin, EvaluationSessionId};
@@ -144,6 +153,10 @@ impl SexpHeader {
         self.altrep
     }
 
+    pub(crate) fn set_object(&mut self, object: bool) {
+        self.object = object;
+    }
+
     pub(crate) fn set_gp(&mut self, gp: u16) {
         self.gp = gp;
     }
@@ -205,64 +218,6 @@ impl FunctionParameter {
 pub struct ListElement {
     pub name: Option<String>,
     pub value: Sexp,
-}
-
-impl Sexp {
-    pub const fn sexptype(&self) -> SexpType {
-        match self {
-            Self::Nil => SexpType::Nil,
-            Self::Bytecode(_) => SexpType::Bytecode,
-            Self::Environment(_) => SexpType::Environment,
-            Self::Primitive(id) => id.sexptype(),
-            Self::MissingArg(_) => SexpType::Promise,
-            Self::Symbol(_) | Self::MissingValue => SexpType::Symbol,
-            Self::Logical(_) => SexpType::Logical,
-            Self::Integer(_) => SexpType::Integer,
-            Self::Real(_) => SexpType::Real,
-            Self::String(_) | Self::AttributedCharacter { .. } => SexpType::String,
-            Self::Char(_) => SexpType::Char,
-            Self::Expression { .. } => SexpType::Expression,
-            Self::Vector(_) => SexpType::Vector,
-            Self::NamedList { .. }
-            | Self::ClassedList { .. }
-            | Self::List(_)
-            | Self::ListObject(_) => SexpType::Vector,
-            Self::PairList(_) | Self::PairListObject(_) => SexpType::List,
-            Self::Factor { .. } => SexpType::Integer,
-            Self::DataFrame { .. } => SexpType::Vector,
-            Self::Matrix { .. } => SexpType::Vector,
-            Self::Dots(_) => SexpType::Dots,
-            Self::Promise { .. } => SexpType::Promise,
-            Self::Closure { .. } => SexpType::Closure,
-            Self::Function { .. }
-            | Self::If { .. }
-            | Self::For { .. }
-            | Self::While { .. }
-            | Self::Repeat { .. }
-            | Self::Break
-            | Self::Next
-            | Self::Block(_)
-            | Self::Subset { .. }
-            | Self::Subset2D { .. }
-            | Self::ExtractArguments { .. }
-            | Self::Extract { .. }
-            | Self::Dollar { .. }
-            | Self::Call { .. }
-            | Self::InternalCall { .. }
-            | Self::Assignment { .. }
-            | Self::SuperAssignment { .. }
-            | Self::Subassignment { .. }
-            | Self::MatrixSubassignment { .. }
-            | Self::ExtractAssignment { .. }
-            | Self::DollarAssignment { .. }
-            | Self::MemberAssignment { .. }
-            | Self::ReplacementAssignment { .. }
-            | Self::NamesAssignment { .. }
-            | Self::Binary { .. }
-            | Self::Unary { .. } => SexpType::Language,
-            Self::Parenthesized(_) => SexpType::Language,
-        }
-    }
 }
 
 #[cfg(test)]

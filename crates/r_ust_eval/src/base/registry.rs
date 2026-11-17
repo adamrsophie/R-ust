@@ -24,6 +24,7 @@ fn definitions() -> impl Iterator<Item = &'static (&'static str, &'static str)> 
         .chain(super::deparse_sources::DEFINITIONS.iter())
         .chain(super::quote_sources::DEFINITIONS.iter())
         .chain(super::quit_sources::DEFINITIONS.iter())
+        .chain(super::session_sources::DEFINITIONS.iter())
         .chain(bitwise::DEFINITIONS.iter())
         .chain(run_length::DEFINITIONS.iter())
         .chain(rowsum::DEFINITIONS.iter())

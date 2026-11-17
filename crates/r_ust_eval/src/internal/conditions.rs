@@ -2,13 +2,14 @@ use super::as_logical;
 use crate::{class_value, EvalError, EvaluatedArgument, Sexp};
 
 pub(super) fn inherits(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
-    let (Sexp::String(what) | Sexp::AttributedCharacter { values: what, .. }) = &args[1].value
-    else {
+    let what = crate::coercion::storage::read(&args[1].value)?;
+    let Some(what) = what.character_values() else {
         return Err(EvalError::Domain(
             "'what' must be a character vector or an object with a nameOfClass() method".into(),
         ));
     };
-    let Sexp::Logical(which) = &args[2].value else {
+    let which = crate::coercion::storage::read(&args[2].value)?;
+    let Sexp::Logical(which) = which.as_ref() else {
         return Err(EvalError::Domain(
             "'which' must be a length 1 logical vector".into(),
         ));
@@ -19,11 +20,9 @@ pub(super) fn inherits(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
         ));
     };
     let which = which.ok_or_else(|| EvalError::Domain("NA in coercion to boolean".into()))?;
-    let (Sexp::String(classes)
-    | Sexp::AttributedCharacter {
-        values: classes, ..
-    }) = class_value(&args[0].value)?
-    else {
+    let classes = class_value(&args[0].value)?;
+    let classes = crate::coercion::storage::read(&classes)?;
+    let Some(classes) = classes.character_values() else {
         return Err(EvalError::Type("invalid class representation".into()));
     };
     let positions = what
@@ -47,17 +46,19 @@ pub(super) fn inherits(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
     })
 }
 
+#[cfg(test)]
+mod tests;
+
 pub(super) fn gettext(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
-    if crate::value_len(&args[1].value)? == 0 {
+    let string = crate::coercion::storage::read(&args[1].value)?;
+    if crate::value_len(string.as_ref())? == 0 {
         return Ok(args[1].value.clone());
     }
-    if !matches!(
-        args[1].value,
-        Sexp::String(_) | Sexp::AttributedCharacter { .. }
-    ) {
+    if string.character_values().is_none() {
         return Err(EvalError::Domain("invalid 'string' value".into()));
     }
-    let translate = match &args[0].value {
+    let domain = crate::coercion::storage::read(&args[0].value)?;
+    let translate = match domain.as_ref() {
         Sexp::Nil => true,
         Sexp::String(values) | Sexp::AttributedCharacter { values, .. } => match values.first() {
             Some(Some(domain)) => !domain.is_empty(),
@@ -65,60 +66,11 @@ pub(super) fn gettext(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
             None => return Err(EvalError::Domain("invalid 'domain' value".into())),
         },
         Sexp::Logical(values) if values.as_slice() == [None] => false,
-        Sexp::MissingArg(_)
-        | Sexp::Symbol(_)
-        | Sexp::MissingValue
-        | Sexp::Expression { .. }
-        | Sexp::PairList(_)
-        | Sexp::Logical(_)
-        | Sexp::Integer(_)
-        | Sexp::Real(_)
-        | Sexp::Vector(_)
-        | Sexp::NamedList { .. }
-        | Sexp::ClassedList { .. }
-        | Sexp::List(_)
-        | Sexp::Factor { .. }
-        | Sexp::DataFrame { .. }
-        | Sexp::Matrix { .. }
-        | Sexp::Dots(_)
-        | Sexp::Promise { .. }
-        | Sexp::Closure { .. }
-        | Sexp::Char(_)
-        | Sexp::ListObject(_)
-        | Sexp::PairListObject(_)
-        | Sexp::Environment(_)
-        | Sexp::Bytecode(_)
-        | Sexp::Primitive(_)
-        | Sexp::InternalCall { .. }
-        | Sexp::Function { .. }
-        | Sexp::If { .. }
-        | Sexp::For { .. }
-        | Sexp::While { .. }
-        | Sexp::Repeat { .. }
-        | Sexp::Break
-        | Sexp::Next
-        | Sexp::Block(_)
-        | Sexp::Subset { .. }
-        | Sexp::Subset2D { .. }
-        | Sexp::ExtractArguments { .. }
-        | Sexp::Extract { .. }
-        | Sexp::Dollar { .. }
-        | Sexp::Call { .. }
-        | Sexp::Assignment { .. }
-        | Sexp::SuperAssignment { .. }
-        | Sexp::Subassignment { .. }
-        | Sexp::MatrixSubassignment { .. }
-        | Sexp::ExtractAssignment { .. }
-        | Sexp::DollarAssignment { .. }
-        | Sexp::MemberAssignment { .. }
-        | Sexp::ReplacementAssignment { .. }
-        | Sexp::NamesAssignment { .. }
-        | Sexp::Binary { .. }
-        | Sexp::Unary { .. }
-        | Sexp::Parenthesized(_) => return Err(EvalError::Domain("invalid 'domain' value".into())),
+        _ => return Err(EvalError::Domain("invalid 'domain' value".into())),
     };
     if let (true, Some(trim)) = (translate, args.get(2)) {
-        let trim = &trim.value;
+        let trim = crate::coercion::storage::read(&trim.value)?;
+        let trim = trim.as_ref();
         if matches!(
             trim,
             Sexp::Logical(_)

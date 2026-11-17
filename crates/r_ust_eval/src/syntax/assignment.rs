@@ -1,15 +1,20 @@
+mod ownership;
+
 use super::{CallArgument, EvalError, EvalFlow, RuntimeState, Sexp, SourceFault, SyntaxPrimitive};
 use crate::environment::has_builtin;
-use r_ust_sexp::{Force, PromiseState};
+use r_ust_sexp::{Environment, Force, ListObject, PrimitiveId, PromiseState};
 
 struct Step {
     name: String,
     arguments: Vec<CallArgument>,
     source: Sexp,
+    reusable: Option<ListObject>,
 }
 
 struct Place {
     root: String,
+    frame: Environment,
+    unshared: bool,
     value: Sexp,
     steps: Vec<Step>,
 }
@@ -50,40 +55,80 @@ impl RuntimeState {
                 call,
             ));
         }
-        if id == SyntaxPrimitive::SuperAssign {
-            return Err(EvalError::NotImplemented("complex superassignment"));
-        }
         let EvalFlow::Value(replacement) = self.eval_syntax_operand(&rhs.value, call)?;
-        let place = self.prepare_syntax_place(&target, false)?;
+        let _rhs_lease = self.current.retain_value(&replacement)?;
+        let mut place =
+            self.prepare_syntax_place(&target, (false, id == SyntaxPrimitive::SuperAssign))?;
         let mut updated = replacement.clone();
-        for step in place.steps.into_iter().rev() {
+        while !place.steps.is_empty() {
+            let argument =
+                CallArgument::named("value", self.cached_syntax_value(&rhs.value, &updated)?);
+            let step = place.steps.last_mut().unwrap();
+            step.arguments.push(argument);
             let setter = format!("{}<-", step.name);
             let source = replacement_source(&step.source, &rhs.value);
+            let ownership = place.ownership()?;
             let selected = self.require_source_function(&setter, has_builtin(&setter), &source)?;
-            let mut supplied = step.arguments;
-            supplied.push(CallArgument::named(
-                "value",
-                self.cached_syntax_value(&rhs.value, &updated)?,
-            ));
-            let EvalFlow::Value(value) = self.call_resolved(selected, &supplied, &source)?;
-            updated = value;
+            let builtin_setter = matches!(
+                &selected,
+                crate::environment::ApplyFunction::Primitive(PrimitiveId::Syntax(
+                    SyntaxPrimitive::DollarAssign
+                        | SyntaxPrimitive::ExtractAssign
+                        | SyntaxPrimitive::Subassign
+                ))
+            );
+            let supplied = &place.steps.last().unwrap().arguments;
+            let EvalFlow::Value(value) = self.call_resolved(selected, supplied, &source)?;
+            place.check_ownership(ownership)?;
+            let step = place.steps.pop().unwrap();
+            updated = if builtin_setter {
+                if let Some(object) = step.reusable {
+                    let projected = crate::ordinary_values::read(&value)?;
+                    if projected.ordinary_list().is_some() {
+                        object.replace_value_shared(projected.as_ref())?;
+                        Sexp::ListObject(object)
+                    } else {
+                        value
+                    }
+                } else {
+                    value
+                }
+            } else {
+                value
+            };
         }
-        self.assign_local(place.root, updated)?;
+        place
+            .frame
+            .insert(place.root.clone(), &updated)
+            .map_err(|error| crate::environment_members::member_graph_error(error, &place.root))?;
         self.visible = false;
         Ok(EvalFlow::Value(replacement))
     }
 
-    fn prepare_syntax_place(&mut self, target: &Sexp, read: bool) -> Result<Place, EvalError> {
+    fn prepare_syntax_place(
+        &mut self,
+        target: &Sexp,
+        (read, superassign): (bool, bool),
+    ) -> Result<Place, EvalError> {
         if let Some(root) = assignment_name(target) {
-            let local = self.current.contains_local(&root)?;
-            let value = self
-                .lookup(&root)?
+            let frame = if superassign {
+                self.replacement_parent(&root)?
+            } else {
+                self.current.clone()
+            };
+            let local = frame.contains_local(&root)?;
+            let value = frame
+                .get(&root)?
                 .ok_or_else(|| SourceFault::undefined_symbol(&root, &self.source_lexical_call()))?;
-            if !local {
+            let value = self.force_value(value)?;
+            if !local && !superassign {
                 self.assign_local(root.clone(), value.clone())?;
             }
+            let unshared = unshared_list(&value)?;
             return Ok(Place {
                 root,
+                frame,
+                unshared,
                 value,
                 steps: Vec::new(),
             });
@@ -103,12 +148,20 @@ impl RuntimeState {
             return Err(EvalError::NotImplemented("computed replacement function"));
         };
         let Some((object, selectors)) = arguments.split_first() else {
-            return Err(SourceFault::arity(
-                "invalid function in complex assignment".into(),
+            return Err(SourceFault::domain(
+                "invalid (NULL) left side of assignment".into(),
                 &target,
             ));
         };
-        let mut place = self.prepare_syntax_place(&object.value, true)?;
+        let mut place = self.prepare_syntax_place(&object.value, (true, superassign))?;
+        let reusable = if place.unshared {
+            match &place.value {
+                Sexp::ListObject(object) => Some(object.clone()),
+                _ => None,
+            }
+        } else {
+            None
+        };
         let mut supplied = vec![CallArgument {
             name: object.name.clone(),
             value: self.cached_syntax_value(&object.value, &place.value)?,
@@ -119,17 +172,33 @@ impl RuntimeState {
                 value: selector.value.clone(),
             });
         }
-        if read {
-            let selected = self.require_source_function(name, has_builtin(name), &target)?;
-            let EvalFlow::Value(value) = self.call_resolved(selected, &supplied, &target)?;
-            place.value = value;
-        }
         place.steps.push(Step {
             name: name.clone(),
             arguments: supplied,
-            source: target,
+            source: target.clone(),
+            reusable,
         });
+        if read {
+            let ownership = place.ownership()?;
+            let selected = self.require_source_function(name, has_builtin(name), &target)?;
+            let supplied = &place.steps.last().unwrap().arguments;
+            let EvalFlow::Value(value) = self.call_resolved(selected, supplied, &target)?;
+            place.check_ownership(ownership)?;
+            place.unshared = place.unshared && unshared_list(&value)?;
+            place.value = value;
+        }
         Ok(place)
+    }
+
+    fn replacement_parent(&self, name: &str) -> Result<Environment, EvalError> {
+        let mut parent = self.current.parent()?;
+        while let Some(frame) = parent {
+            if frame.contains_local(name)? {
+                return Ok(frame);
+            }
+            parent = frame.parent()?;
+        }
+        Ok(self.global.clone())
     }
 
     fn cached_syntax_value(&self, expression: &Sexp, value: &Sexp) -> Result<Sexp, EvalError> {
@@ -145,6 +214,15 @@ impl RuntimeState {
         }
         Ok(Sexp::Promise { state })
     }
+}
+
+fn unshared_list(value: &Sexp) -> Result<bool, EvalError> {
+    Ok(match value {
+        Sexp::ListObject(object) => {
+            object.is_runtime_value()? && object.semantic_reference_count()? <= 1
+        }
+        _ => false,
+    })
 }
 
 fn assignment_name(value: &Sexp) -> Option<String> {

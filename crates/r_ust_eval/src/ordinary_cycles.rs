@@ -15,7 +15,10 @@ struct Walker {
 
 impl Walker {
     fn visit(&mut self, value: &Sexp) -> Result<(), EvalError> {
-        let shared = matches!(value, Sexp::ListObject(_) | Sexp::PairListObject(_));
+        let shared = matches!(
+            value,
+            Sexp::Managed(_) | Sexp::ListObject(_) | Sexp::PairListObject(_)
+        );
         if shared {
             if self.path.contains(value) {
                 return Err(EvalError::NotImplemented(self.boundary));
@@ -35,6 +38,11 @@ impl Walker {
             self.visit(class)?;
         }
         match value {
+            Sexp::AttributedAggregate { values, .. } => {
+                for value in values.values() {
+                    self.visit(value)?;
+                }
+            }
             Sexp::AttributedCharacter {
                 attributes: values, ..
             }
@@ -75,3 +83,6 @@ impl Walker {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests;

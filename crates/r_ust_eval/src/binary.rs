@@ -91,7 +91,17 @@ impl RuntimeState {
             .cycle()
             .zip(y.iter().cycle())
             .take(length)
-            .map(|(a, b)| operation.0(*a, *b))
+            .map(|(a, b)| {
+                let result = operation.0(*a, *b);
+                if !result.is_nan() {
+                    result
+                } else if r_ust_sexp::is_na_real(*a) || r_ust_sexp::is_na_real(*b) {
+                    // Arithmetic quiets NA; later fused operations observe that bit.
+                    f64::from_bits(r_ust_sexp::NA_REAL.to_bits() | (1 << 51))
+                } else {
+                    f64::NAN
+                }
+            })
             .collect();
         if integer {
             if values

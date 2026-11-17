@@ -12,8 +12,43 @@ impl RuntimeState {
         Ok(values)
     }
 
+    pub(crate) fn raw_values_with_warning(
+        &mut self,
+        value: &Sexp,
+        call: &Sexp,
+    ) -> Result<Vec<u8>, EvalError> {
+        let converted = lists::convert(value, (true, BlankPolicy::environment()), |warnings| {
+            self.record_warnings_at(&warnings.messages(), Some(call))
+        })?;
+        let Sexp::Integer(values) = converted else {
+            return Err(EvalError::Type(
+                "integer coercion returned non-integer storage".into(),
+            ));
+        };
+        let mut out_of_range = false;
+        let values = values
+            .into_iter()
+            .map(|value| match value.and_then(|v| u8::try_from(v).ok()) {
+                Some(value) => value,
+                None => {
+                    out_of_range = true;
+                    0
+                }
+            })
+            .collect();
+        if out_of_range {
+            self.record_warnings_at(
+                &["out-of-range values treated as 0 in coercion to raw".into()],
+                Some(call),
+            )?;
+        }
+        Ok(values)
+    }
+
     pub(crate) fn scalar_real_with_warning(&mut self, value: &Sexp) -> Result<f64, EvalError> {
-        let (number, warnings) = atomic::scalar_real(value, BlankPolicy::environment());
+        let projection = super::storage::read(value)?;
+        let (number, warnings) =
+            atomic::scalar_real(projection.as_ref(), BlankPolicy::environment());
         self.record_warnings_at(&warnings.messages(), Some(&self.source_current_call()))?;
         Ok(number)
     }
@@ -22,7 +57,9 @@ impl RuntimeState {
         &mut self,
         value: &Sexp,
     ) -> Result<Option<i32>, EvalError> {
-        let (integer, warnings) = atomic::scalar_integer(value, BlankPolicy::environment());
+        let projection = super::storage::read(value)?;
+        let (integer, warnings) =
+            atomic::scalar_integer(projection.as_ref(), BlankPolicy::environment());
         self.record_warnings_at(&warnings.messages(), Some(&self.source_current_call()))?;
         Ok(integer)
     }

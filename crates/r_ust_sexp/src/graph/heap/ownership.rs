@@ -86,6 +86,9 @@ pub(super) fn semantic_edges(node: &Node) -> Vec<NodeId> {
     let mut edges = Vec::new();
     match node {
         Node::Frame(frame) => {
+            if let Some(attributes) = &frame.attributes {
+                attributes.edges(&mut edges);
+            }
             for value in frame.bindings.values() {
                 value.edges(&mut edges);
             }

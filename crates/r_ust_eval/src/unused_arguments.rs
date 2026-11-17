@@ -10,11 +10,14 @@ impl RuntimeState {
             .map(|argument| {
                 Ok(CallArgument {
                     name: argument.name.clone(),
-                    value: match &argument.value {
-                        Sexp::Promise { state } => {
-                            r_ust_sexp::bytecode_source(&state.expression()?)?
+                    value: {
+                        let value = crate::ordinary_values::read(&argument.value)?;
+                        match value.as_ref() {
+                            Sexp::Promise { state } => {
+                                r_ust_sexp::bytecode_source(&state.expression()?)?
+                            }
+                            value => value.clone(),
                         }
-                        value => value.clone(),
                     },
                 })
             })
@@ -55,6 +58,24 @@ impl RuntimeState {
         indent: usize,
     ) -> Result<String, EvalError> {
         match expression {
+            Sexp::Managed(value) => {
+                let borrowed = value.borrow()?;
+                self.deparse_argument_expression(borrowed.value(), indent)
+            }
+            Sexp::Raw(_) | Sexp::AttributedAtomic { .. } | Sexp::AttributedAggregate { .. } => {
+                let (lines, _) = crate::language_print::format_deparse(
+                    self,
+                    expression,
+                    crate::language_print::Profile {
+                        cutoff: 500,
+                        backtick: true,
+                        control: 0,
+                        lines: None,
+                        utf8: true,
+                    },
+                )?;
+                Ok(lines.join("\n"))
+            }
             Sexp::Nil => Ok("NULL".into()),
             Sexp::Bytecode(_) => Ok("<bytecode>".into()),
             Sexp::MissingArg(_) | Sexp::MissingValue => Ok(String::new()),
@@ -161,6 +182,9 @@ impl RuntimeState {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;
 
 fn symbol(name: &str) -> String {
     let first = name.chars().next();

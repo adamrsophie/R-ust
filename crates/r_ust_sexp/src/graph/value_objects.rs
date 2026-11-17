@@ -1,20 +1,26 @@
 use super::heap::{Heap, Node, NodeId, RootPromotion, Store};
 use super::values::StoredValue;
 use super::{Environment, GraphError, Link};
-use crate::{Sexp, SexpHeader};
+use crate::{Sexp, SexpHeader, SexpType};
 
+mod attributes;
 mod children;
 mod duplicate;
 mod plan;
+mod projection;
+mod transport;
+pub use projection::ValueBorrow;
 mod schema;
 mod snapshot;
 use schema::Shape;
 
-/// Selects interpretation at an explicit SDK import boundary; neither mode evaluates code.
+/// Selects interpretation at an explicit SDK import boundary; no mode evaluates code.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ValueImport {
     Evaluated,
     Code,
+    /// Reuse an existing graph handle; reject descriptions that require allocation.
+    Explicit,
 }
 
 /// Typed persistent node schema. This is independent of its public snapshot representation.
@@ -27,6 +33,7 @@ pub enum ValueKind {
     Attributes,
     Expression,
     Character,
+    Atomic,
     Matrix,
     DataFrame,
     Vector,
@@ -36,9 +43,9 @@ pub enum ValueKind {
     Code,
 }
 
-/// A graph-only aggregate handle. It does not activate evaluator normalization.
+/// A persistent aggregate handle. Transport is explicit until consumer migration completes.
 #[derive(Clone, Debug, PartialEq)]
-pub struct ValueObject(Link);
+pub struct ValueObject(pub(in crate::graph) Link, pub(in crate::graph) SexpType);
 
 /// Clones extend one semantic lease; a new retain call acquires another owner.
 #[derive(Clone, Debug)]
@@ -88,8 +95,13 @@ impl ValueObject {
         let mut store = heap.lock();
         store.frame(owner.0.id())?;
         plan.validate(&store)?;
+        let sexptype = plan.sexptype();
         let id = plan.publish(&mut store);
-        Ok(Self(store.root(heap, id, &mut staging)))
+        Ok(Self(store.root(heap, id, &mut staging), sexptype))
+    }
+
+    pub const fn sexptype(&self) -> SexpType {
+        self.1
     }
 
     pub fn same_object(&self, other: &Self) -> bool {
@@ -109,7 +121,9 @@ impl ValueObject {
             self.0.id(),
             &mut RootPromotion::new(heap, &mut staging, true),
         );
-        Ok(ValueObjectRetention { _root: Self(root) })
+        Ok(ValueObjectRetention {
+            _root: Self(root, self.1),
+        })
     }
 
     pub fn view(&self) -> Result<ValueView, GraphError> {
@@ -135,8 +149,11 @@ impl ValueObject {
         };
         let children = ids
             .into_iter()
-            .map(|id| Self(store.root(heap, id, &mut staging)))
-            .collect();
+            .map(|id| {
+                let sexptype = snapshot::explicit_header(store.node(id)?).sexptype();
+                Ok(Self(store.root(heap, id, &mut staging), sexptype))
+            })
+            .collect::<Result<Vec<_>, GraphError>>()?;
         Ok(ValueView {
             header,
             kind,

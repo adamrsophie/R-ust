@@ -4,6 +4,7 @@ use r_ust_sexp::{canonical_actual_call, LanguageError, ListElement};
 impl RuntimeState {
     pub(super) fn formals(&mut self, value: &Sexp, call: &Sexp) -> Result<Sexp, EvalError> {
         match value {
+            Sexp::Managed(value) => self.formals(value.borrow()?.value(), call),
             Sexp::Closure { parameters, .. } => {
                 let elements = parameters
                     .iter()
@@ -31,6 +32,8 @@ impl RuntimeState {
             }
             Sexp::Primitive(_) => Ok(Sexp::Nil),
             Sexp::Nil
+            | Sexp::AttributedAtomic { .. }
+            | Sexp::AttributedAggregate { .. }
             | Sexp::Char(_)
             | Sexp::ListObject(_)
             | Sexp::PairListObject(_)
@@ -40,6 +43,7 @@ impl RuntimeState {
             | Sexp::MissingValue
             | Sexp::Symbol(_)
             | Sexp::Logical(_)
+            | Sexp::Raw(_)
             | Sexp::Integer(_)
             | Sexp::Real(_)
             | Sexp::String(_)
@@ -88,3 +92,6 @@ impl RuntimeState {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

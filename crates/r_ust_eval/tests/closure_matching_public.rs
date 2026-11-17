@@ -160,7 +160,7 @@ fn runtime_matching_warning_requires_explicit_finish() {
                 vec![CallArgument::named("al", integer(3))],
             );
             let result = runtime.eval(&expression);
-            let immediate = format!("Warning: {WARNING}\n");
+            let immediate = format!("Warning in (function(alpha) alpha)(al = 3L) :\n  {WARNING}\n");
             assert_eq!(
                 runtime.take_output(),
                 warning_events(enabled && warn == 1, immediate)
@@ -176,7 +176,8 @@ fn runtime_matching_warning_requires_explicit_finish() {
                 assert_eq!(result.unwrap(), integer(3));
             }
             runtime.finish_parse_warnings(Ok(())).unwrap();
-            let deferred = format!("Warning message:\n{WARNING} \n");
+            let deferred =
+                format!("Warning message:\nIn (function(alpha) alpha)(al = 3L) :\n  {WARNING}\n");
             assert_eq!(
                 runtime.take_output(),
                 warning_events(enabled && warn == 0, deferred)

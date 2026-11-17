@@ -4,6 +4,7 @@ use r_ust_sexp::{CallArgument, Sexp};
 fn message(error: EvalError) -> String {
     match error {
         EvalError::Arity(text) | EvalError::Domain(text) | EvalError::Type(text) => text,
+        error @ EvalError::MissingArgument(_) => error.to_string(),
         other => panic!("unexpected error: {other:?}"),
     }
 }
@@ -94,7 +95,11 @@ fn missing_arguments_stop_evaluation_at_the_empty_position_including_dots() {
                 let mut frontend = Frontend::default();
                 assert_eq!(
                     message(frontend.eval_source(&source).unwrap_err()),
-                    format!("argument {index} is empty"),
+                    if source.starts_with("f<-") {
+                        "argument is missing, with no default".into()
+                    } else {
+                        format!("argument {index} is empty")
+                    },
                     "{source}"
                 );
                 assert_eq!(

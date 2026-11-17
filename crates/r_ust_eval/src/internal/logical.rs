@@ -2,11 +2,16 @@ use r_ust_sexp::Sexp;
 
 pub(crate) fn as_logical(value: &Sexp) -> Option<bool> {
     match value {
+        Sexp::Managed(_) | Sexp::AttributedAtomic { .. } => {
+            let projection = crate::coercion::storage::read(value).ok()?;
+            as_logical(projection.as_ref())
+        }
         Sexp::String(values) | Sexp::AttributedCharacter { values, .. } => values
             .first()
             .and_then(|value| value.as_deref())
             .and_then(text_logical),
         Sexp::Char(value) => value.as_deref().and_then(text_logical),
+        Sexp::Raw(values) => values.first().map(|value| *value != 0),
         Sexp::Logical(values) => values.first().copied().flatten(),
         Sexp::Integer(values) => values.first().copied().flatten().map(|value| value != 0),
         Sexp::Real(values) => values
@@ -15,7 +20,8 @@ pub(crate) fn as_logical(value: &Sexp) -> Option<bool> {
             .map(|value| *value != 0.0),
         Sexp::Factor { codes, .. } => codes.first().copied().flatten().map(|value| value != 0),
         Sexp::Matrix { data, .. } => as_logical(data),
-        Sexp::Nil
+        Sexp::AttributedAggregate { .. }
+        | Sexp::Nil
         | Sexp::MissingArg(_)
         | Sexp::Symbol(_)
         | Sexp::MissingValue

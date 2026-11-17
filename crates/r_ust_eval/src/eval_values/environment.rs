@@ -13,6 +13,10 @@ impl RuntimeState {
         value: &Sexp,
         enclosure: &Sexp,
     ) -> Result<Environment, EvalError> {
+        let enclosure_projection = crate::ordinary_values::read(enclosure)?;
+        let enclosure = enclosure_projection.as_ref();
+        let value_projection = crate::ordinary_values::read(value)?;
+        let value = value_projection.as_ref();
         let parent = match enclosure {
             Sexp::Nil => self.global.session_root(EnvironmentRole::Base)?,
             Sexp::Environment(environment) => environment.clone(),
@@ -22,6 +26,14 @@ impl RuntimeState {
             Sexp::Nil => Ok(parent),
             Sexp::Environment(environment) => Ok(environment.clone()),
             Sexp::Integer(_) | Sexp::Real(_) | Sexp::Factor { .. } => {
+                self.eval_numeric_environment(value)
+            }
+            Sexp::AttributedAtomic { .. }
+                if matches!(
+                    value.sexptype(),
+                    r_ust_sexp::SexpType::Integer | r_ust_sexp::SexpType::Real
+                ) =>
+            {
                 self.eval_numeric_environment(value)
             }
             Sexp::Matrix { data, .. } => self.eval_environment(data, enclosure),
@@ -100,6 +112,24 @@ impl RuntimeState {
             }
         } else {
             match value.as_ref() {
+                Sexp::AttributedAggregate {
+                    values: r_ust_sexp::AggregateVector::Vector(values),
+                    ..
+                } => {
+                    let names = crate::list_attributes::engine::get(&value, "names")?;
+                    let names = crate::coercion::storage::read(&names)?;
+                    if let Some(names) = names.character_values() {
+                        let elements = values
+                            .iter()
+                            .enumerate()
+                            .map(|(index, value)| crate::ListElement {
+                                name: names.get(index).cloned().flatten(),
+                                value: value.clone(),
+                            })
+                            .collect::<Vec<_>>();
+                        install(&frame, &elements, true)?;
+                    }
+                }
                 Sexp::PairList(elements) => install(&frame, elements.as_slice(), false)?,
                 Sexp::DataFrame { columns, .. } => install(&frame, columns, true)?,
                 Sexp::Vector(_) => {}

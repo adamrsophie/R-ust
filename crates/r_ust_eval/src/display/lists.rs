@@ -30,15 +30,18 @@ fn format_nested(
     for (index, element) in values.iter().enumerate() {
         let label = match &element.name {
             Some(name) if pairlist => format!("{prefix}${}", pairlist_name(name)?),
-            Some(name) if !name.is_empty() => format!("{prefix}${name}"),
+            Some(name) if !name.is_empty() => format!("{prefix}${}", super::labels::name(name)),
             None if names_present => format!("{prefix}$<NA>"),
             _ => format!("{prefix}[[{}]]", index + 1),
         };
-        let projection = crate::ordinary_values::read(&element.value)?;
+        let projection = super::projection::read(&element.value)?;
         let body = if let Some(view) = projection.ordinary_list() {
             Some(format_ordinary(view, &label)?)
         } else {
             match projection.as_ref() {
+                Sexp::AttributedAggregate { .. } | Sexp::AttributedAtomic { .. } => {
+                    super::character::render(projection.as_ref(), true, &label)?
+                }
                 Sexp::List(nested) | Sexp::Dots(nested) => Some(format_nested(
                     nested,
                     &label,

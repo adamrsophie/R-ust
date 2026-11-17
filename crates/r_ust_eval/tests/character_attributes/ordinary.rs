@@ -21,21 +21,28 @@ pub(super) fn run() -> Result {
     f.eval_source("attributes(x)<-NULL")?;
     assert_eq!(f.runtime().get("x")?, Some(strings(&[])));
     malformed(&mut f)?;
-    for name in [
-        "names",
-        "class",
-        "dim",
-        "dimnames",
-        "levels",
-        "tsp",
-        "row.names",
-        "comment",
+    for (name, check) in [
+        ("names", "identical(names(x),'1')"),
+        ("dim", "identical(dim(x),1L)"),
+        ("levels", "identical(attr(x,'levels'),1L)"),
+        ("row.names", "identical(attr(x,'row.names'),1L)"),
+    ] {
+        truth(&mut f, &format!("x<-'keep';attr(x,'{name}')<-1L;{check}"))?;
+    }
+    for (name, expected) in [
+        ("class", "attempt to set invalid 'class' attribute"),
+        ("dimnames", "'dimnames' applied to non-array"),
+        ("tsp", "'tsp' attribute must be numeric of length three"),
+        ("comment", "attempt to set invalid 'comment' attribute"),
     ] {
         f.eval_source("x<-'keep'")?;
-        assert!(matches!(
-            f.eval_source(&format!("attr(x,'{name}')<-1L")),
-            Err(EvalError::NotImplemented(_))
-        ));
+        let error = f
+            .eval_source(&format!("attr(x,'{name}')<-1L"))
+            .expect_err("invalid special attribute");
+        let (EvalError::Type(message) | EvalError::Domain(message)) = error else {
+            panic!("expected GNU attribute validation error: {error:?}")
+        };
+        assert_eq!(message, expected);
         assert_eq!(f.runtime().get("x")?, Some(strings(&[Some("keep")])));
     }
     Ok(())
@@ -55,17 +62,19 @@ fn malformed(frontend: &mut Frontend) -> Result {
         ],
         vec![attribute("custom", Sexp::Nil)],
     ];
-    for name in [
-        "names",
-        "class",
-        "dim",
-        "dimnames",
-        "levels",
-        "tsp",
-        "row.names",
-        "comment",
+    for (name, value) in [
+        ("names", Sexp::Integer(vec![Some(1)])),
+        ("names", strings(&[Some("a"), Some("b")])),
+        ("class", Sexp::Integer(vec![Some(1)])),
+        ("class", strings(&[])),
+        ("dim", scalar.clone()),
+        ("dim", Sexp::Integer(vec![Some(2)])),
+        ("dimnames", scalar.clone()),
+        ("tsp", scalar.clone()),
+        ("row.names", Sexp::Real(vec![1.0])),
+        ("comment", Sexp::Integer(vec![Some(1)])),
     ] {
-        states.push(vec![attribute(name, scalar.clone())]);
+        states.push(vec![attribute(name, value)]);
     }
     bind(
         frontend.runtime_mut(),

@@ -79,6 +79,10 @@ impl RuntimeState {
         self.internal_arity(operation, args.len(), inner_call)?;
         match operation {
             InternalOperation::Quit => self.internal_quit(args),
+            InternalOperation::CommandArgs => Ok(Sexp::String(
+                self.command_args.iter().cloned().map(Some).collect(),
+            )),
+            InternalOperation::Readline => self.internal_readline(&args[0].value),
             InternalOperation::Identical => {
                 crate::identity::call(args, &self.source_current_call())
             }

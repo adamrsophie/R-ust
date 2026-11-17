@@ -6,6 +6,7 @@ use crate::{ListElement, Sexp, SexpHeader, SexpType};
 pub(super) struct VectorNode {
     pub header: SexpHeader,
     pub payload: StoredValue,
+    pub runtime_value: bool,
 }
 
 fn elements(value: &Sexp) -> Result<&[ListElement], GraphError> {
@@ -39,6 +40,19 @@ impl Store {
 
 impl ListObject {
     pub fn from_value(owner: &Environment, value: &Sexp) -> Result<Self, GraphError> {
+        Self::create(owner, value, false)
+    }
+
+    /// Runtime lists keep heap identity internally and expose ordinary SDK snapshots.
+    pub fn from_runtime_value(owner: &Environment, value: &Sexp) -> Result<Self, GraphError> {
+        Self::create(owner, value, true)
+    }
+
+    pub fn is_runtime_value(&self) -> Result<bool, GraphError> {
+        Ok(self.0.heap()?.lock().vector(self.0.id())?.runtime_value)
+    }
+
+    fn create(owner: &Environment, value: &Sexp, runtime_value: bool) -> Result<Self, GraphError> {
         elements(value)?;
         let heap = owner.0.heap()?;
         let payload = StoredValue::new(value, heap)?;
@@ -46,6 +60,7 @@ impl ListObject {
         Ok(Self(heap.insert(Node::Vector(VectorNode {
             header: SexpHeader::new(SexpType::Vector),
             payload,
+            runtime_value,
         }))))
     }
 
@@ -97,9 +112,24 @@ impl ListObject {
         let heap = self.0.heap()?;
         let payload = StoredValue::new(value, heap)?;
         let header = self.header()?;
-        Ok(Self(
-            heap.insert(Node::Vector(VectorNode { header, payload })),
-        ))
+        Ok(Self(heap.insert(Node::Vector(VectorNode {
+            header,
+            payload,
+            runtime_value: self.is_runtime_value()?,
+        }))))
+    }
+
+    /// Caller must establish exclusive semantic ownership before replacing payload.
+    pub fn replace_value_shared(&self, value: &Sexp) -> Result<(), GraphError> {
+        elements(value)?;
+        let heap = self.0.heap()?;
+        let payload = StoredValue::new(value, heap)?;
+        let mut store = heap.lock();
+        let old = store.vector(self.0.id())?.payload.copy_edges();
+        store.replace_value_references(&old, &payload);
+        store.vector_mut(self.0.id())?.payload = payload;
+        store.collect();
+        Ok(())
     }
 
     pub fn replace_shared(&self, updates: &[(usize, Sexp)]) -> Result<(), GraphError> {

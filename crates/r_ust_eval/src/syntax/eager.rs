@@ -51,12 +51,12 @@ impl RuntimeState {
                     return Err(SourceFault::arity(arity(id, arguments.len(), 2), call));
                 };
                 match id {
-                    P::NamesAssign => crate::names_assign_value(&object.value, &value.value),
+                    P::NamesAssign => self.assign_runtime_names(&object.value, &value.value),
                     P::ClassAssign => {
                         crate::list_attributes::replace_class(&object.value, &value.value)
                     }
                     P::AttributesAssign => {
-                        crate::list_attributes::replace(&object.value, &value.value)
+                        self.replace_runtime_attributes(&object.value, &value.value)
                     }
                     _ => {
                         return Err(EvalError::Domain(
@@ -66,10 +66,10 @@ impl RuntimeState {
                 }
             }
             P::StorageModeAssign => {
-                let [_, _] = arguments else {
+                let [object, value] = arguments else {
                     return Err(SourceFault::arity(arity(id, arguments.len(), 2), call));
                 };
-                Err(EvalError::NotImplemented("storage mode replacement"))
+                self.assign_storage_mode(&object.value, &value.value)
             }
             P::AttributeAssign => {
                 let [object, which, value] = arguments else {
@@ -77,7 +77,7 @@ impl RuntimeState {
                 };
                 let name = crate::string_scalar(&which.value, "which")
                     .map_err(|error| at_call(error, call))?;
-                crate::list_attributes::set(&object.value, &name, &value.value)
+                self.set_runtime_attribute(&object.value, (&name, &value.value))
             }
             _ => {
                 return Err(EvalError::NotImplemented(

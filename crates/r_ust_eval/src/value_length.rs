@@ -2,6 +2,9 @@ use super::*;
 
 pub(super) fn value_len(value: &Sexp) -> Result<usize, EvalError> {
     Ok(match value {
+        Sexp::Managed(value) => value_len(value.borrow()?.value())?,
+        Sexp::AttributedAtomic { values, .. } => values.len(),
+        Sexp::AttributedAggregate { values, .. } => values.len(),
         Sexp::ListObject(value) => value_len(&value.value()?)?,
         Sexp::PairListObject(value) => value.elements()?.len(),
         Sexp::Char(value) => value.as_deref().unwrap_or("NA").len(),
@@ -14,6 +17,7 @@ pub(super) fn value_len(value: &Sexp) -> Result<usize, EvalError> {
         Sexp::Logical(values) => values.len(),
         Sexp::Integer(values) => values.len(),
         Sexp::Real(values) => values.len(),
+        Sexp::Raw(values) => values.len(),
         Sexp::String(values) | Sexp::AttributedCharacter { values, .. } => values.len(),
         Sexp::Expression { elements, .. } => elements.len(),
         Sexp::Vector(values) => values.len(),
@@ -58,3 +62,6 @@ pub(super) fn value_len(value: &Sexp) -> Result<usize, EvalError> {
         | Sexp::Parenthesized(_) => 1,
     })
 }
+
+#[cfg(test)]
+mod tests;

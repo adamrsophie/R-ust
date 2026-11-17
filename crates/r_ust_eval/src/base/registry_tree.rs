@@ -94,6 +94,7 @@ pub(super) fn assert_root_free_body(value: &Sexp) {
         | Sexp::Symbol(_)
         | Sexp::Logical(_)
         | Sexp::Integer(_)
+        | Sexp::Raw(_)
         | Sexp::Real(_)
         | Sexp::String(_)
         | Sexp::Break
@@ -113,6 +114,9 @@ pub(super) fn assert_root_free_body(value: &Sexp) {
             panic!("classed runtime value in bootstrap body");
         }
         Sexp::MissingArg(_)
+        | Sexp::Managed(_)
+        | Sexp::AttributedAtomic { .. }
+        | Sexp::AttributedAggregate { .. }
         | Sexp::MissingValue
         | Sexp::Expression { .. }
         | Sexp::PairList(_)

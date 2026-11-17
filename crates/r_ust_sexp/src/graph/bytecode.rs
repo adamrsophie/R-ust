@@ -103,6 +103,12 @@ impl BytecodeObject {
 pub fn bytecode_source(value: &Sexp) -> Result<Sexp, GraphError> {
     match value {
         Sexp::Bytecode(value) => value.source(),
+        Sexp::Managed(value) if value.sexptype() == crate::SexpType::Bytecode => {
+            let Sexp::Bytecode(code) = value.transport()? else {
+                return Err(GraphError::WrongKind);
+            };
+            code.source()
+        }
         value => Ok(value.clone()),
     }
 }

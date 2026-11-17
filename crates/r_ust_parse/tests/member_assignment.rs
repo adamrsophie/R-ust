@@ -82,8 +82,49 @@ fn simple_member_assignment_preserves_string_target_variants() {
 }
 
 #[test]
-fn member_assignment_rejects_non_symbol_roots_and_complex_superassignment() {
-    for source in ["f()$x<-1L", "list(e)[[1L]]$x<-1L", "h[[1L]]$x<<-1L"] {
-        assert!(Parser.parse_all(source).is_err(), "{source}");
+fn member_assignment_accepts_computed_roots_and_complex_superassignment() {
+    for (source, operator, target) in [
+        (
+            "f()$x<-1L",
+            "<-",
+            call("$", vec![call("f", vec![]), Sexp::Symbol("x".into())]),
+        ),
+        (
+            "list(e)[[1L]]$x<-1L",
+            "<-",
+            call(
+                "$",
+                vec![
+                    call(
+                        "[[",
+                        vec![
+                            call("list", vec![Sexp::Symbol("e".into())]),
+                            Sexp::Integer(vec![Some(1)]),
+                        ],
+                    ),
+                    Sexp::Symbol("x".into()),
+                ],
+            ),
+        ),
+        (
+            "h[[1L]]$x<<-1L",
+            "<<-",
+            call(
+                "$",
+                vec![
+                    call(
+                        "[[",
+                        vec![Sexp::Symbol("h".into()), Sexp::Integer(vec![Some(1)])],
+                    ),
+                    Sexp::Symbol("x".into()),
+                ],
+            ),
+        ),
+    ] {
+        assert_eq!(
+            canonical_language(&expression(source)).unwrap(),
+            call(operator, vec![target, Sexp::Integer(vec![Some(1)])]),
+            "{source}"
+        );
     }
 }

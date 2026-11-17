@@ -88,11 +88,8 @@ fn storage_mode_setter_has_identity_arity_and_lexical_override() {
     frontend
         .eval_source("x<-structure(list(a=1L),class='box');saved<-x")
         .unwrap();
-    assert!(matches!(
-        frontend.eval_source("storage.mode(x)<-'integer'"),
-        Err(EvalError::NotImplemented(_))
-    ));
-    truth(&mut frontend, "identical(x,saved)");
+    frontend.eval_source("storage.mode(x)<-'integer'").unwrap();
+    truth(&mut frontend, "identical(x,structure(c(a=1L),class='box')) && identical(saved,structure(list(a=1L),class='box'))");
     frontend
         .eval_source("`storage.mode<-`<-function(x,value)list(value);storage.mode(x)<-'custom'")
         .unwrap();

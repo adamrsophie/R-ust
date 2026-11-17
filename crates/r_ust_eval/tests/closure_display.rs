@@ -9,11 +9,21 @@ fn closure_display_includes_actual_body_and_environment() {
             "function(x=1L,...) { x + 1L }; identity; function(x=stop('UNFORCED'))stop('UNFORCED'); sequence",
         )
         .unwrap();
+    let identity = frontend.eval_source("identity").unwrap().pop().unwrap();
+    let Sexp::Closure { body, .. } = identity else {
+        panic!("identity closure")
+    };
+    let bytecode = match body.as_ref() {
+        Sexp::Bytecode(code) => format!("<bytecode: {}>\n", code.display_address().unwrap()),
+        _ => String::new(),
+    };
     assert_eq!(
         frontend.runtime_mut().take_output(),
         [
             OutputEvent::Stdout("function (x = 1L, ...) \n{\n    x + 1L\n}\n".into()),
-            OutputEvent::Stdout("function (x) \nx\n<environment: namespace:base>\n".into()),
+            OutputEvent::Stdout(format!(
+                "function (x) \nx\n{bytecode}<environment: namespace:base>\n"
+            )),
             OutputEvent::Stdout("function (x = stop(\"UNFORCED\")) \nstop(\"UNFORCED\")\n".into()),
             OutputEvent::Stdout(
                 "function (nvec, ...) \nUseMethod(\"sequence\")\n<environment: namespace:base>\n"

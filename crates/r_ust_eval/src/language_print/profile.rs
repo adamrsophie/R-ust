@@ -43,6 +43,21 @@ pub(crate) fn format_deparse(
     Ok((lines, writer.incomplete))
 }
 
+pub(crate) fn format_coercion(value: &Sexp) -> Result<String, EvalError> {
+    let mut writer = Writer {
+        profile: Some(Profile {
+            cutoff: 500,
+            backtick: true,
+            control: NICE_NAMES,
+            lines: None,
+            utf8: true,
+        }),
+        ..Writer::default()
+    };
+    writer.write(value)?;
+    Ok(writer.output)
+}
+
 impl From<EvalError> for LanguagePrintError {
     fn from(error: EvalError) -> Self {
         Self::Runtime(Box::new(error))

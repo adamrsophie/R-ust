@@ -62,15 +62,17 @@ fn warning_policy_precedes_env_and_preserves_formal_order() -> Result<(), Box<dy
             let mut expected = vec![];
             if warn == 1 {
                 expected.push(OutputEvent::Stderr(
-                    "Warning: partial argument match of 'ex' to 'expr'\n".into(),
+                    "Warning in substitute(en = { : partial argument match of 'ex' to 'expr'\n"
+                        .into(),
                 ));
                 expected.push(OutputEvent::Stderr(
-                    "Warning: partial argument match of 'en' to 'env'\n".into(),
+                    "Warning in substitute(en = { : partial argument match of 'en' to 'env'\n"
+                        .into(),
                 ));
             }
             expected.push(OutputEvent::Stdout("ENV".into()));
             if warn == 0 {
-                expected.push(OutputEvent::Stderr("Warning messages:\n1: partial argument match of 'ex' to 'expr' \n2: partial argument match of 'en' to 'env' \n".into()));
+                expected.push(OutputEvent::Stderr("Warning messages:\n1: In substitute(en = { : partial argument match of 'ex' to 'expr'\n2: In substitute(en = { : partial argument match of 'en' to 'env'\n".into()));
             }
             assert_eq!(output, expected);
         }

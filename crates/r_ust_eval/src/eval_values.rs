@@ -24,17 +24,32 @@ impl RuntimeState {
             ));
         };
         let selected = self.eval_environment(&environment.value, &enclosure.value)?;
-        let expression = &expression.value;
+        let original = &expression.value;
+        let projection = crate::ordinary_values::read(original)?;
+        let expression = projection.as_ref();
+        let expression_storage;
+        let expression = if matches!(
+            expression,
+            Sexp::AttributedAggregate {
+                values: r_ust_sexp::AggregateVector::Expression(_),
+                ..
+            }
+        ) {
+            expression_storage = crate::coercion::storage::read(expression)?;
+            expression_storage.as_ref()
+        } else {
+            expression
+        };
         if matches!(expression, Sexp::Promise { .. }) {
             let EvalFlow::Value(value) = self.eval_flow(expression)?;
             return Ok(value);
         }
         if !matches!(
             expression,
-            Sexp::Expression { .. } | Sexp::Symbol(_) | Sexp::MissingValue
+            Sexp::Expression { .. } | Sexp::Symbol(_) | Sexp::MissingValue | Sexp::Bytecode(_)
         ) && expression.sexptype() != r_ust_sexp::SexpType::Language
         {
-            return Ok(expression.clone());
+            return Ok(original.clone());
         }
         let entry = ReturnContext {
             execution: selected,
@@ -72,3 +87,6 @@ impl RuntimeState {
         self.eval_flow(expression)
     }
 }
+
+#[cfg(test)]
+mod tests;

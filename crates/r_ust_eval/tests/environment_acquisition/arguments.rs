@@ -131,7 +131,7 @@ fn invalid_closure_arguments_are_matched_before_forcing() {
     assert_eq!(
         frontend.runtime_mut().take_output(),
         [OutputEvent::Stderr(
-            "Warning: partial argument match of 'e' to 'env'\n".into()
+            "Warning in environmentName(e = baseenv()) :\n  partial argument match of 'e' to 'env'\n".into()
         )]
     );
 }

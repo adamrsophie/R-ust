@@ -87,23 +87,9 @@ pub(super) fn flatten_unlist_values(
     Ok(())
 }
 
+mod atomic_concatenation;
+
 pub(super) fn call_c(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
-    if args.iter().all(|arg| matches!(arg.value, Sexp::Nil)) {
-        return Ok(Sexp::Nil);
-    }
-    if args.iter().any(|arg| {
-        matches!(
-            arg.value,
-            Sexp::ClassedList { .. }
-                | Sexp::NamedList { .. }
-                | Sexp::List(_)
-                | Sexp::ListObject(_)
-                | Sexp::PairListObject(_)
-                | Sexp::PairList(_)
-        )
-    }) {
-        return crate::list_concatenation::concatenate(args);
-    }
     if args
         .iter()
         .any(|arg| matches!(&arg.value, Sexp::Factor { .. }))
@@ -113,29 +99,7 @@ pub(super) fn call_c(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {
     {
         return concatenate_factors(args);
     }
-    if args.iter().any(|arg| is_character_value(&arg.value)) {
-        let mut out = Vec::new();
-        for arg in args {
-            out.extend(string_values(&arg.value)?);
-        }
-        return Ok(Sexp::String(out));
-    }
-    if args.iter().any(|arg| is_double_value(&arg.value)) {
-        return Ok(Sexp::Real(flatten_numeric_args(args)?));
-    }
-    if args.iter().any(|arg| typeof_value(&arg.value) == "integer") {
-        return Ok(Sexp::Integer(
-            flatten_numeric_args(args)?
-                .into_iter()
-                .map(real_to_integer)
-                .collect(),
-        ));
-    }
-    let mut out = Vec::new();
-    for arg in args {
-        out.extend(logical_values(&arg.value)?);
-    }
-    Ok(Sexp::Logical(out))
+    atomic_concatenation::concatenate(args)
 }
 
 pub(super) fn call_unlist(args: &[EvaluatedArgument]) -> Result<Sexp, EvalError> {

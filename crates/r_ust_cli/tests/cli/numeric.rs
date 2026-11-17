@@ -13,7 +13,7 @@ fn expression_mode_runs_arithmetic_and_rmath() {
         String::from_utf8_lossy(&output.stderr)
     );
     let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
-    assert_eq!(stdout, "[1] 7\n[1] 0.398942280401\n");
+    assert_eq!(stdout, "[1] 7\n[1] 0.3989423\n");
 }
 
 #[test]
@@ -68,19 +68,19 @@ fn expression_mode_runs_special_numeric_helpers() {
     );
     let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
     assert!(stdout.contains("[1] 3 4\n"));
-    assert!(stdout.contains("[1] 1.570796326795  3.14159265359\n"));
-    assert!(stdout.contains("[1]              0 1.175201193644\n"));
+    assert!(stdout.contains("[1] 1.570796 3.141593\n"));
+    assert!(stdout.contains("[1] 0.000000 1.175201\n"));
     assert!(stdout.contains("[1] 1\n"));
-    assert!(stdout.contains("[1]              0 0.761594155956\n"));
-    assert!(stdout.contains("[1] 0.88137358702\n"));
-    assert!(stdout.contains("[1] 0.549306144334\n"));
-    assert!(stdout.contains("[1]  1.23 12300\n"));
+    assert!(stdout.contains("[1] 0.0000000 0.7615942\n"));
+    assert!(stdout.contains("[1] 0.8813736\n"));
+    assert!(stdout.contains("[1] 0.5493061\n"));
+    assert!(stdout.contains("[1]     1.23 12300.00\n"));
     assert!(stdout.contains("[1]   1 120\n"));
-    assert!(stdout.contains("[1] 4.787491742782\n"));
-    assert!(stdout.contains("[1] -2.484906649788\n"));
-    assert!(stdout.contains("[1] 2.302585092994\n"));
-    assert!(stdout.contains("[1] -0.577215664902\n"));
-    assert!(stdout.contains("[1] 1.644934066848"));
+    assert!(stdout.contains("[1] 4.787492\n"));
+    assert!(stdout.contains("[1] -2.484907\n"));
+    assert!(stdout.contains("[1] 2.302585\n"));
+    assert!(stdout.contains("[1] -0.5772157\n"));
+    assert!(stdout.contains("[1] 1.644934\n"));
 }
 
 #[test]
@@ -128,22 +128,22 @@ fn expression_mode_runs_additional_random_distribution_helpers() {
         String::from_utf8_lossy(&output.stderr)
     );
     let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
-    assert!(stdout.contains("[1] 0.018245990155 0.691220217094\n"));
-    assert!(stdout.contains("[1] 0.675034031277 1.333839266687\n"));
-    assert!(stdout.contains("[1]  6.835960082702 -4.780133104908\n"));
-    assert!(stdout.contains("[1] 0.688256497741 5.147557532988\n"));
-    assert!(stdout.contains("[1] 6.149202253105 3.471663233511\n"));
+    assert!(stdout.contains("[1] 0.01824599 0.69122022\n"));
+    assert!(stdout.contains("[1] 0.675034 1.333839\n"));
+    assert!(stdout.contains("[1]  6.835960 -4.780133\n"));
+    assert!(stdout.contains("[1] 0.6882565 5.1475575\n"));
+    assert!(stdout.contains("[1] 6.149202 3.471663\n"));
     assert!(stdout.contains("[1] 3 2\n"));
     assert!(stdout.contains("[1] 0 7\n"));
     assert!(stdout.contains("[1] 5 5\n"));
-    assert!(stdout.contains("[1] 3.159988069084  1.17965232797\n"));
-    assert!(stdout.contains("[1]  9.57552211355 2.852550537173\n"));
-    assert!(stdout.contains("[1] 0.669891847819 0.279765194257\n"));
-    assert!(stdout.contains("[1] 3.043965334059 0.582654140066\n"));
-    assert!(stdout.contains("[1] 1.498005549196 0.067031526736\n"));
+    assert!(stdout.contains("[1] 3.159988 1.179652\n"));
+    assert!(stdout.contains("[1] 9.575522 2.852551\n"));
+    assert!(stdout.contains("[1] 0.6698918 0.2797652\n"));
+    assert!(stdout.contains("[1] 3.0439653 0.5826541\n"));
+    assert!(stdout.contains("[1] 1.49800555 0.06703153\n"));
     assert!(stdout.contains("[1] 9 4\n"));
     assert!(stdout.contains("[1] 3 4\n"));
-    assert!(stdout.contains("[1]   7.0961758966 0.521138258407\n"));
+    assert!(stdout.contains("[1] 7.0961759 0.5211383\n"));
     assert_eq!(stdout.matches("[1] 2 3 1\n").count(), 2);
     assert!(stdout.contains("[1] 6 8 2\n"));
     assert!(stdout.contains("[1] 8 3 3\n"));

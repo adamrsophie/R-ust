@@ -3,7 +3,7 @@ use super::*;
 pub(super) fn recursive_flag(value: &Sexp) -> Result<bool, EvalError> {
     if matches!(
         typeof_value(value),
-        "logical" | "integer" | "double" | "character"
+        "logical" | "integer" | "double" | "character" | "raw"
     ) && value_len(value)? > 1
     {
         return Err(EvalError::Domain(format!(
@@ -12,8 +12,14 @@ pub(super) fn recursive_flag(value: &Sexp) -> Result<bool, EvalError> {
         )));
     }
     let logical = match value {
+        Sexp::Managed(value) => return recursive_flag(value.borrow()?.value()),
+        Sexp::AttributedAtomic { values, .. } => {
+            return recursive_flag(&values.clone().into_value())
+        }
+        Sexp::AttributedAggregate { .. } => None,
         Sexp::Factor { codes, .. } => codes.first().copied().flatten().map(|code| code != 0),
-        Sexp::Logical(_)
+        Sexp::Raw(_)
+        | Sexp::Logical(_)
         | Sexp::Integer(_)
         | Sexp::Real(_)
         | Sexp::String(_)

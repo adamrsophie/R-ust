@@ -168,11 +168,7 @@ fn unrepresented_attribute_paths_fail_explicitly_without_rebinding() {
     frontend
         .eval_source("x<-structure(list(a=1L),class='box');saved<-x")
         .unwrap();
-    for source in [
-        "class(x)<-1L",
-        "attributes(x)<-list(dim=1L)",
-        "storage.mode(x)<-'integer'",
-    ] {
+    for source in ["class(x)<-1L"] {
         assert!(
             matches!(
                 frontend.eval_source(source),
@@ -183,6 +179,35 @@ fn unrepresented_attribute_paths_fail_explicitly_without_rebinding() {
         assert_eq!(
             frontend.eval_source("identical(x,saved)").unwrap(),
             [Sexp::Logical(vec![Some(true)])]
+        );
+    }
+}
+
+#[test]
+fn represented_dimension_and_storage_replacements_keep_aliases() {
+    for (setter, check) in [
+        (
+            "attributes(x)<-list(dim=1L)",
+            "identical(dim(x),1L) && is.null(attr(x,'class'))",
+        ),
+        (
+            "storage.mode(x)<-'integer'",
+            "identical(x,structure(c(a=1L),class='box'))",
+        ),
+    ] {
+        let mut frontend = Frontend::default();
+        frontend
+            .eval_source("x<-structure(list(a=1L),class='box');saved<-x")
+            .unwrap();
+        frontend.eval_source(setter).unwrap();
+        assert_eq!(
+            frontend
+                .eval_source(&format!(
+                    "{check} && identical(saved,structure(list(a=1L),class='box'))"
+                ))
+                .unwrap()
+                .last(),
+            Some(&Sexp::Logical(vec![Some(true)]))
         );
     }
 }

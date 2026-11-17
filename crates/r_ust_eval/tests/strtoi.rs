@@ -20,27 +20,11 @@ fn decode(text: &str) -> String {
     .unwrap()
 }
 
+#[path = "support/warning_payload.rs"]
+mod observed_warnings;
+
 fn warning_payload(text: &str) -> String {
-    if let Some(payload) = text.strip_prefix("Warning message:\n") {
-        return payload.strip_suffix(" \n").unwrap().to_owned();
-    }
-    if let Some(payload) = text.strip_prefix("Warning messages:\n") {
-        return payload
-            .lines()
-            .enumerate()
-            .map(|(index, line)| {
-                line.strip_prefix(&format!("{}: ", index + 1))
-                    .unwrap()
-                    .strip_suffix(' ')
-                    .unwrap()
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
-    }
-    text.lines()
-        .map(|line| line.strip_prefix("Warning: ").unwrap())
-        .collect::<Vec<_>>()
-        .join("\n")
+    observed_warnings::payload(text)
 }
 
 fn condition(error: &EvalError, warnings: &mut Vec<String>) -> String {

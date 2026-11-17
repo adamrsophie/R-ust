@@ -5,6 +5,10 @@ pub(super) fn match_indices(
     table: &Sexp,
     nomatch: Option<i32>,
 ) -> Result<Vec<Option<i32>>, EvalError> {
+    let x_data = crate::coercion::storage::read(x)?;
+    let table_data = crate::coercion::storage::read(table)?;
+    let x = x_data.as_ref();
+    let table = table_data.as_ref();
     let mut table_keys = match_keys(table)?;
     let mut x_keys = match_keys(x)?;
     let character = [x, table].into_iter().any(|mut value| {

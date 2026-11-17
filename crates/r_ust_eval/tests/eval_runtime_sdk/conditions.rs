@@ -76,6 +76,11 @@ fn missing_condition_subclasses_include_bytecode_lookup_requirement() {
             Sexp::Logical(vec![Some(true)]),
             "{source}"
         );
+        let class = if class == "getvarError" && !frontend.runtime().bytecode_enabled() {
+            "evalError"
+        } else {
+            class
+        };
         assert_eq!(
             last(&mut frontend, "class(caught)"),
             strings(&[class, "missingArgError", "error", "condition"]),

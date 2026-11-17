@@ -42,7 +42,7 @@ fn run_length_matches_independent_r_storage_values_errors_and_warnings() {
             other => panic!("unknown fixture outcome {other}"),
         }
         assert_eq!(
-            frontend.runtime_mut().take_output(),
+            support::condition_events(frontend.runtime_mut().take_output()),
             support::warning_events(&fields[3].replace('|', "\u{1f}")),
             "{}",
             fields[0]

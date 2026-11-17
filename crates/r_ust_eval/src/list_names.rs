@@ -1,6 +1,9 @@
 use super::*;
 
 pub(super) fn names_value(value: &Sexp) -> Result<Sexp, EvalError> {
+    if list_attributes::engine::description(value)?.is_some() {
+        return list_attributes::engine::get(value, "names");
+    }
     if value.sexptype() == r_ust_sexp::SexpType::Language {
         let Sexp::Call { arguments, .. } = r_ust_sexp::canonical_actual_call(value)
             .map_err(|_| EvalError::NotImplemented("names of language representation"))?
@@ -74,6 +77,9 @@ pub(super) fn names_value(value: &Sexp) -> Result<Sexp, EvalError> {
 }
 
 pub(super) fn names_assign_value(value: &Sexp, replacement: &Sexp) -> Result<Sexp, EvalError> {
+    if list_attributes::engine::description(value)?.is_some() {
+        return list_attributes::engine::set(value, "names", replacement);
+    }
     if let Sexp::Expression { elements, .. } = value {
         return expression_values::assign_names(elements, replacement);
     }

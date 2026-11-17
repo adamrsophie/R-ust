@@ -6,6 +6,8 @@ use crate::{factor_numbers, numeric_values, real_to_integer, EvalError};
 
 pub(super) fn reals(value: &Sexp, policy: BlankPolicy) -> Result<(Vec<f64>, Warnings), EvalError> {
     let mut warnings = Warnings::default();
+    let projection = super::storage::read(value)?;
+    let value = projection.as_ref();
     let values = match value {
         Sexp::Environment(_) => return Err(crate::environment_values::coercion_error("double")),
         Sexp::Matrix { data, .. } => return reals(data, policy),
@@ -23,6 +25,8 @@ pub(super) fn integers(
     policy: BlankPolicy,
 ) -> Result<(Vec<Option<i32>>, Warnings), EvalError> {
     let mut warnings = Warnings::default();
+    let projection = super::storage::read(value)?;
+    let value = projection.as_ref();
     let values = match value {
         Sexp::Environment(_) => return Err(crate::environment_values::coercion_error("integer")),
         Sexp::Matrix { data, .. } => return integers(data, policy),
@@ -54,6 +58,10 @@ fn integer(value: f64, from_string: bool, warnings: &mut Warnings) -> Option<i32
 }
 
 pub(super) fn scalar_integer(value: &Sexp, policy: BlankPolicy) -> (Option<i32>, Warnings) {
+    let Ok(projection) = super::storage::read(value) else {
+        return (None, Warnings::default());
+    };
+    let value = projection.as_ref();
     let (number, mut warnings) = scalar_real(value, policy);
     let mut data = value;
     while let Sexp::Matrix { data: inner, .. } = data {
@@ -61,7 +69,10 @@ pub(super) fn scalar_integer(value: &Sexp, policy: BlankPolicy) -> (Option<i32>,
     }
     let result = integer(
         number,
-        matches!(data, Sexp::String(_) | Sexp::AttributedCharacter { .. }),
+        matches!(
+            data,
+            Sexp::String(_) | Sexp::AttributedCharacter { .. } | Sexp::Char(_)
+        ),
         &mut warnings,
     );
     (result, warnings)
@@ -70,6 +81,13 @@ pub(super) fn scalar_integer(value: &Sexp, policy: BlankPolicy) -> (Option<i32>,
 pub(super) fn scalar_real(value: &Sexp, policy: BlankPolicy) -> (f64, Warnings) {
     let mut warnings = Warnings::default();
     let number = match value {
+        Sexp::Managed(_) | Sexp::AttributedAtomic { .. } => {
+            return match super::storage::read(value) {
+                Ok(projection) => scalar_real(projection.as_ref(), policy),
+                Err(_) => (NA_REAL, warnings),
+            };
+        }
+        Sexp::Char(value) => strings::real(value.as_deref(), policy, &mut warnings),
         Sexp::Matrix { data, .. } => return scalar_real(data, policy),
         Sexp::String(values) | Sexp::AttributedCharacter { values, .. } => strings::real(
             values.first().and_then(|value| value.as_deref()),
@@ -77,6 +95,7 @@ pub(super) fn scalar_real(value: &Sexp, policy: BlankPolicy) -> (f64, Warnings) 
             &mut warnings,
         ),
         Sexp::Real(values) => values.first().copied().unwrap_or(NA_REAL),
+        Sexp::Raw(values) => values.first().copied().map_or(NA_REAL, f64::from),
         Sexp::Integer(values) => values.first().copied().flatten().map_or(NA_REAL, f64::from),
         Sexp::Logical(values) => values
             .first()
@@ -87,7 +106,8 @@ pub(super) fn scalar_real(value: &Sexp, policy: BlankPolicy) -> (f64, Warnings) 
             .first()
             .copied()
             .unwrap_or(NA_REAL),
-        Sexp::Nil
+        Sexp::AttributedAggregate { .. }
+        | Sexp::Nil
         | Sexp::Vector(_)
         | Sexp::NamedList { .. }
         | Sexp::ClassedList { .. }
@@ -101,7 +121,6 @@ pub(super) fn scalar_real(value: &Sexp, policy: BlankPolicy) -> (f64, Warnings) 
         | Sexp::Dots(_)
         | Sexp::Promise { .. }
         | Sexp::Closure { .. }
-        | Sexp::Char(_)
         | Sexp::ListObject(_)
         | Sexp::PairListObject(_)
         | Sexp::Environment(_)

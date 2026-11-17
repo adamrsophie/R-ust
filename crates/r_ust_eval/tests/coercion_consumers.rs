@@ -200,26 +200,46 @@ fn quit_missing_status_falls_back_after_coercion_warning_delivery() {
                 .runtime_mut()
                 .finish_parse_warnings(Ok(()))
                 .unwrap();
-            let expected = match warn {
-                -1 => vec![],
-                1 => warnings
-                    .iter()
-                    .map(|warning| OutputEvent::Stderr(format!("Warning: {warning}\n")))
-                    .collect(),
-                _ => vec![OutputEvent::Stderr(if warnings.len() == 1 {
-                    format!("Warning message:\n{} \n", warnings[0])
-                } else {
-                    format!(
-                        "Warning messages:\n1: {} \n2: {} \n",
-                        warnings[0], warnings[1]
-                    )
-                })],
-            };
+            let events = frontend.runtime_mut().take_output();
+            assert!(events
+                .iter()
+                .all(|event| matches!(event, OutputEvent::Stderr(_))));
             assert_eq!(
-                frontend.runtime_mut().take_output(),
-                expected,
-                "{arguments}; warn={warn}"
+                events.len(),
+                if warn == -1 {
+                    0
+                } else if warn == 1 {
+                    warnings.len()
+                } else {
+                    1
+                }
             );
+            let actual = events
+                .into_iter()
+                .map(|event| match event {
+                    OutputEvent::Stderr(text) => text,
+                    _ => unreachable!("stderr checked"),
+                })
+                .collect::<String>();
+            let expected = if warn == -1 {
+                String::new()
+            } else {
+                let row = include_str!("fixtures/quit-coercion-warnings-r-4.6.0.tsv")
+                    .lines()
+                    .skip(1)
+                    .map(|line| line.split('\t').collect::<Vec<_>>())
+                    .find(|row| row[0] == warn.to_string() && row[1] == arguments)
+                    .expect("GNU quit reference");
+                let hex = row[2];
+                String::from_utf8(
+                    (0..hex.len())
+                        .step_by(2)
+                        .map(|i| u8::from_str_radix(&hex[i..i + 2], 16).unwrap())
+                        .collect(),
+                )
+                .unwrap()
+            };
+            assert_eq!(actual, expected, "{arguments}; warn={warn}");
         }
     }
     let mut frontend = Frontend::default();

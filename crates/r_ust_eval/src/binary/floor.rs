@@ -20,13 +20,23 @@ impl Operation {
     }
 
     fn scalar(self, x: f64, y: f64) -> (f64, bool) {
+        if matches!(self, Self::Modulo) && y == 0.0 {
+            return (f64::NAN, false);
+        }
+        // Signaling NaNs take priority; otherwise retain the left NaN payload.
+        if x.is_nan() {
+            if y.is_nan() && y.to_bits() & (1 << 51) == 0 && x.to_bits() & (1 << 51) != 0 {
+                return (y, false);
+            }
+            return (x, false);
+        }
+        if y.is_nan() {
+            return (y, false);
+        }
         let q = x / y;
         let opposite = (x < 0.0 && y > 0.0) || (x > 0.0 && y < 0.0);
         match self {
             Self::Modulo => {
-                if y == 0.0 {
-                    return (f64::NAN, false);
-                }
                 if y.abs() * f64::EPSILON > 1.0 && x.is_finite() && x.abs() <= y.abs() {
                     let value = if x.abs() == y.abs() {
                         0.0
@@ -105,6 +115,11 @@ impl RuntimeState {
                     "probable complete loss of accuracy in modulus".into()
                 ])?;
             }
+            let value = if value.is_nan() && !r_ust_sexp::is_na_real(value) {
+                f64::NAN
+            } else {
+                value
+            };
             values.push(value);
         }
         let data = if integer {

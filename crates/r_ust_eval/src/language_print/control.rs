@@ -1,7 +1,13 @@
 use super::{operators::Kind, LanguagePrintError, Writer};
 use crate::{CallArgument, Sexp};
-fn curly(value: &Sexp) -> bool {
-    matches!(value, Sexp::Call { function, .. } if matches!(function.as_ref(), Sexp::Symbol(name) if name == "{"))
+fn curly(value: &Sexp) -> Result<bool, LanguagePrintError> {
+    let value = super::managed::inspect(value)?;
+    match value.as_ref() {
+        Sexp::Call { function, .. } => Ok(
+            matches!(super::managed::inspect(function)?.as_ref(), Sexp::Symbol(name) if name == "{"),
+        ),
+        _ => Ok(false),
+    }
 }
 impl Writer<'_> {
     pub(super) fn control(
@@ -85,7 +91,11 @@ impl Writer<'_> {
                 self.write(&body.value)?;
             }
             (Kind::For, [variable, sequence, body])
-                if self.profile.is_some() || matches!(variable.value, Sexp::Symbol(_)) =>
+                if self.profile.is_some()
+                    || matches!(
+                        super::managed::inspect(&variable.value)?.as_ref(),
+                        Sexp::Symbol(_)
+                    ) =>
             {
                 self.emit("for (");
                 self.write(&variable.value)?;
@@ -100,13 +110,11 @@ impl Writer<'_> {
             (Kind::If, [condition, yes, no]) => {
                 self.if_expression(&condition.value, &yes.value, Some(&no.value))?
             }
-            (Kind::Function, [formals, body, source]) if matches!(source.value, Sexp::Nil) => {
+            (Kind::Function, [formals, body, source])
+                if matches!(super::managed::inspect(&source.value)?.as_ref(), Sexp::Nil) =>
+            {
                 self.emit("function(");
-                let formals = if self.profile.is_some() {
-                    crate::ordinary_values::read(&formals.value)?
-                } else {
-                    std::borrow::Cow::Borrowed(&formals.value)
-                };
+                let formals = super::managed::inspect(&formals.value)?;
                 match formals.as_ref() {
                     Sexp::Nil => {}
                     Sexp::PairList(values) => self.formals(values.as_slice())?,
@@ -129,7 +137,7 @@ impl Writer<'_> {
         self.write(condition)?;
         self.emit(") ");
         let nested = self.incurly > 0 && self.inlist == 0;
-        let lookahead = nested && curly(yes);
+        let lookahead = nested && curly(yes)?;
         if nested && !lookahead {
             self.newline();
             self.indent += 1;

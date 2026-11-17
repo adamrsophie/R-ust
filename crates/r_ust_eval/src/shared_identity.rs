@@ -1,5 +1,7 @@
 use crate::{ordinary_values, EvalError, ListElement, Sexp};
 use r_ust_sexp::bytecode_source;
+mod collections;
+mod typed;
 
 #[derive(Default)]
 pub(super) struct Comparison {
@@ -11,12 +13,15 @@ pub(super) struct Comparison {
 
 impl Comparison {
     pub(super) fn compare(&mut self, left: &Sexp, right: &Sexp) -> Result<bool, EvalError> {
+        if typed::object_flag(left)? != typed::object_flag(right)? {
+            return Ok(false);
+        }
         if matches!(
             left,
-            Sexp::ListObject(_) | Sexp::PairListObject(_) | Sexp::Bytecode(_)
+            Sexp::Managed(_) | Sexp::ListObject(_) | Sexp::PairListObject(_) | Sexp::Bytecode(_)
         ) || matches!(
             right,
-            Sexp::ListObject(_) | Sexp::PairListObject(_) | Sexp::Bytecode(_)
+            Sexp::Managed(_) | Sexp::ListObject(_) | Sexp::PairListObject(_) | Sexp::Bytecode(_)
         ) {
             if self.visited.iter().any(|(a, b)| a == left && b == right) {
                 return Ok(true);
@@ -29,6 +34,15 @@ impl Comparison {
     }
 
     fn projected(&mut self, left: &Sexp, right: &Sexp) -> Result<bool, EvalError> {
+        if matches!(
+            left,
+            Sexp::AttributedAtomic { .. } | Sexp::AttributedAggregate { .. }
+        ) || matches!(
+            right,
+            Sexp::AttributedAtomic { .. } | Sexp::AttributedAggregate { .. }
+        ) {
+            return self.typed(left, right);
+        }
         if let (Some(a), Some(b)) = (left.ordinary_list(), right.ordinary_list()) {
             if a.names_present != b.names_present
                 || (self.ordered_attributes
@@ -179,77 +193,7 @@ impl Comparison {
             _ => left == right,
         })
     }
-
-    fn attributes(
-        &mut self,
-        left: &[ListElement],
-        right: &[ListElement],
-    ) -> Result<bool, EvalError> {
-        if self.ordered_attributes {
-            return self.elements(left, right);
-        }
-        if left.len() != right.len() {
-            return Ok(false);
-        }
-        for a in left {
-            let Some(b) = right.iter().find(|b| a.name == b.name) else {
-                return Ok(false);
-            };
-            if !self.compare(&a.value, &b.value)? {
-                return Ok(false);
-            }
-        }
-        Ok(true)
-    }
-
-    fn closure_attributes(
-        &mut self,
-        left: &[ListElement],
-        right: &[ListElement],
-    ) -> Result<bool, EvalError> {
-        if self.use_srcref {
-            return self.attributes(left, right);
-        }
-        let strip = |attributes: &[ListElement]| {
-            attributes
-                .iter()
-                .filter(|attribute| attribute.name.as_deref() != Some("srcref"))
-                .cloned()
-                .collect::<Vec<_>>()
-        };
-        self.attributes(&strip(left), &strip(right))
-    }
-
-    fn elements(&mut self, left: &[ListElement], right: &[ListElement]) -> Result<bool, EvalError> {
-        if left.len() != right.len() {
-            return Ok(false);
-        }
-        for (a, b) in left.iter().zip(right) {
-            if a.name != b.name || !self.compare(&a.value, &b.value)? {
-                return Ok(false);
-            }
-        }
-        Ok(true)
-    }
-
-    fn parameters(
-        &mut self,
-        left: &[r_ust_sexp::FunctionParameter],
-        right: &[r_ust_sexp::FunctionParameter],
-    ) -> Result<bool, EvalError> {
-        if left.len() != right.len() {
-            return Ok(false);
-        }
-        for (a, b) in left.iter().zip(right) {
-            if a.name != b.name {
-                return Ok(false);
-            }
-            match (&a.default, &b.default) {
-                (Some(a), Some(b)) if !self.compare(a, b)? => return Ok(false),
-                (Some(_), None) | (None, Some(_)) => return Ok(false),
-                _ => {}
-            }
-        }
-        Ok(true)
-    }
 }
+
+#[cfg(test)]
+mod typed_tests;

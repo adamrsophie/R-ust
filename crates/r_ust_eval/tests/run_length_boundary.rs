@@ -56,7 +56,7 @@ fn base_run_length_closures_preserve_forcing_aliases_and_private_kernels() {
             expected_events.push(OutputEvent::Stdout(stdout));
         }
         expected_events.extend(support::warning_events(&decode(fields[5])));
-        let events = frontend.runtime_mut().take_output();
+        let events = support::condition_events(frontend.runtime_mut().take_output());
         if actual != (fields[2], fields[3].into()) || events != expected_events {
             failures.push(format!("{}: actual={actual:?}, events={events:?}; expected={:?}, events={expected_events:?}", fields[0], (fields[2],fields[3])));
         }

@@ -111,9 +111,13 @@ pub(super) fn canonical_assignment(
         | Sexp::Symbol(_)
         | Sexp::Logical(_)
         | Sexp::Integer(_)
+        | Sexp::Raw(_)
         | Sexp::Real(_)
         | Sexp::String(_)
         | Sexp::AttributedCharacter { .. }
+        | Sexp::AttributedAtomic { .. }
+        | Sexp::AttributedAggregate { .. }
+        | Sexp::Managed(_)
         | Sexp::Char(_)
         | Sexp::ListObject(_)
         | Sexp::PairListObject(_)

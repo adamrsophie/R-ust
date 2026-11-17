@@ -22,7 +22,9 @@ impl RuntimeState {
             | InternalOperation::RowsumValidate
             | InternalOperation::RowsumAggregate
             | InternalOperation::EncodeStringWrapper => None,
-            InternalOperation::Quit
+            InternalOperation::CommandArgs
+            | InternalOperation::Readline
+            | InternalOperation::Quit
             | InternalOperation::Identical
             | InternalOperation::Eval
             | InternalOperation::Assign

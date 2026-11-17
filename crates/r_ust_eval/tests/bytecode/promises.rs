@@ -11,9 +11,18 @@ fn compiled_symbol_missing_and_interpreted_promise_faults_keep_distinct_classes(
             .eval_source("tryCatch(compiled(),error=function(e)class(e))")?
             .pop(),
         Some(Sexp::String(
-            ["getvarError", "missingArgError", "error", "condition"]
-                .map(|s| Some(s.into()))
-                .to_vec()
+            [
+                if frontend.runtime().bytecode_enabled() {
+                    "getvarError"
+                } else {
+                    "evalError"
+                },
+                "missingArgError",
+                "error",
+                "condition"
+            ]
+            .map(|s| Some(s.into()))
+            .to_vec()
         ))
     );
     assert_eq!(
@@ -33,9 +42,18 @@ fn compiled_symbol_missing_and_interpreted_promise_faults_keep_distinct_classes(
             .eval_source("tryCatch(eval(),error=function(e)class(e))")?
             .pop(),
         Some(Sexp::String(
-            ["getvarError", "missingArgError", "error", "condition"]
-                .map(|s| Some(s.into()))
-                .to_vec()
+            [
+                if frontend.runtime().bytecode_enabled() {
+                    "getvarError"
+                } else {
+                    "evalError"
+                },
+                "missingArgError",
+                "error",
+                "condition"
+            ]
+            .map(|s| Some(s.into()))
+            .to_vec()
         ))
     );
     assert_eq!(

@@ -10,6 +10,7 @@ impl RuntimeState {
     ) -> Result<Sexp, EvalError> {
         let value = one_argument((id.name(), arguments), call)?;
         match id {
+            PrimitiveId::Unclass => super::unclass::remove(value),
             PrimitiveId::AsCall => as_call(value, call),
             PrimitiveId::IsPairList => Ok(Sexp::Logical(vec![Some(matches!(
                 value.sexptype(),
@@ -39,7 +40,11 @@ pub(super) fn one_argument<'a>(
             call,
         ));
     };
-    if let Some(name) = argument.name.as_deref().filter(|name| *name != "x") {
+    if let Some(name) = argument
+        .name
+        .as_deref()
+        .filter(|name| !name.is_empty() && *name != "x")
+    {
         return Err(SourceFault::arity(
             format!("supplied argument name '{name}' does not match 'x'"),
             call,

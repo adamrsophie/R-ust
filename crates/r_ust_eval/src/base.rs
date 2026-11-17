@@ -21,6 +21,7 @@ mod rowsum;
 mod run_length;
 mod sequence;
 mod session;
+mod session_sources;
 mod warning_sources;
 
 use super::{EvalError, Parser, Sexp};
@@ -30,6 +31,11 @@ pub(super) use session::initialize;
 
 fn lower(value: &mut Sexp) -> Result<(), EvalError> {
     match value {
+        Sexp::Managed(_) | Sexp::AttributedAtomic { .. } | Sexp::AttributedAggregate { .. } => {
+            return Err(EvalError::Type(
+                "runtime value in parsed base source".into(),
+            ));
+        }
         Sexp::Call {
             function,
             arguments,
@@ -144,6 +150,7 @@ fn lower(value: &mut Sexp) -> Result<(), EvalError> {
         Sexp::Nil
         | Sexp::Symbol(_)
         | Sexp::Logical(_)
+        | Sexp::Raw(_)
         | Sexp::Integer(_)
         | Sexp::Real(_)
         | Sexp::String(_) => {}
@@ -195,6 +202,35 @@ mod tests {
             lower(&mut expression),
             Err(EvalError::NotImplemented("unresolved R internal"))
         );
+    }
+
+    #[test]
+    fn base_source_lowering_rejects_runtime_descriptors() -> Result<(), EvalError> {
+        let owner = r_ust_sexp::Environment::global();
+        let handle = r_ust_sexp::ValueObject::import(
+            &owner,
+            &Sexp::Symbol("x".into()),
+            r_ust_sexp::ValueImport::Code,
+        )?;
+        for mut value in [
+            Sexp::Managed(handle),
+            Sexp::AttributedAtomic {
+                values: r_ust_sexp::AtomicVector::Integer(vec![Some(1)]),
+                attributes: vec![],
+            },
+            Sexp::AttributedAggregate {
+                values: r_ust_sexp::AggregateVector::Vector(vec![]),
+                attributes: vec![],
+            },
+        ] {
+            assert_eq!(
+                lower(&mut value),
+                Err(EvalError::Type(
+                    "runtime value in parsed base source".into()
+                ))
+            );
+        }
+        Ok(())
     }
 }
 

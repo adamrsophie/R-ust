@@ -21,13 +21,13 @@ fn expression_mode_runs_additional_distribution_families() {
     assert!(stdout.contains("[1] 0.140625\n"));
     assert!(stdout.contains("[1] 0.578125\n"));
     assert!(stdout.contains("[1] 2\n"));
-    assert!(stdout.contains("[1] 0.156874019279\n"));
-    assert!(stdout.contains("[1] 0.755891404214\n"));
+    assert!(stdout.contains("[1] 0.156874\n"));
+    assert!(stdout.contains("[1] 0.7558914\n"));
     assert!(stdout.contains("[1] 1\n"));
-    assert!(stdout.contains("[1] 0.165468169235\n"));
-    assert!(stdout.contains("[1] 0.117503097415\n"));
-    assert!(stdout.contains("[1] 3.539988178002\n"));
-    assert!(stdout.contains("[1] -0.863046217355 -1.150728289807\n"));
+    assert!(stdout.contains("[1] 0.1654682\n"));
+    assert!(stdout.contains("[1] 0.1175031\n"));
+    assert!(stdout.contains("[1] 3.539988\n"));
+    assert!(stdout.contains("[1] -0.8630462 -1.1507283\n"));
 }
 
 #[test]
@@ -49,17 +49,17 @@ fn expression_mode_runs_continuous_distribution_families() {
     );
     let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
     assert!(stdout.contains("[1] 1.6875\n"));
-    assert!(stdout.contains("[1] 0.26171875\n"));
-    assert!(stdout.contains("[1] 0.385727568132\n"));
-    assert!(stdout.contains("[1] 0.183939720586\n"));
-    assert!(stdout.contains("[1] 0.264241117657\n"));
-    assert!(stdout.contains("[1] 3.356693980033\n"));
-    assert!(stdout.contains("[1] 0.219679797351\n"));
-    assert!(stdout.contains("[1] 0.818391266175\n"));
-    assert!(stdout.contains("[1] 0.7266868438\n"));
-    assert!(stdout.contains("[1] 0.154221455346\n"));
-    assert!(stdout.contains("[1] 0.786339025406\n"));
-    assert!(stdout.contains("[1] 0.941913265486\n"));
+    assert!(stdout.contains("[1] 0.2617188\n"));
+    assert!(stdout.contains("[1] 0.3857276\n"));
+    assert!(stdout.contains("[1] 0.1839397\n"));
+    assert!(stdout.contains("[1] 0.2642411\n"));
+    assert!(stdout.contains("[1] 3.356694\n"));
+    assert!(stdout.contains("[1] 0.2196798\n"));
+    assert!(stdout.contains("[1] 0.8183913\n"));
+    assert!(stdout.contains("[1] 0.7266868\n"));
+    assert!(stdout.contains("[1] 0.1542215\n"));
+    assert!(stdout.contains("[1] 0.786339\n"));
+    assert!(stdout.contains("[1] 0.9419133\n"));
 }
 
 #[test]
@@ -80,10 +80,10 @@ fn expression_mode_runs_gamma_and_hypergeometric_distribution_families() {
         String::from_utf8_lossy(&output.stderr)
     );
     let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
-    assert!(stdout.contains("[1] 0.014387677967\n"));
-    assert!(stdout.contains("[1] 10.696241254894\n"));
-    assert!(stdout.contains("[1] 0.424242424242\n"));
-    assert!(stdout.contains("[1] 0.848484848485\n"));
+    assert!(stdout.contains("[1] 0.01438768\n"));
+    assert!(stdout.contains("[1] 10.69624\n"));
+    assert!(stdout.contains("[1] 0.4242424\n"));
+    assert!(stdout.contains("[1] 0.8484848\n"));
     assert!(stdout.contains("[1] 2\n"));
 }
 
@@ -108,13 +108,13 @@ fn expression_mode_runs_negative_binomial_and_rank_distribution_families() {
     assert!(stdout.contains("[1] 0.0774144\n"));
     assert!(stdout.contains("[1] 0.1736704\n"));
     assert!(stdout.contains("[1] 7\n"));
-    assert!(stdout.contains("[1] 0.162614011878\n"));
-    assert!(stdout.contains("[1] 0.489947306323\n"));
+    assert!(stdout.contains("[1] 0.162614\n"));
+    assert!(stdout.contains("[1] 0.4899473\n"));
     assert!(stdout.contains("[1] 4\n"));
     assert!(stdout.contains("[1] 0.125\n"));
     assert!(stdout.contains("[1] 0.3125\n"));
     assert!(stdout.contains("[1] 5\n"));
-    assert!(stdout.contains("[1] 0.085714285714\n"));
+    assert!(stdout.contains("[1] 0.08571429\n"));
     assert!(stdout.contains("[1] 0.2\n"));
     assert!(stdout.contains("[1] 6\n"));
 }
@@ -137,16 +137,16 @@ fn expression_mode_runs_noncentral_distribution_forms() {
         String::from_utf8_lossy(&output.stderr)
     );
     let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
-    assert!(stdout.contains("[1] 1.386418608787\n"));
-    assert!(stdout.contains("[1] 0.19315328883\n"));
-    assert!(stdout.contains("[1] 0.441606391854\n"));
-    assert!(stdout.contains("[1] 0.141879929236\n"));
-    assert!(stdout.contains("[1] 0.186109779331\n"));
-    assert!(stdout.contains("[1] 4.234893032395\n"));
-    assert!(stdout.contains("[1] 0.348396866146\n"));
-    assert!(stdout.contains("[1] 0.575809655591\n"));
-    assert!(stdout.contains("[1] 1.579344079944\n"));
-    assert!(stdout.contains("[1] 0.18302282189\n"));
-    assert!(stdout.contains("[1] 0.710406862259\n"));
-    assert!(stdout.contains("[1] 1.186277167425\n"));
+    assert!(stdout.contains("[1] 1.386419\n"));
+    assert!(stdout.contains("[1] 0.1931533\n"));
+    assert!(stdout.contains("[1] 0.4416064\n"));
+    assert!(stdout.contains("[1] 0.1418799\n"));
+    assert!(stdout.contains("[1] 0.1861098\n"));
+    assert!(stdout.contains("[1] 4.234893\n"));
+    assert!(stdout.contains("[1] 0.3483969\n"));
+    assert!(stdout.contains("[1] 0.5758097\n"));
+    assert!(stdout.contains("[1] 1.579344\n"));
+    assert!(stdout.contains("[1] 0.1830228\n"));
+    assert!(stdout.contains("[1] 0.7104069\n"));
+    assert!(stdout.contains("[1] 1.186277\n"));
 }

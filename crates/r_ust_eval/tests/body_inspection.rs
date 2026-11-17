@@ -41,7 +41,7 @@ fn body_primitive_and_nonfunction_conditions() {
         assert_eq!(
             frontend.runtime_mut().take_output(),
             [OutputEvent::Stderr(
-                "Warning: argument is not a function\n".into()
+                "Warning in body(fun) : argument is not a function\n".into()
             )]
         );
     }
@@ -54,7 +54,7 @@ fn body_primitive_and_nonfunction_conditions() {
     );
     assert_eq!(
         frontend.eval_source("body('identity')"),
-        Err(EvalError::UndefinedFunction("get".into()))
+        Ok(vec![Sexp::Symbol("x".into())])
     );
     assert_eq!(
         frontend.eval_source(".Internal(body())"),

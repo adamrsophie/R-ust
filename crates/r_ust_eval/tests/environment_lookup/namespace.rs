@@ -89,11 +89,20 @@ fn explicit_operator_and_parenthesis_bindings_are_called_before_intrinsics() {
 fn parenthesized_scalar_is_not_a_function_search() {
     let mut runtime = Frontend::default();
     runtime.eval_source("sum <- 1L").unwrap();
-    for code in ["(sum)(2L)", "lapply(list(2L), (sum))"] {
-        assert_eq!(
-            runtime.eval_source(code),
-            Err(EvalError::Type("attempt to apply non-function".into()))
-        );
+    for (code, expected) in [
+        (
+            "(sum)(2L)",
+            EvalError::Type("attempt to apply non-function".into()),
+        ),
+        (
+            "lapply(list(2L), (sum))",
+            EvalError::Stop {
+                message: "'(sum)' is not a function, character or symbol".into(),
+                call_requested: true,
+            },
+        ),
+    ] {
+        assert_eq!(runtime.eval_source(code), Err(expected), "{code}");
     }
     assert_eq!(
         runtime.eval_source("sum(2L)").unwrap().pop(),

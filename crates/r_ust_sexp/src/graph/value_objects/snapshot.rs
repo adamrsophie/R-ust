@@ -45,7 +45,11 @@ impl Snapshot<'_> {
 pub(super) fn explicit_header(node: &Node) -> SexpHeader {
     use crate::SexpType;
     match node {
-        Node::Frame(_) => SexpHeader::new(SexpType::Environment),
+        Node::Frame(frame) => {
+            let mut header = SexpHeader::new(SexpType::Environment);
+            header.set_object(frame.object);
+            header
+        }
         Node::Promise(_) => SexpHeader::new(SexpType::Promise),
         Node::Bytecode(_) => SexpHeader::new(SexpType::Bytecode),
         Node::Vector(value) => value.header,
@@ -54,7 +58,7 @@ pub(super) fn explicit_header(node: &Node) -> SexpHeader {
     }
 }
 
-fn explicit_value(node: &Node, id: NodeId) -> Result<Sexp, GraphError> {
+pub(super) fn explicit_value(node: &Node, id: NodeId) -> Result<Sexp, GraphError> {
     use super::super::{ListObject, PairListObject, PromiseState};
     Ok(match node {
         Node::Frame(_) => Sexp::Environment(Environment(Link::Edge(id))),

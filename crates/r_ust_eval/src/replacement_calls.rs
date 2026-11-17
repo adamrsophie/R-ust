@@ -78,7 +78,7 @@ impl RuntimeState {
                 .ok_or_else(|| EvalError::UndefinedSymbol(root.clone()))?;
             let EvalFlow::Value(which) = self.eval_flow(&which.value)?;
             let name = crate::string_scalar(&which, "which")?;
-            let updated = crate::list_attributes::set(&current, &name, &replacement)?;
+            let updated = self.set_runtime_attribute(&current, (&name, &replacement))?;
             self.assign_local(root.clone(), updated)?;
             return Ok(EvalFlow::Value(replacement));
         }
@@ -102,12 +102,13 @@ impl RuntimeState {
             let names = crate::names_value(&current)?;
             let EvalFlow::Value(index) = self.eval_flow(index)?;
             let names = crate::subassign_value(&names, Some(&index), &replacement)?;
-            crate::names_assign_value(&current, &names)?
+            self.assign_runtime_names(&current, &names)?
         } else {
             match name.as_str() {
-                "attributes" => crate::list_attributes::replace(&current, &replacement)?,
+                "attributes" => self.replace_runtime_attributes(&current, &replacement)?,
                 "class" => crate::list_attributes::replace_class(&current, &replacement)?,
-                "names" => crate::names_assign_value(&current, &replacement)?,
+                "names" => self.assign_runtime_names(&current, &replacement)?,
+                "storage.mode" => self.assign_storage_mode(&current, &replacement)?,
                 _ => return Err(EvalError::NotImplemented("this replacement function")),
             }
         };

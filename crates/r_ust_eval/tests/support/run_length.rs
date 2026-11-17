@@ -1,9 +1,79 @@
+#[path = "warning_payload.rs"]
+mod warning_payload;
+
 use r_ust_eval::{EvalError, OutputEvent};
-use r_ust_sexp::{is_na_real, Sexp};
+use r_ust_sexp::{is_na_real, AggregateVector, Sexp};
 
 pub fn encode(value: &Sexp) -> String {
+    if let Sexp::Managed(value) = value {
+        return encode(&value.snapshot().expect("valid fixture transport"));
+    }
+    if let Some(view) = value.ordinary_list() {
+        return format!(
+            "list:{}",
+            view.elements
+                .iter()
+                .map(|v| format!("{}={}", v.name.as_deref().unwrap_or(""), encode(&v.value)))
+                .collect::<Vec<_>>()
+                .join(";")
+        );
+    }
     let (kind, values) = match value {
         Sexp::Nil => return "null".into(),
+        Sexp::AttributedAtomic { values, attributes } => {
+            let class = attributes
+                .iter()
+                .find(|a| a.name.as_deref() == Some("class"))
+                .and_then(|a| a.value.character_values());
+            if class.is_some_and(|classes| classes.iter().any(|c| c.as_deref() == Some("factor"))) {
+                let levels = attributes
+                    .iter()
+                    .find(|a| a.name.as_deref() == Some("levels"))
+                    .expect("factor levels");
+                return format!(
+                    "factor:{}:{}",
+                    encode(&values.clone().into_value()),
+                    encode(&levels.value)
+                );
+            }
+            return encode(&values.clone().into_value());
+        }
+        Sexp::AttributedCharacter { values, .. } => return encode(&Sexp::String(values.clone())),
+        Sexp::Vector(values) => {
+            return format!(
+                "list:{}",
+                values
+                    .iter()
+                    .map(|v| format!("={}", encode(v)))
+                    .collect::<Vec<_>>()
+                    .join(";")
+            )
+        }
+        Sexp::AttributedAggregate {
+            values: AggregateVector::Vector(values),
+            attributes,
+        } => {
+            let names = attributes
+                .iter()
+                .find(|a| a.name.as_deref() == Some("names"))
+                .and_then(|a| a.value.character_values());
+            return format!(
+                "list:{}",
+                values
+                    .iter()
+                    .enumerate()
+                    .map(|(i, value)| format!(
+                        "{}={}",
+                        names
+                            .and_then(|names| names.get(i))
+                            .and_then(|n| n.as_deref())
+                            .unwrap_or(""),
+                        encode(value)
+                    ))
+                    .collect::<Vec<_>>()
+                    .join(";")
+            );
+        }
         Sexp::Logical(values) => (
             "logical",
             values
@@ -82,6 +152,10 @@ pub fn error_payload(error: EvalError) -> String {
     }
 }
 
+pub fn condition_events(events: Vec<OutputEvent>) -> Vec<OutputEvent> {
+    warning_payload::conditions(events)
+}
+
 pub fn warning_events(messages: &str) -> Vec<OutputEvent> {
     if messages.is_empty() {
         return Vec::new();
@@ -90,7 +164,7 @@ pub fn warning_events(messages: &str) -> Vec<OutputEvent> {
         .split('\u{1f}')
         .map(|message| {
             assert!(!message.is_empty(), "empty warning message");
-            OutputEvent::Stderr(format!("Warning: {message}\n"))
+            OutputEvent::Stderr(message.into())
         })
         .collect()
 }

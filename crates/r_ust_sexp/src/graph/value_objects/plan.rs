@@ -21,13 +21,27 @@ impl Plan {
         mode: ValueImport,
     ) -> Result<Self, GraphError> {
         schema::validate_shape(value)?;
-        let header = SexpHeader::new(schema::storage_type(value));
+        if mode == ValueImport::Explicit
+            && !matches!(
+                value,
+                Sexp::Managed(_)
+                    | Sexp::Bytecode(_)
+                    | Sexp::Environment(_)
+                    | Sexp::ListObject(_)
+                    | Sexp::PairListObject(_)
+                    | Sexp::Promise { .. }
+            )
+        {
+            return Err(GraphError::WrongKind);
+        }
+        let header = schema::header(value)?;
         let kind = schema::kind(value, mode);
         let payload = if kind == ValueKind::Leaf {
             let stored = StoredValue::new(value, heap)?;
             if matches!(
                 value,
                 Sexp::Bytecode(_)
+                    | Sexp::Managed(_)
                     | Sexp::Environment(_)
                     | Sexp::ListObject(_)
                     | Sexp::PairListObject(_)
@@ -63,6 +77,31 @@ impl Plan {
         })
     }
 
+    pub(super) fn prepare_attributes(
+        attributes: &[crate::ListElement],
+        heap: &Arc<Heap>,
+    ) -> Result<Self, GraphError> {
+        let mut plan = Self::prepare(
+            &Sexp::pairlist(attributes.to_vec()),
+            heap,
+            ValueImport::Evaluated,
+        )?;
+        plan.kind = ValueKind::Attributes;
+        Ok(plan)
+    }
+
+    pub(super) fn set_kind(&mut self, kind: ValueKind) {
+        self.kind = kind;
+    }
+
+    pub(super) fn set_header(&mut self, header: SexpHeader) {
+        self.header = header;
+    }
+
+    pub(super) fn sexptype(&self) -> SexpType {
+        self.header.sexptype()
+    }
+
     pub(super) fn validate(&self, store: &Store) -> Result<(), GraphError> {
         match &self.payload {
             Prepared::Leaf(value) | Prepared::Explicit { value, .. } => {
@@ -70,6 +109,13 @@ impl Plan {
                     store.node(*id)?;
                 }
                 match &value.value {
+                    Sexp::Managed(value) => {
+                        if snapshot::explicit_header(store.node(value.0.id())?).sexptype()
+                            != value.1
+                        {
+                            return Err(GraphError::WrongKind);
+                        }
+                    }
                     Sexp::Environment(value) => {
                         store.frame(value.0.id())?;
                     }

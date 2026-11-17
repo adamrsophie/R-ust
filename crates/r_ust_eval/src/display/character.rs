@@ -5,34 +5,23 @@ pub(crate) fn format(value: &Sexp, quote: bool) -> Result<String, EvalError> {
 }
 
 pub(crate) fn format_lines(value: &Sexp, quote: bool) -> Result<Option<String>, EvalError> {
-    crate::ordinary_cycles::check(value, "cyclic ordinary value printing")?;
+    super::projection::check(value, &mut Vec::new())?;
     render(value, quote, "")
 }
 
 pub(super) fn render(value: &Sexp, quote: bool, prefix: &str) -> Result<Option<String>, EvalError> {
-    let projection = crate::ordinary_values::read(value)?;
+    let projection = super::projection::read(value)?;
     let value = projection.as_ref();
-    if let Some(values) = value.character_values() {
-        let attributes = character_attributes::attributes(value)?;
-        let mut output = Some(data(values, quote));
-        for attribute in attributes {
-            let name = attribute
-                .name
-                .as_deref()
-                .ok_or_else(|| EvalError::Type("unnamed character attribute".into()))?;
-            if matches!(name, "srcref" | "wholeSrcref" | "srcfile") {
-                continue;
-            }
-            let label = format!(
-                "{prefix}attr(,\"{}\")",
-                crate::encode_string::encode(name, None)
-            );
-            super::lines::append(&mut output, label.clone());
-            if let Some(value) = render(&attribute.value, quote, &label)? {
-                super::lines::append(&mut output, value);
-            }
-        }
-        return Ok(output);
+    if matches!(
+        value,
+        Sexp::AttributedAtomic { .. }
+            | Sexp::AttributedAggregate { .. }
+            | Sexp::AttributedCharacter { .. }
+    ) {
+        return super::attributed::render(value, quote, prefix).map(Some);
+    }
+    if let Sexp::String(values) = value {
+        return Ok(Some(data(values, quote)));
     }
     if let Some(view) = value.ordinary_list() {
         let prefix = if view.class.is_some() { "" } else { prefix };
@@ -62,7 +51,7 @@ pub(super) fn render(value: &Sexp, quote: bool, prefix: &str) -> Result<Option<S
     }
 }
 
-fn list(
+pub(super) fn list(
     elements: &[ListElement],
     quote: bool,
     (prefix, names_present): (&str, bool),
@@ -78,14 +67,20 @@ fn list(
     let mut output = String::new();
     for (index, element) in elements.iter().enumerate() {
         let label = match &element.name {
-            Some(name) if !name.is_empty() => format!("{prefix}${name}"),
+            Some(name) if !name.is_empty() => format!("{prefix}${}", super::labels::name(name)),
             None if names_present => format!("{prefix}$<NA>"),
             _ => format!("{prefix}[[{}]]", index + 1),
         };
-        let projection = crate::ordinary_values::read(&element.value)?;
+        let projection = super::projection::read(&element.value)?;
         let child_prefix = if projection.ordinary_list().is_some()
-            || matches!(projection.as_ref(), Sexp::Dots(_))
-        {
+            || matches!(
+                projection.as_ref(),
+                Sexp::Dots(_)
+                    | Sexp::AttributedAggregate {
+                        values: r_ust_sexp::AggregateVector::Vector(_),
+                        ..
+                    }
+            ) {
             &label
         } else {
             ""

@@ -1,3 +1,6 @@
+#[path = "support/warning_payload.rs"]
+mod warning_payload;
+
 use std::collections::HashSet;
 
 use r_ust_eval::{EvalError, Frontend, OutputEvent};
@@ -89,15 +92,15 @@ fn run_fixture() {
             match event {
                 OutputEvent::Stdout(text) => output.extend_from_slice(text.as_bytes()),
                 OutputEvent::StdoutBytes(bytes) => output.extend(bytes),
-                OutputEvent::Stderr(text) => stderr.extend_from_slice(text.as_bytes()),
+                OutputEvent::Stderr(text) => {
+                    if !stderr.is_empty() {
+                        stderr.push(b'\n');
+                    }
+                    stderr.extend_from_slice(warning_payload::payload(&text).as_bytes());
+                }
             }
         }
-        // The fixture stores raw warning conditions; the public sink adds this fixed prefix.
-        let expected_stderr = warnings
-            .lines()
-            .map(|warning| format!("Warning: {warning}\n"))
-            .collect::<String>()
-            .into_bytes();
+        let expected_stderr = warnings.trim_end_matches('\n').as_bytes().to_vec();
         let passed = kind == fields[2]
             && value == fields[3]
             && error == expected_error
@@ -158,7 +161,7 @@ fn inactive_origins_and_cleanup() {
     assert_eq!(
         frontend.runtime_mut().take_output(),
         [OutputEvent::Stderr(
-            "Warning: restarting interrupted promise evaluation\n".into()
+            "Warning in p() : restarting interrupted promise evaluation\n".into()
         )]
     );
     frontend
@@ -177,7 +180,7 @@ fn inactive_origins_and_cleanup() {
     assert_eq!(
         frontend.runtime_mut().take_output(),
         [OutputEvent::Stderr(
-            "Warning: restarting interrupted promise evaluation\n".into()
+            "Warning in p() : restarting interrupted promise evaluation\n".into()
         )]
     );
     assert!(matches!(

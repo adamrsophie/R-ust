@@ -41,14 +41,19 @@ fn formals_retains_its_real_defaults_and_unsupported_lookup_boundaries() {
             "$fun\nsys.function(sys.parent())\n\n$envir\nparent.frame()\n\n".into()
         )]
     );
+    assert_eq!(
+        frontend
+            .eval_source("identical(formals('identity'),formals(identity))")
+            .unwrap(),
+        [Sexp::Logical(vec![Some(true)])]
+    );
     for (source, error) in [
         (
-            "formals('identity')",
-            EvalError::UndefinedFunction("get".into()),
-        ),
-        (
             "formals('identity',envir=stop('UNFORCED'))",
-            EvalError::UndefinedFunction("get".into()),
+            EvalError::Stop {
+                message: "UNFORCED".into(),
+                call_requested: true,
+            },
         ),
         (
             "f<-function(x)formals(x);f()",
@@ -73,7 +78,7 @@ fn formals_aliases_and_internal_kernel_keep_primitives_silent_and_warn_for_other
     assert_eq!(
         frontend.runtime_mut().take_output(),
         [OutputEvent::Stderr(
-            "Warning: argument is not a function\n".into()
+            "Warning in formals(1L) : argument is not a function\n".into()
         )]
     );
     frontend.eval_source("options(warn=2)").unwrap();

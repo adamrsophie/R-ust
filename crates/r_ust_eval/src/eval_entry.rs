@@ -7,6 +7,20 @@ impl RuntimeState {
         character_attributes::validate(expr)?;
         base::initialize(&self.current)?;
         self.visible = true;
+        if let Sexp::Managed(value) = expr {
+            let borrowed = value.borrow()?;
+            if matches!(
+                borrowed.value().sexptype(),
+                r_ust_sexp::SexpType::Symbol
+                    | r_ust_sexp::SexpType::Language
+                    | r_ust_sexp::SexpType::Promise
+                    | r_ust_sexp::SexpType::Bytecode
+                    | r_ust_sexp::SexpType::Char
+            ) {
+                return self.eval_flow_body(borrowed.value());
+            }
+            return Ok(EvalFlow::Value(expr.clone()));
+        }
         if let Some(Sexp::Call {
             function,
             arguments,
@@ -17,11 +31,14 @@ impl RuntimeState {
         let result = match expr {
             Sexp::Bytecode(code) => self.eval_bytecode(code)?,
             Sexp::Nil
+            | Sexp::AttributedAtomic { .. }
+            | Sexp::AttributedAggregate { .. }
             | Sexp::ListObject(_)
             | Sexp::PairListObject(_)
             | Sexp::Environment(_)
             | Sexp::Primitive(_)
             | Sexp::Logical(_)
+            | Sexp::Raw(_)
             | Sexp::Integer(_)
             | Sexp::Real(_)
             | Sexp::String(_)
@@ -70,3 +87,6 @@ impl RuntimeState {
         Ok(result)
     }
 }
+
+#[cfg(test)]
+mod tests;

@@ -21,7 +21,8 @@ impl EvalError {
 impl RuntimeState {
     pub(crate) fn eval_flow(&mut self, expr: &Sexp) -> Result<EvalFlow, EvalError> {
         let result = self.eval_flow_body(expr);
-        self.signal_fresh_result(result)
+        let EvalFlow::Value(value) = self.signal_fresh_result(result)?;
+        self.intern_list(value).map(EvalFlow::Value)
     }
 
     pub(crate) fn signal_fresh_result<T>(

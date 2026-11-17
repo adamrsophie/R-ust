@@ -1,17 +1,28 @@
-use crate::{format_number, format_numeric_line, primitive_calls, EvalError, Sexp};
+use crate::{primitive_calls, EvalError, Sexp};
+mod arrays;
+mod attributed;
 pub(crate) mod character;
 mod chars;
 mod closures;
 mod containers;
+mod dimensions;
+mod labels;
 mod lines;
+mod list_arrays;
 mod lists;
+mod matrix;
+mod metadata;
+mod names;
+mod numeric;
+mod projection;
 mod scalars;
+mod vector;
 use containers::{format_data_frame, format_matrix};
 use lists::format_list;
 use scalars::format_factor;
 
 pub(crate) fn format_lines(value: &Sexp) -> Result<Option<String>, EvalError> {
-    crate::ordinary_cycles::check(value, "cyclic ordinary value printing")?;
+    projection::check(value, &mut Vec::new())?;
     match value {
         Sexp::Closure { .. } => closures::format(value, true, ""),
         Sexp::Vector(values) => {
@@ -36,8 +47,13 @@ pub(crate) fn format_lines(value: &Sexp) -> Result<Option<String>, EvalError> {
 /// Returns an error for unsupported language values or malformed canonical trees,
 /// including failures nested inside containers. No output is emitted here.
 pub fn format_sexp(value: &Sexp) -> Result<String, EvalError> {
-    crate::ordinary_cycles::check(value, "cyclic ordinary value printing")?;
+    crate::character_attributes::validate(value)?;
+    projection::check(value, &mut Vec::new())?;
     Ok(match value {
+        Sexp::Managed(value) => format_sexp(value.borrow()?.value())?,
+        Sexp::AttributedAtomic { .. } | Sexp::AttributedAggregate { .. } => {
+            attributed::render(value, true, "")?
+        }
         Sexp::ListObject(value) => format_sexp(&value.value()?)?,
         Sexp::PairListObject(value) => lists::format_pairlist(&value.elements()?)?,
         Sexp::Char(value) => chars::format(value)?,
@@ -49,28 +65,9 @@ pub fn format_sexp(value: &Sexp) -> Result<String, EvalError> {
         Sexp::MissingArg(name) => format!("<missing {name}>"),
         Sexp::Primitive(id) => primitive_calls::format_primitive(*id),
         Sexp::Bytecode(code) => format!("<bytecode: {}>", code.display_address()?),
-        Sexp::Logical(values) => format_numeric_line(
-            values
-                .iter()
-                .map(|value| match value {
-                    Some(true) => "TRUE".to_string(),
-                    Some(false) => "FALSE".to_string(),
-                    None => "NA".to_string(),
-                })
-                .collect(),
-            "logical(0)",
-        ),
-        Sexp::Integer(values) => format_numeric_line(
-            values
-                .iter()
-                .map(|value| value.map_or_else(|| "NA".to_string(), |value| value.to_string()))
-                .collect(),
-            "integer(0)",
-        ),
-        Sexp::Real(values) => format_numeric_line(
-            values.iter().map(|value| format_number(*value)).collect(),
-            "numeric(0)",
-        ),
+        Sexp::Raw(_) | Sexp::Logical(_) | Sexp::Integer(_) | Sexp::Real(_) => {
+            vector::render(value, None, true)?
+        }
         Sexp::String(_) | Sexp::AttributedCharacter { .. } => character::format(value, true)?,
         Sexp::Factor {
             codes,
@@ -123,3 +120,9 @@ pub fn format_sexp(value: &Sexp) -> Result<String, EvalError> {
         }
     })
 }
+
+#[cfg(test)]
+mod tests;
+
+#[cfg(test)]
+mod correction_tests;

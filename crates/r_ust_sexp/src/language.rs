@@ -34,6 +34,7 @@ impl Canonicalizer {
             | Sexp::Symbol(_)
             | Sexp::Logical(_)
             | Sexp::Integer(_)
+            | Sexp::Raw(_)
             | Sexp::Real(_)
             | Sexp::String(_)
             | Sexp::MissingValue => value.clone(),
@@ -184,6 +185,9 @@ impl Canonicalizer {
             Sexp::InternalCall { .. } => return Err(LanguageError::InternalCall),
             Sexp::Expression { .. }
             | Sexp::AttributedCharacter { .. }
+            | Sexp::AttributedAtomic { .. }
+            | Sexp::AttributedAggregate { .. }
+            | Sexp::Managed(_)
             | Sexp::Environment(_)
             | Sexp::Char(_)
             | Sexp::ListObject(_)

@@ -12,22 +12,31 @@ impl RuntimeState {
         empty_is_error: bool,
         call: Option<&Sexp>,
     ) -> Result<Vec<EvaluatedArgument>, EvalError> {
-        let arguments = expand_dots_call_arguments(arguments, &self.current)?;
-        let mut values = Vec::with_capacity(arguments.len());
-        for (index, argument) in arguments.iter().enumerate() {
-            if empty_is_error && matches!(argument.value, Sexp::MissingArg(_) | Sexp::MissingValue)
-            {
-                let message = format!("argument {} is empty", index + 1);
-                return Err(match call {
-                    Some(call) => crate::SourceFault::arity(message, call),
-                    None => EvalError::Arity(message),
+        let mut values = Vec::new();
+        for supplied in arguments {
+            let from_dots = supplied.name.is_none()
+                && matches!(&supplied.value, Sexp::Symbol(name) if name == "...");
+            let expanded =
+                expand_dots_call_arguments(std::slice::from_ref(supplied), &self.current)?;
+            for argument in expanded {
+                if matches!(argument.value, Sexp::MissingArg(_) | Sexp::MissingValue) {
+                    if from_dots {
+                        return Err(self.evaluated_missing(""));
+                    }
+                    if empty_is_error {
+                        let message = format!("argument {} is empty", values.len() + 1);
+                        return Err(match call {
+                            Some(call) => crate::SourceFault::arity(message, call),
+                            None => EvalError::Arity(message),
+                        });
+                    }
+                }
+                let EvalFlow::Value(value) = self.eval_flow(&argument.value)?;
+                values.push(EvaluatedArgument {
+                    name: argument.name.clone(),
+                    value,
                 });
             }
-            let EvalFlow::Value(value) = self.eval_flow(&argument.value)?;
-            values.push(EvaluatedArgument {
-                name: argument.name.clone(),
-                value,
-            });
         }
         Ok(values)
     }
@@ -74,7 +83,17 @@ impl RuntimeState {
                 if args.len() != 1 {
                     return Err(EvalError::Arity("is.object requires one argument".into()));
                 }
+                if let Sexp::Managed(object) = &args[0].value {
+                    return Ok(Sexp::Logical(vec![Some(object.view()?.header.is_object())]));
+                }
+                if crate::list_attributes::engine::description(&args[0].value)?.is_some() {
+                    let class = crate::list_attributes::engine::get(&args[0].value, "class")?;
+                    return Ok(Sexp::Logical(vec![Some(!matches!(class, Sexp::Nil))]));
+                }
                 let projection = crate::ordinary_values::read(&args[0].value)?;
+                if let Sexp::Environment(frame) = projection.as_ref() {
+                    return Ok(Sexp::Logical(vec![Some(frame.is_object()?)]));
+                }
                 let value = projection.as_ref();
                 Sexp::Logical(vec![Some(
                     crate::closure_attributes::explicit_class(value).is_some()

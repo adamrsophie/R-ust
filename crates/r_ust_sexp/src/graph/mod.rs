@@ -2,6 +2,7 @@ mod base_bytecode;
 mod bytecode;
 mod cons_objects;
 pub use bytecode::{bytecode_source, BytecodeParts};
+mod environment_attributes;
 mod environments;
 mod frames;
 mod heap;
@@ -117,4 +118,6 @@ pub struct PairListObject(Link);
 mod gc_reference_history_tests;
 
 mod value_objects;
-pub use value_objects::{ValueImport, ValueKind, ValueObject, ValueObjectRetention, ValueView};
+pub use value_objects::{
+    ValueBorrow, ValueImport, ValueKind, ValueObject, ValueObjectRetention, ValueView,
+};

@@ -11,7 +11,8 @@ impl Writer<'_> {
         context: (bool, u8),
     ) -> Result<(), LanguagePrintError> {
         let (fnarg, left) = context;
-        match head {
+        let projected = super::managed::inspect(head)?;
+        match projected.as_ref() {
             Sexp::Symbol(name) => {
                 self.check_name(name)?;
                 if self.profile.is_none() {
@@ -49,9 +50,7 @@ impl Writer<'_> {
                         }
                     }
                     Kind::Dollar => match args {
-                        [_, rhs] if matches!(&rhs.value, Sexp::Symbol(_)) => {}
-                        [_, rhs] if matches!(&rhs.value, Sexp::String(values) if matches!(values.as_slice(), [Some(_)])) =>
-                            {}
+                        [_, rhs] if dollar_member(&rhs.value)? => {}
                         _ => op.kind = Kind::Call,
                     },
                     _ => {}
@@ -81,7 +80,7 @@ impl Writer<'_> {
                         let Some((target, indices)) = args.split_first() else {
                             return Err(LanguagePrintError::MalformedCall);
                         };
-                        let parens = operators::needs_parens(op, &target.value, (true, left));
+                        let parens = operators::needs_parens(op, &target.value, (true, left))?;
                         if parens {
                             self.emit("(");
                         }
@@ -107,7 +106,7 @@ impl Writer<'_> {
             }
             Sexp::String(_) if self.profile.is_none() => Err(LanguagePrintError::MalformedCall),
             _ => {
-                let parens = operators::parenthesize_caller(head);
+                let parens = operators::parenthesize_caller(head)?;
                 if parens {
                     self.emit("(");
                 }
@@ -154,7 +153,10 @@ impl Writer<'_> {
                 return Err(LanguagePrintError::MalformedCall);
             };
             self.emit(&self.tag_name(tag)?);
-            if !matches!(arg.value, Sexp::MissingValue) {
+            if !matches!(
+                super::managed::inspect(&arg.value)?.as_ref(),
+                Sexp::MissingValue
+            ) {
                 self.emit(" = ");
                 self.fnarg = true;
                 self.write(&arg.value)?;
@@ -169,4 +171,12 @@ impl Writer<'_> {
         }
         Ok(())
     }
+}
+
+fn dollar_member(value: &Sexp) -> Result<bool, LanguagePrintError> {
+    let value = super::managed::inspect(value)?;
+    Ok(matches!(value.as_ref(), Sexp::Symbol(_))
+        || value
+            .character_values()
+            .is_some_and(|values| matches!(values, [Some(_)])))
 }

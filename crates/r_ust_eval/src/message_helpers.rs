@@ -52,11 +52,17 @@ impl RuntimeState {
     }
 }
 
+#[cfg(test)]
+mod tests;
+
 pub(super) fn list_character(value: &Sexp) -> Result<String, EvalError> {
+    let projection = crate::ordinary_values::read(value)?;
+    let value = projection.as_ref();
+    if let Some(values) = value.character_values().filter(|values| values.len() == 1) {
+        return Ok(values[0].clone().unwrap_or_else(|| "NA".into()));
+    }
     match value {
-        Sexp::String(values) | Sexp::AttributedCharacter { values, .. } if values.len() == 1 => {
-            Ok(values[0].clone().unwrap_or_else(|| "NA".into()))
-        }
+        Sexp::Raw(_) => crate::language_print::format_language(value).map_err(EvalError::from),
         Sexp::Logical(values) if values.len() == 1 => Ok(match values[0] {
             Some(true) => "TRUE",
             Some(false) => "FALSE",
@@ -68,6 +74,9 @@ pub(super) fn list_character(value: &Sexp) -> Result<String, EvalError> {
         }
         Sexp::Real(values) if values.len() == 1 => Ok(super::format_number(values[0])),
         Sexp::Nil
+        | Sexp::Managed(_)
+        | Sexp::AttributedAtomic { .. }
+        | Sexp::AttributedAggregate { .. }
         | Sexp::MissingArg(_)
         | Sexp::Symbol(_)
         | Sexp::MissingValue
